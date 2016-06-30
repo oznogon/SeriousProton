@@ -69,13 +69,13 @@ float SoundManager::getMusicVolume()
     return music_volume;
 }
 
-void SoundManager::playSound(string name, float pitch, float volume)
+void SoundManager::playSound(string name, float pitch, float volume, bool looping)
 {
     sf::SoundBuffer* data = soundMap[name];
     if (data == NULL)
         data = loadSound(name);
-    
-    playSoundData(data, pitch, volume);
+
+    playSoundData(data, pitch, volume, looping);
 }
 
 void SoundManager::setListenerPosition(sf::Vector2f position, float angle)
@@ -91,7 +91,7 @@ void SoundManager::disablePositionalSound()
     positional_sound_enabled = false;
 }
 
-void SoundManager::playSound(string name, sf::Vector2f position, float min_distance, float attenuation, float pitch, float volume)
+void SoundManager::playSound(string name, sf::Vector2f position, float min_distance, float attenuation, float pitch, float volume, bool looping)
 {
     if (!positional_sound_enabled)
         return;
@@ -150,7 +150,7 @@ void SoundManager::playTextToSpeech(string text)
     sf::SoundBuffer* data = soundMap[name];
     if (data != NULL)
     {
-        playSoundData(data, 1.0, 100.0);
+        playSoundData(data, 1.0, 100.0, false);
         return;
     }
 
@@ -165,7 +165,7 @@ void SoundManager::playTextToSpeech(string text)
         sf::SoundBuffer* data = new sf::SoundBuffer();
         data->loadFromMemory(wave.data(), wave.size());
         soundMap[name] = data;
-        playSoundData(data, 1.0, 100.0);
+        playSoundData(data, 1.0, 100.0, false);
     }
     else
     {
@@ -173,7 +173,7 @@ void SoundManager::playTextToSpeech(string text)
     }
 }
 
-void SoundManager::playSoundData(sf::SoundBuffer* data, float pitch, float volume)
+void SoundManager::playSoundData(sf::SoundBuffer* data, float pitch, float volume, bool looping)
 {
     for(unsigned int n=0; n<activeSoundList.size(); n++)
     {
@@ -187,6 +187,7 @@ void SoundManager::playSoundData(sf::SoundBuffer* data, float pitch, float volum
             sound.setPitch(pitch);
             sound.setVolume(volume);
             sound.setPosition(0, 0, 0);
+            sound.setLoop(looping);
             sound.play();
             return;
         }

@@ -47,17 +47,17 @@ public:
     void stopMusic();
     void setMusicVolume(float volume);
     float getMusicVolume();
-    void playSound(string name, float pitch = 1.0f, float volume = 100.0f);
+    void playSound(string name, float pitch = 1.0f, float volume = 100.0f, bool looping = false);
 
     //Positional sounds
     void setListenerPosition(sf::Vector2f position, float angle);
     void disablePositionalSound();
-    void playSound(string name, sf::Vector2f position, float min_distance, float attenuation, float pitch = 1.0f, float volume = 100.0f);
+    void playSound(string name, sf::Vector2f position, float min_distance, float attenuation, float pitch = 1.0f, float volume = 100.0f, bool looping = false);
 
     void setTextToSpeachVoice(string name);
     void playTextToSpeech(string text);
 private:
-    void playSoundData(sf::SoundBuffer* data, float pitch, float volume);
+    void playSoundData(sf::SoundBuffer* data, float pitch, float volume, bool looping = false);
     sf::SoundBuffer* loadSound(string name);
     
     void startMusic(P<ResourceStream> stream, bool loop=false);
