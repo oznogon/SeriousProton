@@ -137,16 +137,16 @@ std::vector<ServerScanner::ServerInfo> ServerScanner::getServerList()
 
 void ServerScanner::masterServerScanThread()
 {
-    if (!master_server_url.startswith("http://"))
+    if (!master_server_url.startswith("http://") && !master_server_url.startswith("https://"))
     {
-        LOG(ERROR) << "Master server URL does not start with \"http://\"";
+        LOG(ERROR) << "Master server URL " << master_server_url << " does not start with \"http://\" or \"https://\"";
         return;
     }
     string hostname = master_server_url.substr(7);
     int path_start = hostname.find("/");
     if (path_start < 0)
     {
-        LOG(ERROR) << "Master server URL has no uri after hostname";
+        LOG(ERROR) << "Master server URL has no URI after hostname";
         return;
     }
     string uri = hostname.substr(path_start + 1);
