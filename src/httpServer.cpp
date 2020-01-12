@@ -293,10 +293,32 @@ void HttpServerConnection::handleRequest()
     request.parameters.clear();
 }
 
-void HttpServerConnection::sendHeaders()
+void HttpServerConnection::sendHeaders(const string content_type = "html")
 {
     string reply = string("HTTP/1.1 ") + string(reply_code) + " OK\r\n";
-    reply += "Content-type: text/html\r\n";
+    reply += "Content-type: ";
+    if (content_type == "css") {
+        reply += "text/css";
+    } else if (content_type == "json") {
+        reply += "application/json";
+    } else if (content_type == "js") {
+        reply += "application/javascript";
+    } else if (content_type == "txt") {
+        reply += "text/plain";
+    } else if (content_type == "jpg" || content_type == "jpeg") {
+        reply += "image/jpg";
+    } else if (content_type == "png") {
+        reply += "image/png";
+    } else if (content_type == "gif") {
+        reply += "image/gif";
+    } else if (content_type == "svg") {
+        reply += "image/svg+xml";
+    } else if (content_type == "ico") {
+        reply += "image/x-icon";
+    } else {
+        reply += "text/html";
+    }
+    reply += "\r\n";
     reply += "Connection: Keep-Alive\r\n";
     reply += "Transfer-Encoding: chunked\r\n";
     reply += "\r\n";
@@ -304,10 +326,10 @@ void HttpServerConnection::sendHeaders()
     headers_send = true;
 }
 
-void HttpServerConnection::sendData(const char* data, size_t data_length)
+void HttpServerConnection::sendData(const char* data, size_t data_length, const string extension)
 {
     if (!headers_send)
-        sendHeaders();
+        sendHeaders(extension);
     if (data_length < 1)
         return;
     string chunk_len_string = string::hex(data_length) + "\r\n";
@@ -325,6 +347,16 @@ bool HttpRequestFileHandler::handleRequest(HttpRequest& request, HttpServerConne
     if (request.path.find("..") != -1)
         return false;
 
+    // Get extension, or assume HTML
+    string extension = "html";
+    if (request.path.length() > 5)
+    {
+        string path_ending = request.path.substr(request.path.length() - 5);
+        string extension_pos = path_ending.find(".") + 1;
+        if (extension_pos >= 0)
+            extension = path_ending.substr(extension_pos);
+    }
+
     string fullPath = base_path + request.path;
     f = fopen(fullPath.c_str(), "rb");
     if (!f)
@@ -336,7 +368,7 @@ bool HttpRequestFileHandler::handleRequest(HttpRequest& request, HttpServerConne
         size_t n = fread(buffer, 1, sizeof(buffer), f);
         if (n < 1)
             break;
-        connection->sendData(buffer, n);
+        connection->sendData(buffer, n, extension);
     }
     fclose(f);
     return true;
