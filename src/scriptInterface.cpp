@@ -146,6 +146,9 @@ void ScriptObject::createLuaState()
     lua_rawset(L, -3);
     lua_setmetatable(L, -2);
 
+    // Override Lua's print() function with our log() function.
+    lua_register(L, "print", log);
+
     //Register the destroyScript function. This needs a reference back to the script object, we pass this as an upvalue.
     lua_pushstring(L, "destroyScript");
     lua_pushlightuserdata(L, this);
