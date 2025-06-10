@@ -167,20 +167,26 @@ bool FreetypeFont::getGlyphInfo(int char_code, int pixel_size, Font::GlyphInfo& 
 Image FreetypeFont::drawGlyph(int char_code, int pixel_size)
 {
     FT_Face face = static_cast<FT_Face>(ft_face);
+    // FT_Set_Pixel_Sizes(face, 0, pixel_size);
     
     int glyph_index = FT_Get_Char_Index(face, char_code);
     if (glyph_index != 0 && FT_Load_Glyph(face, glyph_index, FT_LOAD_DEFAULT) == 0)
     {
         FT_Glyph glyph;
+        // FT_GlyphSlot glyph_slot = face->glyph;
         if (FT_Get_Glyph(face->glyph, &glyph) == 0)
         {
             FT_Glyph_To_Bitmap(&glyph, FT_RENDER_MODE_NORMAL, 0, 1);
             FT_Bitmap& bitmap = FT_BitmapGlyph(glyph)->bitmap;
-            
+
             const uint8_t* src_pixels = bitmap.buffer;
+            // int glyph_height = glyph_slot->metrics.height / pixel_size;
+            // LOG(INFO) << "int glyph_height = " << glyph_height;
+
             //We make a full white image, and then copy the alpha from the freetype render
             std::vector<glm::u8vec4> image_pixels;
             image_pixels.resize(bitmap.width * bitmap.rows, {255,255,255,255});
+            LOG(INFO) << "bitmap.rows: " << bitmap.rows;
             if (bitmap.pixel_mode == FT_PIXEL_MODE_MONO)
             {
                 SDL_assert(false); //TODO
@@ -227,7 +233,7 @@ float FreetypeFont::getKerning(int previous_char_code, int current_char_code)
     if (FT_HAS_KERNING(face))
     {
         FT_Vector kerning;
-        FT_Get_Kerning(face, FT_Get_Char_Index(face, previous_char_code), FT_Get_Char_Index(face, current_char_code), FT_KERNING_DEFAULT, &kerning);
+        FT_Get_Kerning(face, FT_Get_Char_Index(face, previous_char_code), FT_Get_Char_Index(face, current_char_code), FT_KERNING_UNSCALED, &kerning);
         if (!FT_IS_SCALABLE(face))
             return float(kerning.x);
         else

@@ -17,6 +17,7 @@
 namespace sp {
 
 static sp::Font* default_font = nullptr;
+static int font_pixel_size = 32;
 
 static sp::Shader* shader = nullptr;
 static unsigned int vertices_vbo = 0;
@@ -191,6 +192,10 @@ void main()
 void RenderTarget::setDefaultFont(sp::Font* font)
 {
     default_font = font;
+}
+void RenderTarget::setDefaultFontPixelSize(int pixel_size)
+{
+    font_pixel_size = std::max(8, pixel_size);
 }
 
 sp::Font* RenderTarget::getDefaultFont()
@@ -411,6 +416,20 @@ void RenderTarget::drawLine(const std::vector<glm::vec2>& points, glm::u8vec4 co
             uint16_t(n + idx), uint16_t(n + idx + 1),
         });
     }
+}
+
+void RenderTarget::drawRectOutline(const sp::Rect& rect, glm::u8vec4 color)
+{
+    std::vector<glm::vec2> points;
+    points.push_back(rect.position);
+    points.push_back(glm::vec2(rect.position.x + rect.size.x, rect.position.y));
+    points.push_back(glm::vec2(rect.position.x + rect.size.x, rect.position.y + rect.size.y));
+    points.push_back(glm::vec2(rect.position.x, rect.position.y + rect.size.y));
+    for (size_t i = 0; i < points.size() - 1; i++)
+    {
+        drawLine(points[i], points[i + 1], color);
+    }
+    drawLine(points[points.size() - 1], points[0], color);
 }
 
 void RenderTarget::drawLineBlendAdd(const std::vector<glm::vec2>& points, glm::u8vec4 color)
@@ -665,7 +684,7 @@ void RenderTarget::drawText(sp::Rect rect, std::string_view text, Alignment alig
 {
     if (!font)
         font = default_font;
-    auto prepared = font->prepare(text, 32, font_size, color, rect.size, align, flags);
+    auto prepared = font->prepare(text, font_pixel_size, font_size, color, rect.size, align, flags);
     drawText(rect, prepared, flags);
 }
 
@@ -675,7 +694,7 @@ void RenderTarget::drawText(sp::Rect rect, const sp::Font::PreparedFontString& p
     for(auto gd : prepared.data)
     {
         Font::GlyphInfo glyph;
-        if (gd.char_code == 0 || !prepared.getFont()->getGlyphInfo(gd.char_code, 32, glyph))
+        if (gd.char_code == 0 || !prepared.getFont()->getGlyphInfo(gd.char_code, font_pixel_size, glyph))
         {
             glyph.advance = 0.0f;
             glyph.bounds.size.x = 0.0f;
@@ -687,15 +706,15 @@ void RenderTarget::drawText(sp::Rect rect, const sp::Font::PreparedFontString& p
             auto it = ags.find(gd.char_code);
             if (it == ags.end())
             {
-                uv_rect = atlas_texture->add(prepared.getFont()->drawGlyph(gd.char_code, 32), 1);
+                uv_rect = atlas_texture->add(prepared.getFont()->drawGlyph(gd.char_code, font_pixel_size), 1);
                 ags[gd.char_code] = uv_rect;
-                //LOG(Info, "Added glyph '", char(gd.char_code), "' to atlas@", uv_rect.position, " ", uv_rect.size, "  ", atlas_texture->usageRate() * 100.0f, "%");
+                LOG(Info, "Added glyph '", char(gd.char_code), "' to atlas@", uv_rect.position, " ", uv_rect.size, "  ", atlas_texture->usageRate() * 100.0f, "%");
             }
             else
             {
                 uv_rect = it->second;
             }
-            float size_scale = gd.size / 32.0f;
+            float size_scale = gd.size / (float)font_pixel_size;
 
             float u0 = uv_rect.position.x;
             float v0 = uv_rect.position.y;
@@ -784,18 +803,18 @@ void RenderTarget::drawRotatedText(glm::vec2 center, float rotation, std::string
 {
     if (!font)
         font = default_font;
-    auto prepared = font->prepare(text, 32, font_size, color, {0.0f, 0.0f}, sp::Alignment::Center, 0);
+    auto prepared = font->prepare(text, font_pixel_size, font_size, color, {0.0f, 0.0f}, sp::Alignment::Center, 0);
 
     auto sin = std::sin(-glm::radians(rotation));
     auto cos = std::cos(-glm::radians(rotation));
     glm::mat2 mat{cos, -sin, sin, cos};
 
     auto& ags = atlas_glyphs[prepared.getFont()];
-    float size_scale = font_size / 32.0f;
+    float size_scale = font_size / (float)font_pixel_size;
     for(auto gd : prepared.data)
     {
         Font::GlyphInfo glyph;
-        if (gd.char_code == 0 || !prepared.getFont()->getGlyphInfo(gd.char_code, 32, glyph))
+        if (gd.char_code == 0 || !prepared.getFont()->getGlyphInfo(gd.char_code, font_pixel_size, glyph))
         {
             glyph.advance = 0.0f;
             glyph.bounds.size.x = 0.0f;
@@ -807,7 +826,7 @@ void RenderTarget::drawRotatedText(glm::vec2 center, float rotation, std::string
             auto it = ags.find(gd.char_code);
             if (it == ags.end())
             {
-                uv_rect = atlas_texture->add(prepared.getFont()->drawGlyph(gd.char_code, 32), 1);
+                uv_rect = atlas_texture->add(prepared.getFont()->drawGlyph(gd.char_code, font_pixel_size), 1);
                 ags[gd.char_code] = uv_rect;
                 LOG(Info, "Added glyph '", char(gd.char_code), "' to atlas@", uv_rect.position, " ", uv_rect.size, "  ", atlas_texture->usageRate() * 100.0f, "%");
             }
