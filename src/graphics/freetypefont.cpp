@@ -182,7 +182,7 @@ Image FreetypeFont::drawGlyph(int char_code, int pixel_size)
             //We make a full white image, and then copy the alpha from the freetype render
             std::vector<glm::u8vec4> image_pixels;
             image_pixels.resize(bitmap.width * bitmap.rows, {255,255,255,255});
-            LOG(INFO) << "bitmap.rows: " << bitmap.rows;
+
             if (bitmap.pixel_mode == FT_PIXEL_MODE_MONO)
             {
                 SDL_assert(false); //TODO
