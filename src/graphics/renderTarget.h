@@ -39,7 +39,6 @@ public:
     void drawLineBlendAdd(const std::vector<glm::vec2>& points, glm::u8vec4 color);
     void drawPoint(glm::vec2 position, glm::u8vec4 color);
     void drawRectColorMultiply(const sp::Rect& rect, glm::u8vec4 color);
-    void drawRectOutline(const sp::Rect& rect, glm::u8vec4 color);
     void drawCircleOutline(glm::vec2 center, float radius, float thickness, glm::u8vec4 color);
     void drawTiled(const sp::Rect& rect, std::string_view texture, glm::vec2 offset={0,0});
     void drawTriangleStrip(const std::initializer_list<glm::vec2>& points, glm::u8vec4 color);

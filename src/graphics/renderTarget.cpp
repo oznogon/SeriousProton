@@ -418,20 +418,6 @@ void RenderTarget::drawLine(const std::vector<glm::vec2>& points, glm::u8vec4 co
     }
 }
 
-void RenderTarget::drawRectOutline(const sp::Rect& rect, glm::u8vec4 color)
-{
-    std::vector<glm::vec2> points;
-    points.push_back(rect.position);
-    points.push_back(glm::vec2(rect.position.x + rect.size.x, rect.position.y));
-    points.push_back(glm::vec2(rect.position.x + rect.size.x, rect.position.y + rect.size.y));
-    points.push_back(glm::vec2(rect.position.x, rect.position.y + rect.size.y));
-    for (size_t i = 0; i < points.size() - 1; i++)
-    {
-        drawLine(points[i], points[i + 1], color);
-    }
-    drawLine(points[points.size() - 1], points[0], color);
-}
-
 void RenderTarget::drawLineBlendAdd(const std::vector<glm::vec2>& points, glm::u8vec4 color)
 {
     finish();
@@ -708,7 +694,7 @@ void RenderTarget::drawText(sp::Rect rect, const sp::Font::PreparedFontString& p
             {
                 uv_rect = atlas_texture->add(prepared.getFont()->drawGlyph(gd.char_code, font_pixel_size), 1);
                 ags[gd.char_code] = uv_rect;
-                LOG(Info, "Added glyph '", char(gd.char_code), "' to atlas@", uv_rect.position, " ", uv_rect.size, "  ", atlas_texture->usageRate() * 100.0f, "%");
+                // LOG(Info, "Added glyph '", char(gd.char_code), "' to atlas@", uv_rect.position, " ", uv_rect.size, "  ", atlas_texture->usageRate() * 100.0f, "%");
             }
             else
             {
