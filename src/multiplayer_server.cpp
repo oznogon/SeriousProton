@@ -1,3 +1,6 @@
+#include <fstream>
+#include <filesystem>
+#include <regex>
 #include "multiplayer_server.h"
 #include "multiplayer_client.h"
 #include "multiplayer_internal.h"
@@ -23,6 +26,36 @@ static std::unordered_map<string, int> multiplayer_stats;
 #define ADD_MULTIPLAYER_STATS(name, bytes) do {} while(0)
 #endif
 
+void writePacketToDisk(sp::io::DataBuffer& packet, string prefix, int id)
+{
+    // Write packet to disk
+    std::ostringstream filename;
+    filename << "packets/packet_" << std::setw(12) << std::setfill('0') << id << "_" << prefix << ".bin";
+    std::ofstream out(filename.str(), std::ios::binary);
+    out.write(reinterpret_cast<const char*>(packet.getData()), packet.getDataSize());
+}
+
+std::map<int, std::vector<std::pair<std::string, sp::io::DataBuffer>>> loadPacketsFromDisk()
+{
+    std::map<int, std::vector<std::pair<std::string, sp::io::DataBuffer>>> packet_map;
+    std::regex filename_regex(R"(packet_(\d+)_(\w+)\.bin)");
+    for (const auto& entry : std::filesystem::directory_iterator("packets")) {
+        if (!entry.is_regular_file()) continue;
+        std::smatch match;
+        std::string filename = entry.path().filename().string();
+        if (std::regex_match(filename, match, filename_regex)) {
+            int timestamp = std::stoi(match[1]);
+            std::string type = match[2];
+            std::ifstream in(entry.path(), std::ios::binary);
+            std::vector<uint8_t> data((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+            sp::io::DataBuffer packet;
+            if (!data.empty())
+                packet.appendRaw(data.data(), data.size());
+            packet_map[timestamp].emplace_back(type, std::move(packet));
+        }
+    }
+    return packet_map;
+}
 
 P<GameServer> game_server;
 
@@ -36,7 +69,7 @@ GameServer::GameServer(string server_name, int version_number, int listen_port)
     sendDataRate = 0.0f;
     sendDataRatePerClient = 0.0f;
     boardcastServerDelay = 0.0f;
-    keep_alive_send_timer.repeat(10);;
+    keep_alive_send_timer.repeat(10);
 
     nextObjectId = 1;
     nextclient_id = 1;
@@ -129,362 +162,618 @@ P<MultiplayerObject> GameServer::getObjectById(int32_t id)
 
 void GameServer::update(float /*gameDelta*/)
 {
-    sp::SystemStopwatch update_run_time_clock;    //Clock used to measure how much time this update cycle is costing us.
-    
-    if (last_update_time.get() < 1.0f / 60.0f) {
-        return; // Only update 60 times per second even if the game runs at higher FPS.
-    }
-    //Calculate our own delta, as we want wall-time delta, the gameDelta can be modified by the current game speed (could even be 0 on pause)
-    float delta = last_update_time.restart();
-
-    sendDataCounter = 0;
-    sendDataCounterPerClient = 0;
-
-    if (lastGameSpeed != engine->getGameSpeed())
+    if (!is_replay)
     {
-        lastGameSpeed = engine->getGameSpeed();
-        sp::io::DataBuffer packet;
-        packet << CMD_SET_GAME_SPEED << lastGameSpeed;
-        sendAll(packet);
-    }
-
-    //Replicate ECS data, we send this as one big packet so ECS state is always consistent on the client.
-    sp::io::DataBuffer ecs_packet;
-    ecs_packet << CMD_ECS_UPDATE;
-    auto empty_ecs_packet_size = ecs_packet.getDataSize();
-#if MULTIPLAYER_COLLECT_DATA_STATS
-    auto ecs_overhead_size = empty_ecs_packet_size;
-#endif
-    //  For each entity, check which version number we last transmitted and if it is changed, transmit creation/deletion of entities.
-    ecs_entity_version.resize(sp::ecs::Entity::entity_version.size(), std::numeric_limits<uint32_t>::max());
-    for(uint32_t index=0; index<sp::ecs::Entity::entity_version.size(); index++) {
-        if (ecs_entity_version[index] != sp::ecs::Entity::entity_version[index]) {
-            if (!(ecs_entity_version[index] & sp::ecs::Entity::destroyed_flag)) {
-                ecs_packet << CMD_ECS_ENTITY_DESTROY << index;
-                for(auto& ecsrb : sp::ecs::MultiplayerReplication::list) {
-                    ecsrb->onEntityDestroyed(index);
-                }
-            }
-            ecs_entity_version[index] = sp::ecs::Entity::entity_version[index];
-            if (!(ecs_entity_version[index] & sp::ecs::Entity::destroyed_flag))
-                ecs_packet << CMD_ECS_ENTITY_CREATE << index << ecs_entity_version[index];
+        sp::SystemStopwatch update_run_time_clock;    //Clock used to measure how much time this update cycle is costing us.
+        
+        if (last_update_time.get() < 1.0f / 60.0f) {
+            return; // Only update 60 times per second even if the game runs at higher FPS.
         }
-    }
-    //  For each component type, check which components are added/changed/deleted and send that over.
-    for(auto& ecsrb : sp::ecs::MultiplayerReplication::list) {
-#if MULTIPLAYER_COLLECT_DATA_STATS
-        auto pre_size = ecs_packet.getDataSize();
-#endif
-        ecsrb->update(ecs_packet);
-#if MULTIPLAYER_COLLECT_DATA_STATS
-        ADD_MULTIPLAYER_STATS("ECS:UPDATE:" + string(typeid(*ecsrb).name()), ecs_packet.getDataSize() - pre_size);
-        ecs_overhead_size += ecs_packet.getDataSize() - pre_size;
-#endif
-    }
-    if (ecs_packet.getDataSize() > empty_ecs_packet_size) {
-        sendAll(ecs_packet);
-        ADD_MULTIPLAYER_STATS("ECS:OVERHEAD", ecs_packet.getDataSize() - ecs_overhead_size);
-    }
+        //Calculate our own delta, as we want wall-time delta, the gameDelta can be modified by the current game speed (could even be 0 on pause)
+        float delta = last_update_time.restart();
+        total_run_time += delta * 100;
 
-    std::vector<int32_t> delList;
-    for(std::unordered_map<int32_t, P<MultiplayerObject> >::iterator i=objectMap.begin(); i != objectMap.end(); i++)
-    {
-        int id = i->first;
-        P<MultiplayerObject> obj = i->second;
-        if (obj)
+        sendDataCounter = 0;
+        sendDataCounterPerClient = 0;
+
+        if (lastGameSpeed != engine->getGameSpeed())
         {
-            if (!obj->replicated)
-            {
-                obj->replicated = true;
-
-                sp::io::DataBuffer packet;
-                generateCreatePacketFor(obj, packet);
-                //Call the isChanged function for each replication info, so the prev_data is updated.
-                for(unsigned int n=0; n<obj->memberReplicationInfo.size(); n++)
-                    obj->memberReplicationInfo[n].isChangedFunction(obj->memberReplicationInfo[n].ptr, &obj->memberReplicationInfo[n].prev_data);
-                sendAll(packet);
-                ADD_MULTIPLAYER_STATS(obj->multiplayerClassIdentifier + "::CREATE", packet.getDataSize());
-            }
+            lastGameSpeed = engine->getGameSpeed();
             sp::io::DataBuffer packet;
-            packet << CMD_UPDATE_VALUE;
-            packet << int32_t(obj->multiplayerObjectId);
-#if MULTIPLAYER_COLLECT_DATA_STATS
-            int overhead = packet.getDataSize();
-#endif
-            int cnt = 0;
-            for(unsigned int n=0; n<obj->memberReplicationInfo.size(); n++)
-            {
-                if (obj->memberReplicationInfo[n].update_timeout > 0.0f)
-                {
-                    obj->memberReplicationInfo[n].update_timeout -= delta;
-                }else{
-                    if ((obj->memberReplicationInfo[n].isChangedFunction)(obj->memberReplicationInfo[n].ptr, &obj->memberReplicationInfo[n].prev_data))
-                    {
-#if MULTIPLAYER_COLLECT_DATA_STATS
-                        int packet_size = packet.getDataSize();
-#endif
-                        packet << int16_t(n);
-                        (obj->memberReplicationInfo[n].sendFunction)(obj->memberReplicationInfo[n].ptr, packet);
-                        cnt++;
-                        ADD_MULTIPLAYER_STATS(obj->multiplayerClassIdentifier + "::" + obj->memberReplicationInfo[n].name, packet.getDataSize() - packet_size);
+            packet << CMD_SET_GAME_SPEED << lastGameSpeed;
+            sendAll(packet);
+        }
 
-                        obj->memberReplicationInfo[n].update_timeout = obj->memberReplicationInfo[n].update_delay;
+        //Replicate ECS data, we send this as one big packet so ECS state is always consistent on the client.
+        sp::io::DataBuffer ecs_packet;
+        ecs_packet << CMD_ECS_UPDATE;
+        auto empty_ecs_packet_size = ecs_packet.getDataSize();
+#if MULTIPLAYER_COLLECT_DATA_STATS
+        auto ecs_overhead_size = empty_ecs_packet_size;
+#endif
+        //  For each entity, check which version number we last transmitted and if it is changed, transmit creation/deletion of entities.
+        ecs_entity_version.resize(sp::ecs::Entity::entity_version.size(), std::numeric_limits<uint32_t>::max());
+        for(uint32_t index=0; index<sp::ecs::Entity::entity_version.size(); index++) {
+            if (ecs_entity_version[index] != sp::ecs::Entity::entity_version[index]) {
+                if (!(ecs_entity_version[index] & sp::ecs::Entity::destroyed_flag)) {
+                    ecs_packet << CMD_ECS_ENTITY_DESTROY << index;
+                    for(auto& ecsrb : sp::ecs::MultiplayerReplication::list) {
+                        ecsrb->onEntityDestroyed(index);
                     }
                 }
+                ecs_entity_version[index] = sp::ecs::Entity::entity_version[index];
+                if (!(ecs_entity_version[index] & sp::ecs::Entity::destroyed_flag))
+                    ecs_packet << CMD_ECS_ENTITY_CREATE << index << ecs_entity_version[index];
             }
-            if (cnt > 0)
-            {
-                sendAll(packet);
-                ADD_MULTIPLAYER_STATS(obj->multiplayerClassIdentifier + "::OVERHEAD", overhead);
-            }
-        }else{
-            delList.push_back(id);
         }
-    }
-    for(unsigned int n=0; n<delList.size(); n++)
-    {
-        sp::io::DataBuffer packet;
-        generateDeletePacketFor(delList[n], packet);
-        sendAll(packet);
-        ADD_MULTIPLAYER_STATS("???::DELETE", packet.getDataSize());
-        objectMap.erase(delList[n]);
-    }
+        //  For each component type, check which components are added/changed/deleted and send that over.
+        for(auto& ecsrb : sp::ecs::MultiplayerReplication::list) {
+#if MULTIPLAYER_COLLECT_DATA_STATS
+            auto pre_size = ecs_packet.getDataSize();
+#endif
+            ecsrb->update(ecs_packet);
+#if MULTIPLAYER_COLLECT_DATA_STATS
+            ADD_MULTIPLAYER_STATS("ECS:UPDATE:" + string(typeid(*ecsrb).name()), ecs_packet.getDataSize() - pre_size);
+            ecs_overhead_size += ecs_packet.getDataSize() - pre_size;
+#endif
+        }
+        if (ecs_packet.getDataSize() > empty_ecs_packet_size) {
+            sendAll(ecs_packet);
+            // Write packet to disk
+            writePacketToDisk(ecs_packet, "ecs", int(total_run_time));
+            ADD_MULTIPLAYER_STATS("ECS:OVERHEAD", ecs_packet.getDataSize() - ecs_overhead_size);
+        }
 
-    handleBroadcastUDPSocket(delta);
+        std::vector<int32_t> delList;
+        for(std::unordered_map<int32_t, P<MultiplayerObject> >::iterator i=objectMap.begin(); i != objectMap.end(); i++)
+        {
+            int id = i->first;
+            P<MultiplayerObject> obj = i->second;
+            if (obj)
+            {
+                if (!obj->replicated)
+                {
+                    obj->replicated = true;
 
-    if (listen_socket.accept(*new_socket))
-    {
-        new_socket->setBlocking(false);
-        new_socket->setDelay(false);
-        newClientConnection(std::move(new_socket));
-        new_socket = std::make_unique<sp::io::network::TcpSocket>();
-    }
+                    sp::io::DataBuffer packet;
+                    generateCreatePacketFor(obj, packet);
+                    //Call the isChanged function for each replication info, so the prev_data is updated.
+                    for(unsigned int n=0; n<obj->memberReplicationInfo.size(); n++)
+                        obj->memberReplicationInfo[n].isChangedFunction(obj->memberReplicationInfo[n].ptr, &obj->memberReplicationInfo[n].prev_data);
+                    sendAll(packet);
+                    writePacketToDisk(ecs_packet, "create", int(total_run_time));
+                    ADD_MULTIPLAYER_STATS(obj->multiplayerClassIdentifier + "::CREATE", packet.getDataSize());
+                }
+                sp::io::DataBuffer packet;
+                packet << CMD_UPDATE_VALUE;
+                packet << int32_t(obj->multiplayerObjectId);
+#if MULTIPLAYER_COLLECT_DATA_STATS
+                int overhead = packet.getDataSize();
+#endif
+                int cnt = 0;
+                for(unsigned int n=0; n<obj->memberReplicationInfo.size(); n++)
+                {
+                    if (obj->memberReplicationInfo[n].update_timeout > 0.0f)
+                    {
+                        obj->memberReplicationInfo[n].update_timeout -= delta;
+                    }else{
+                        if ((obj->memberReplicationInfo[n].isChangedFunction)(obj->memberReplicationInfo[n].ptr, &obj->memberReplicationInfo[n].prev_data))
+                        {
+#if MULTIPLAYER_COLLECT_DATA_STATS
+                            int packet_size = packet.getDataSize();
+#endif
+                            packet << int16_t(n);
+                            (obj->memberReplicationInfo[n].sendFunction)(obj->memberReplicationInfo[n].ptr, packet);
+                            cnt++;
+                            ADD_MULTIPLAYER_STATS(obj->multiplayerClassIdentifier + "::" + obj->memberReplicationInfo[n].name, packet.getDataSize() - packet_size);
+
+                            obj->memberReplicationInfo[n].update_timeout = obj->memberReplicationInfo[n].update_delay;
+                        }
+                    }
+                }
+                if (cnt > 0)
+                {
+                    sendAll(packet);
+                    writePacketToDisk(ecs_packet, "update", int(total_run_time));
+                    ADD_MULTIPLAYER_STATS(obj->multiplayerClassIdentifier + "::OVERHEAD", overhead);
+                }
+            }else{
+                delList.push_back(id);
+            }
+        }
+        for(unsigned int n=0; n<delList.size(); n++)
+        {
+            sp::io::DataBuffer packet;
+            generateDeletePacketFor(delList[n], packet);
+            sendAll(packet);
+            writePacketToDisk(ecs_packet, "delete", int(total_run_time));
+            ADD_MULTIPLAYER_STATS("???::DELETE", packet.getDataSize());
+            objectMap.erase(delList[n]);
+        }
+
+        handleBroadcastUDPSocket(delta);
+
+        if (listen_socket.accept(*new_socket))
+        {
+            new_socket->setBlocking(false);
+            new_socket->setDelay(false);
+            newClientConnection(std::move(new_socket));
+            new_socket = std::make_unique<sp::io::network::TcpSocket>();
+        }
 #ifdef STEAMSDK
-    auto steam_socket = listen_steam.accept();
-    if (steam_socket)
-        newClientConnection(std::move(steam_socket));
+        auto steam_socket = listen_steam.accept();
+        if (steam_socket)
+            newClientConnection(std::move(steam_socket));
 #endif
 
-    for(unsigned int n=0; n<clientList.size(); n++)
-    {
-        sp::io::DataBuffer packet;
-        while(clientList[n].socket && clientList[n].socket->receive(packet))
+        for(unsigned int n=0; n<clientList.size(); n++)
         {
-            switch(clientList[n].receive_state)
+            sp::io::DataBuffer packet;
+            while(clientList[n].socket && clientList[n].socket->receive(packet))
             {
-            case CRS_Auth:
+                switch(clientList[n].receive_state)
                 {
-                    command_t command;
-                    packet >> command;
-                    switch(command)
+                case CRS_Auth:
                     {
-                    case CMD_SERVER_CONNECT_TO_PROXY:
-                        clientList[n].socket->close();
-                        clientList[n].socket = NULL;
-                        break;
-                    case CMD_REQUEST_AUTH:
-                        break;
-                    case CMD_CLIENT_SEND_AUTH:
+                        command_t command;
+                        packet >> command;
+                        switch(command)
                         {
-                            int32_t client_version;
-                            string client_password;
-                            packet >> client_version >> client_password;
-
-                            if (version_number == client_version || version_number == 0 || client_version == 0)
+                        case CMD_SERVER_CONNECT_TO_PROXY:
+                            clientList[n].socket->close();
+                            clientList[n].socket = NULL;
+                            break;
+                        case CMD_REQUEST_AUTH:
+                            break;
+                        case CMD_CLIENT_SEND_AUTH:
                             {
-                                if (server_password == "" || client_password == server_password)
+                                int32_t client_version;
+                                string client_password;
+                                packet >> client_version >> client_password;
+
+                                if (version_number == client_version || version_number == 0 || client_version == 0)
                                 {
-                                    clientList[n].receive_state = CRS_Main;
-                                    handleNewClient(clientList[n]);
+                                    if (server_password == "" || client_password == server_password)
+                                    {
+                                        clientList[n].receive_state = CRS_Main;
+                                        handleNewClient(clientList[n]);
+                                    }else{
+                                        //Wrong password, send a new auth request so the client knows the password was not accepted.
+                                        sp::io::DataBuffer auth_request_packet;
+                                        auth_request_packet << CMD_REQUEST_AUTH << int32_t(version_number) << bool(server_password != "");
+                                        clientList[n].socket->queue(auth_request_packet);
+                                    }
                                 }else{
-                                    //Wrong password, send a new auth request so the client knows the password was not accepted.
-                                    sp::io::DataBuffer auth_request_packet;
-                                    auth_request_packet << CMD_REQUEST_AUTH << int32_t(version_number) << bool(server_password != "");
-                                    clientList[n].socket->queue(auth_request_packet);
+                                    LOG(ERROR) << n << ":Client version mismatch: " << version_number << " != " << client_version;
+                                    clientList[n].socket->close();
+                                    clientList[n].socket = NULL;
                                 }
-                            }else{
-                                LOG(ERROR) << n << ":Client version mismatch: " << version_number << " != " << client_version;
-                                clientList[n].socket->close();
-                                clientList[n].socket = NULL;
+                                break;
                             }
                             break;
-                        }
-                        break;
-                    case CMD_ALIVE_RESP:
-                        {
-                            clientList[n].ping = static_cast<int32_t>(clientList[n].round_trip_start_time.get() * 1000.0f);
-                        }
-                        break;
-                    default:
-                        LOG(ERROR) << "Unknown command from client while authenticating: " << command;
-                        clientList[n].socket->close();
-                        clientList[n].socket = NULL;
-                        break;
-                    }
-                }
-                break;
-            case CRS_Main:
-                {
-                    command_t command;
-                    packet >> command;
-                    switch(command)
-                    {
-                    case CMD_NEW_PROXY_CLIENT:
-                        {
-                            int32_t temp_id = 0;
-                            packet >> temp_id;
-                            handleNewProxy(clientList[n], temp_id);
-                        }
-                        break;
-                    case CMD_DEL_PROXY_CLIENT:
-                        {
-                            int32_t client_id = 0;
-                            packet >> client_id;
-                            for(auto id : clientList[n].proxy_ids)
+                        case CMD_ALIVE_RESP:
                             {
-                                if (id == client_id)
+                                clientList[n].ping = static_cast<int32_t>(clientList[n].round_trip_start_time.get() * 1000.0f);
+                            }
+                            break;
+                        default:
+                            LOG(ERROR) << "Unknown command from client while authenticating: " << command;
+                            clientList[n].socket->close();
+                            clientList[n].socket = NULL;
+                            break;
+                        }
+                    }
+                    break;
+                case CRS_Main:
+                    {
+                        command_t command;
+                        packet >> command;
+                        switch(command)
+                        {
+                        case CMD_NEW_PROXY_CLIENT:
+                            {
+                                int32_t temp_id = 0;
+                                packet >> temp_id;
+                                handleNewProxy(clientList[n], temp_id);
+                            }
+                            break;
+                        case CMD_DEL_PROXY_CLIENT:
+                            {
+                                int32_t client_id = 0;
+                                packet >> client_id;
+                                for(auto id : clientList[n].proxy_ids)
                                 {
-                                    onDisconnectClient(client_id);
+                                    if (id == client_id)
+                                    {
+                                        onDisconnectClient(client_id);
+                                    }
+                                }
+                                clientList[n].proxy_ids.erase(std::remove_if(clientList[n].proxy_ids.begin(), clientList[n].proxy_ids.end(), [client_id](int32_t id) {return id == client_id;}), clientList[n].proxy_ids.end());
+                            }
+                            break;
+                        case CMD_CLIENT_COMMAND:
+                            packet >> clientList[n].command_object_id;
+                            clientList[n].command_client_id = clientList[n].client_id;
+                            clientList[n].receive_state = CRS_Command;
+                            break;
+                        case CMD_PROXY_CLIENT_COMMAND:
+                            {
+                                int32_t client_id = 0;
+                                packet >> clientList[n].command_object_id >> client_id;
+                                clientList[n].command_client_id = clientList[n].client_id;
+                                for(auto id : clientList[n].proxy_ids)
+                                    if (id == client_id)
+                                        clientList[n].command_client_id = client_id;
+                                clientList[n].receive_state = CRS_Command;
+                            }
+                            break;
+                        case CMD_AUDIO_COMM_START:
+                            {
+                                int32_t target_identifier = 0;
+                                int32_t client_id = 0;
+                                packet >> client_id >> target_identifier;
+                                if (client_id == clientList[n].client_id)
+                                {
+                                    startAudio(client_id, target_identifier);
+                                }
+                                else
+                                {
+                                    for(auto id : clientList[n].proxy_ids)
+                                        if (id == client_id)
+                                            startAudio(client_id, target_identifier);
                                 }
                             }
-                            clientList[n].proxy_ids.erase(std::remove_if(clientList[n].proxy_ids.begin(), clientList[n].proxy_ids.end(), [client_id](int32_t id) {return id == client_id;}), clientList[n].proxy_ids.end());
-                        }
-                        break;
-                    case CMD_CLIENT_COMMAND:
-                        packet >> clientList[n].command_object_id;
-                        clientList[n].command_client_id = clientList[n].client_id;
-                        clientList[n].receive_state = CRS_Command;
-                        break;
-                    case CMD_PROXY_CLIENT_COMMAND:
-                        {
-                            int32_t client_id = 0;
-                            packet >> clientList[n].command_object_id >> client_id;
-                            clientList[n].command_client_id = clientList[n].client_id;
-                            for(auto id : clientList[n].proxy_ids)
-                                if (id == client_id)
-                                    clientList[n].command_client_id = client_id;
-                            clientList[n].receive_state = CRS_Command;
-                        }
-                        break;
-                    case CMD_AUDIO_COMM_START:
-                        {
-                            int32_t target_identifier = 0;
-                            int32_t client_id = 0;
-                            packet >> client_id >> target_identifier;
-                            if (client_id == clientList[n].client_id)
+                            break;
+                        case CMD_AUDIO_COMM_DATA:
+                            if (packet.getDataSize() > sizeof(int32_t) + sizeof(command_t))
                             {
-                                startAudio(client_id, target_identifier);
-                            }
-                            else
-                            {
-                                for(auto id : clientList[n].proxy_ids)
-                                    if (id == client_id)
-                                        startAudio(client_id, target_identifier);
-                            }
-                        }
-                        break;
-                    case CMD_AUDIO_COMM_DATA:
-                        if (packet.getDataSize() > sizeof(int32_t) + sizeof(command_t))
-                        {
-                            int32_t client_id;
-                            packet >> client_id;
+                                int32_t client_id;
+                                packet >> client_id;
 
-                            const unsigned char* ptr = reinterpret_cast<const unsigned char*>(packet.getData());
-                            ptr += sizeof(int32_t) + sizeof(command_t);
-                            if (client_id == clientList[n].client_id)
-                            {
-                                gotAudioPacket(client_id, ptr, static_cast<int>(packet.getDataSize()) - sizeof(int32_t) - sizeof(command_t));
+                                const unsigned char* ptr = reinterpret_cast<const unsigned char*>(packet.getData());
+                                ptr += sizeof(int32_t) + sizeof(command_t);
+                                if (client_id == clientList[n].client_id)
+                                {
+                                    gotAudioPacket(client_id, ptr, static_cast<int>(packet.getDataSize()) - sizeof(int32_t) - sizeof(command_t));
+                                }
+                                else
+                                {
+                                    for(auto id : clientList[n].proxy_ids)
+                                        if (id == client_id)
+                                            gotAudioPacket(client_id, ptr, static_cast<int>(packet.getDataSize()) - sizeof(int32_t) - sizeof(command_t));
+                                }
                             }
-                            else
+                            break;
+                        case CMD_AUDIO_COMM_STOP:
                             {
-                                for(auto id : clientList[n].proxy_ids)
-                                    if (id == client_id)
-                                        gotAudioPacket(client_id, ptr, static_cast<int>(packet.getDataSize()) - sizeof(int32_t) - sizeof(command_t));
+                                int32_t client_id;
+                                packet >> client_id;
+                                if (client_id == clientList[n].client_id)
+                                {
+                                    stopAudio(client_id);
+                                }
+                                else
+                                {
+                                    for(auto id : clientList[n].proxy_ids)
+                                        if (id == client_id)
+                                            stopAudio(client_id);
+                                }
                             }
-                        }
-                        break;
-                    case CMD_AUDIO_COMM_STOP:
-                        {
-                            int32_t client_id;
-                            packet >> client_id;
-                            if (client_id == clientList[n].client_id)
+                            break;
+                        case CMD_ALIVE_RESP:
                             {
-                                stopAudio(client_id);
+                                clientList[n].ping = static_cast<int32_t>(clientList[n].round_trip_start_time.get() * 1000.0f);
                             }
-                            else
+                            break;
+                        case CMD_ALIVE:
                             {
-                                for(auto id : clientList[n].proxy_ids)
-                                    if (id == client_id)
-                                        stopAudio(client_id);
+                                sp::io::DataBuffer response_packet;
+                                response_packet << CMD_ALIVE_RESP;
+                                clientList[n].socket->queue(response_packet);
                             }
+                            break;
+                        default:
+                            LOG(ERROR) << "Unknown command from client: " << command;
                         }
-                        break;
-                    case CMD_ALIVE_RESP:
-                        {
-                            clientList[n].ping = static_cast<int32_t>(clientList[n].round_trip_start_time.get() * 1000.0f);
-                        }
-                        break;
-                    case CMD_ALIVE:
-                        {
-                            sp::io::DataBuffer response_packet;
-                            response_packet << CMD_ALIVE_RESP;
-                            clientList[n].socket->queue(response_packet);
-                        }
-                        break;
-                    default:
-                        LOG(ERROR) << "Unknown command from client: " << command;
                     }
+                    break;
+                case CRS_Command:
+                    if (objectMap.find(clientList[n].command_object_id) != objectMap.end() && objectMap[clientList[n].command_object_id])
+                        objectMap[clientList[n].command_object_id]->onReceiveClientCommand(clientList[n].command_client_id, packet);
+                    clientList[n].receive_state = CRS_Main;
+                    break;
                 }
-                break;
-            case CRS_Command:
-                if (objectMap.find(clientList[n].command_object_id) != objectMap.end() && objectMap[clientList[n].command_object_id])
-                    objectMap[clientList[n].command_object_id]->onReceiveClientCommand(clientList[n].command_client_id, packet);
-                clientList[n].receive_state = CRS_Main;
-                break;
             }
-        }
-        if (clientList[n].socket != NULL) {
-            clientList[n].socket->sendSendQueue();
-        }
-        if (clientList[n].socket == NULL || clientList[n].socket->getState() == sp::io::network::StreamSocket::State::Closed)
-        {
-            if (clientList[n].socket)
+            if (clientList[n].socket != NULL) {
+                clientList[n].socket->sendSendQueue();
+            }
+            if (clientList[n].socket == NULL || clientList[n].socket->getState() == sp::io::network::StreamSocket::State::Closed)
             {
-                for(auto id : clientList[n].proxy_ids)
-                    onDisconnectClient(id);
-                onDisconnectClient(clientList[n].client_id);
+                if (clientList[n].socket)
+                {
+                    for(auto id : clientList[n].proxy_ids)
+                        onDisconnectClient(id);
+                    onDisconnectClient(clientList[n].client_id);
+                }
+                clientList.erase(clientList.begin() + n);
+                n--;
             }
-            clientList.erase(clientList.begin() + n);
-            n--;
         }
-    }
 
-    
-    if (keep_alive_send_timer.isExpired())
-    {
-        keepAliveAll();
-    }
+        if (keep_alive_send_timer.isExpired())
+        {
+            keepAliveAll();
+        }
 
-    float dataPerSecond = float(sendDataCounter) / delta;
-    sendDataRate = sendDataRate * (1.f - delta) + dataPerSecond * delta;
-    dataPerSecond = float(sendDataCounterPerClient) / delta;
-    sendDataRatePerClient = sendDataRatePerClient * (1.f - delta) + dataPerSecond * delta;
+        float dataPerSecond = float(sendDataCounter) / delta;
+        sendDataRate = sendDataRate * (1.f - delta) + dataPerSecond * delta;
+        dataPerSecond = float(sendDataCounterPerClient) / delta;
+        sendDataRatePerClient = sendDataRatePerClient * (1.f - delta) + dataPerSecond * delta;
 
 #if MULTIPLAYER_COLLECT_DATA_STATS
-    if (multiplayer_stats_dump.isExpired())
-    {
-        int total = 0;
-        for(std::unordered_map<string, int >::iterator i=multiplayer_stats.begin(); i != multiplayer_stats.end(); i++)
-            total += i->second;
-        printf("---------------------------------Total: %d\n", total);
-        for(std::unordered_map<string, int >::iterator i=multiplayer_stats.begin(); i != multiplayer_stats.end(); i++)
+        if (multiplayer_stats_dump.isExpired())
         {
-            printf("%60s: %d (%d%%)\n", i->first.c_str(), i->second, i->second * 100 / total);
+            int total = 0;
+            for(std::unordered_map<string, int >::iterator i=multiplayer_stats.begin(); i != multiplayer_stats.end(); i++)
+                total += i->second;
+            printf("---------------------------------Total: %d\n", total);
+            for(std::unordered_map<string, int >::iterator i=multiplayer_stats.begin(); i != multiplayer_stats.end(); i++)
+            {
+                printf("%60s: %d (%d%%)\n", i->first.c_str(), i->second, i->second * 100 / total);
+            }
+            multiplayer_stats.clear();
         }
-        multiplayer_stats.clear();
-    }
 #endif
-    update_run_time = update_run_time_clock.get();
+        update_run_time = update_run_time_clock.get();
+    }
+    else
+    {
+        if (last_update_time.get() < 1.0f / 60.0f)
+        {
+            return; // Only update 60 times per second even if the game runs at higher FPS.
+        }
+        float delta = last_update_time.restart();
+        total_run_time += delta * 100;
+
+        sendDataCounter = 0;
+        sendDataCounterPerClient = 0;
+/*
+        if (lastGameSpeed != engine->getGameSpeed())
+        {
+            lastGameSpeed = engine->getGameSpeed();
+            sp::io::DataBuffer packet;
+            packet << CMD_SET_GAME_SPEED << lastGameSpeed;
+            sendAll(packet);
+        }
+*/
+        sp::io::DataBuffer packet;
+        packet << CMD_SET_GAME_SPEED << 1.0f;
+        sendAll(packet);
+
+        // Replay packets
+        if (!replay_packets_loaded)
+        {
+            replay_packets = loadPacketsFromDisk();
+            next_replay_packet = replay_packets.begin();
+            replay_packets_loaded = true;
+        }
+
+        // Send all packets up to current time
+        while (next_replay_packet != replay_packets.end() && next_replay_packet->first <= int(total_run_time))
+        {
+            for (auto& pair : next_replay_packet->second)
+                sendAll(pair.second);
+
+            ++next_replay_packet;
+        }
+
+        if (listen_socket.accept(*new_socket))
+        {
+            new_socket->setBlocking(false);
+            new_socket->setDelay(false);
+            newClientConnection(std::move(new_socket));
+            new_socket = std::make_unique<sp::io::network::TcpSocket>();
+        }
+#ifdef STEAMSDK
+        auto steam_socket = listen_steam.accept();
+        if (steam_socket)
+            newClientConnection(std::move(steam_socket));
+#endif
+
+        for(unsigned int n=0; n<clientList.size(); n++)
+        {
+            sp::io::DataBuffer packet;
+            while(clientList[n].socket && clientList[n].socket->receive(packet))
+            {
+                switch(clientList[n].receive_state)
+                {
+                case CRS_Auth:
+                    {
+                        command_t command;
+                        packet >> command;
+                        switch(command)
+                        {
+                        case CMD_SERVER_CONNECT_TO_PROXY:
+                            clientList[n].socket->close();
+                            clientList[n].socket = NULL;
+                            break;
+                        case CMD_REQUEST_AUTH:
+                            break;
+                        case CMD_CLIENT_SEND_AUTH:
+                            {
+                                int32_t client_version;
+                                string client_password;
+                                packet >> client_version >> client_password;
+
+                                if (version_number == client_version || version_number == 0 || client_version == 0)
+                                {
+                                    if (server_password == "" || client_password == server_password)
+                                    {
+                                        clientList[n].receive_state = CRS_Main;
+                                        handleNewClient(clientList[n]);
+                                    }else{
+                                        //Wrong password, send a new auth request so the client knows the password was not accepted.
+                                        sp::io::DataBuffer auth_request_packet;
+                                        auth_request_packet << CMD_REQUEST_AUTH << int32_t(version_number) << bool(server_password != "");
+                                        clientList[n].socket->queue(auth_request_packet);
+                                    }
+                                }else{
+                                    LOG(ERROR) << n << ":Client version mismatch: " << version_number << " != " << client_version;
+                                    clientList[n].socket->close();
+                                    clientList[n].socket = NULL;
+                                }
+                                break;
+                            }
+                            break;
+                        case CMD_ALIVE_RESP:
+                            {
+                                clientList[n].ping = static_cast<int32_t>(clientList[n].round_trip_start_time.get() * 1000.0f);
+                            }
+                            break;
+                        default:
+                            LOG(ERROR) << "Unknown command from client while authenticating: " << command;
+                            clientList[n].socket->close();
+                            clientList[n].socket = NULL;
+                            break;
+                        }
+                    }
+                    break;
+                case CRS_Main:
+                    {
+                        command_t command;
+                        packet >> command;
+                        switch(command)
+                        {
+                        case CMD_NEW_PROXY_CLIENT:
+                            {
+                                int32_t temp_id = 0;
+                                packet >> temp_id;
+                                handleNewProxy(clientList[n], temp_id);
+                            }
+                            break;
+                        case CMD_DEL_PROXY_CLIENT:
+                            {
+                                int32_t client_id = 0;
+                                packet >> client_id;
+                                for(auto id : clientList[n].proxy_ids)
+                                {
+                                    if (id == client_id)
+                                    {
+                                        onDisconnectClient(client_id);
+                                    }
+                                }
+                                clientList[n].proxy_ids.erase(std::remove_if(clientList[n].proxy_ids.begin(), clientList[n].proxy_ids.end(), [client_id](int32_t id) {return id == client_id;}), clientList[n].proxy_ids.end());
+                            }
+                            break;
+                        case CMD_CLIENT_COMMAND:
+                            packet >> clientList[n].command_object_id;
+                            clientList[n].command_client_id = clientList[n].client_id;
+                            clientList[n].receive_state = CRS_Command;
+                            break;
+                        case CMD_PROXY_CLIENT_COMMAND:
+                            {
+                                int32_t client_id = 0;
+                                packet >> clientList[n].command_object_id >> client_id;
+                                clientList[n].command_client_id = clientList[n].client_id;
+                                for(auto id : clientList[n].proxy_ids)
+                                    if (id == client_id)
+                                        clientList[n].command_client_id = client_id;
+                                clientList[n].receive_state = CRS_Command;
+                            }
+                            break;
+                        case CMD_AUDIO_COMM_START:
+                            {
+                                int32_t target_identifier = 0;
+                                int32_t client_id = 0;
+                                packet >> client_id >> target_identifier;
+                                if (client_id == clientList[n].client_id)
+                                {
+                                    startAudio(client_id, target_identifier);
+                                }
+                                else
+                                {
+                                    for(auto id : clientList[n].proxy_ids)
+                                        if (id == client_id)
+                                            startAudio(client_id, target_identifier);
+                                }
+                            }
+                            break;
+                        case CMD_AUDIO_COMM_DATA:
+                            if (packet.getDataSize() > sizeof(int32_t) + sizeof(command_t))
+                            {
+                                int32_t client_id;
+                                packet >> client_id;
+
+                                const unsigned char* ptr = reinterpret_cast<const unsigned char*>(packet.getData());
+                                ptr += sizeof(int32_t) + sizeof(command_t);
+                                if (client_id == clientList[n].client_id)
+                                {
+                                    gotAudioPacket(client_id, ptr, static_cast<int>(packet.getDataSize()) - sizeof(int32_t) - sizeof(command_t));
+                                }
+                                else
+                                {
+                                    for(auto id : clientList[n].proxy_ids)
+                                        if (id == client_id)
+                                            gotAudioPacket(client_id, ptr, static_cast<int>(packet.getDataSize()) - sizeof(int32_t) - sizeof(command_t));
+                                }
+                            }
+                            break;
+                        case CMD_AUDIO_COMM_STOP:
+                            {
+                                int32_t client_id;
+                                packet >> client_id;
+                                if (client_id == clientList[n].client_id)
+                                {
+                                    stopAudio(client_id);
+                                }
+                                else
+                                {
+                                    for(auto id : clientList[n].proxy_ids)
+                                        if (id == client_id)
+                                            stopAudio(client_id);
+                                }
+                            }
+                            break;
+                        case CMD_ALIVE_RESP:
+                            {
+                                clientList[n].ping = static_cast<int32_t>(clientList[n].round_trip_start_time.get() * 1000.0f);
+                            }
+                            break;
+                        case CMD_ALIVE:
+                            {
+                                sp::io::DataBuffer response_packet;
+                                response_packet << CMD_ALIVE_RESP;
+                                clientList[n].socket->queue(response_packet);
+                            }
+                            break;
+                        default:
+                            LOG(ERROR) << "Unknown command from client: " << command;
+                        }
+                    }
+                    break;
+                case CRS_Command:
+                    if (objectMap.find(clientList[n].command_object_id) != objectMap.end() && objectMap[clientList[n].command_object_id])
+                        objectMap[clientList[n].command_object_id]->onReceiveClientCommand(clientList[n].command_client_id, packet);
+                    clientList[n].receive_state = CRS_Main;
+                    break;
+                }
+            }
+            if (clientList[n].socket != NULL) {
+                clientList[n].socket->sendSendQueue();
+            }
+            if (clientList[n].socket == NULL || clientList[n].socket->getState() == sp::io::network::StreamSocket::State::Closed)
+            {
+                if (clientList[n].socket)
+                {
+                    for(auto id : clientList[n].proxy_ids)
+                        onDisconnectClient(id);
+                    onDisconnectClient(clientList[n].client_id);
+                }
+                clientList.erase(clientList.begin() + n);
+                n--;
+            }
+        }
+    }
 }
 
 void GameServer::replicateInitialData(std::function<void(sp::io::DataBuffer&)> send_packet)
@@ -824,4 +1113,10 @@ std::unordered_set<int32_t> GameServer::onVoiceChat(int32_t client_id, int32_t /
         }
     }
     return result;
+}
+
+void GameServer::setIsServerReplay(bool replay)
+{
+    LOG(INFO) << "Replay server";
+    is_replay = replay;
 }

@@ -44,12 +44,17 @@ private:
     sp::SystemStopwatch last_update_time;
     sp::SystemTimer keep_alive_send_timer;
     sp::io::network::UdpSocket broadcast_listen_socket;
-    
+
+    std::map<int, std::vector<std::pair<std::string, sp::io::DataBuffer>>> replay_packets;
+    std::map<int, std::vector<std::pair<std::string, sp::io::DataBuffer>>>::iterator next_replay_packet;
+    bool replay_packets_loaded = false;
+
     sp::io::network::TcpListener listen_socket;
     std::unique_ptr<sp::io::network::TcpSocket> new_socket;
 #ifdef STEAMSDK
     sp::io::network::SteamP2PListener listen_steam;
 #endif
+    bool is_replay = false;
     string server_name;
     int listen_port;
     int version_number;
@@ -60,6 +65,7 @@ private:
     float sendDataRate;
     float sendDataRatePerClient;
     float update_run_time;
+    float total_run_time = 0.0f;
     
     float lastGameSpeed;
     float boardcastServerDelay;
@@ -110,7 +116,9 @@ public:
 
     string getServerName() { return server_name; }
     void setServerName(string name) { server_name = name; }
-    
+    bool getIsServerReplay() { return is_replay; }
+    void setIsServerReplay(bool replay);
+
     void registerOnMasterServer(string master_server_url);
     MasterServerState getMasterServerState() { return master_server_state; }
     void stopMasterServerRegistry();
