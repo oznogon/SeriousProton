@@ -3,6 +3,7 @@
 
 #include <SFML/Network.hpp>
 #include <SFML/Graphics/Color.hpp>
+#include <cstdint>
 #include <stdint.h>
 #include "Updatable.h"
 #include "stringImproved.h"

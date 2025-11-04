@@ -3,6 +3,7 @@
 
 #include "P.h"
 #include "Box2D/Box2D.h"
+#include <cstdint>
 
 class Collisionable;
 class CollisionManager

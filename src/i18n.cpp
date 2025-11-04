@@ -1,5 +1,7 @@
 #include <i18n.h>
 #include <resources.h>
+#include <cstdint>
+#include <vector>
 
 static constexpr uint32_t mo_file_magic = 0x950412de;
 static constexpr uint32_t mo_file_magic_swapped = 0xde120495;

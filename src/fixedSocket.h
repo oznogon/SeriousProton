@@ -2,6 +2,7 @@
 #define FIXED_SOCKET_H
 
 #include <SFML/Network.hpp>
+#include <cstdint>
 #include <list>
 
 //The sf::TcpSocket has some problems with sending partial packets when the the OS buffers are full.
