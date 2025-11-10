@@ -3,6 +3,7 @@
 #include "ecs/query.h"
 #include "engine.h"
 #include "random.h"
+#include "multiplayer_server.h"
 
 #include <glm/trigonometric.hpp>
 #include <glm/geometric.hpp>
@@ -28,9 +29,7 @@ static inline b2Vec2 v2b(glm::vec2 v)
     return b2Vec2(v.x / BOX2D_SCALE, v.y / BOX2D_SCALE);
 }
 
-
 static b2World* world;
-
 
 namespace sp {
 
@@ -45,13 +44,67 @@ struct Collision
 };
 }
 
+// SignificanceCache implementation shared with EmptyEpsilon
+float SignificanceCache::getSignificance(uint32_t entity_index)
+{
+    // Return 1.0f (full rate) for entities not in map
+    auto it = entity_significance.find(entity_index);
+    return (it != entity_significance.end()) ? it->second : 1.0f;
+}
+
+// Implement rebuilding the cache. If called directly, force it.
+// Avoid doing this in a loop; use rebuildIfStale to check.
+void SignificanceCache::rebuild(float now)
+{
+    // Initialize all entities to minimum significance
+    entity_significance.clear();
+    for (auto [e, transform] : sp::ecs::Query<Transform>())
+        entity_significance[e.getIndex()] = min_significance;
+
+    last_update_time = now;
+
+    // For each significant entity (player), mark nearby entities
+    for (auto [sig_entity, sig_transform, sig_comp] : sp::ecs::Query<Transform, MultiplayerSignificant>())
+    {
+        auto sig_pos = sig_transform.getPosition();
+        float max_range = sig_comp.range * 2.0f;
+        float max_range_sq = max_range * max_range;
+
+        for (auto [e, transform] : sp::ecs::Query<Transform>())
+        {
+            auto diff = transform.getPosition() - sig_pos;
+            float distance_sq = glm::dot(diff, diff);
+
+            // Skip distant entities
+            if (distance_sq >= max_range_sq) continue;
+
+            float distance = std::sqrt(distance_sq);
+            float significance = 0.0f;
+
+            // Entities within range get fast updates
+            if (distance < sig_comp.range)
+                significance = 1.0f;
+            else if (distance < sig_comp.range * 2.0f)
+                significance = 1.0f - ((distance - sig_comp.range) / sig_comp.range);
+
+            // Update if more significant
+            auto& current = entity_significance[e.getIndex()];
+            if (significance > current) current = significance;
+        }
+    }
+}
+
+// Rebuild only if the cache is stale
+void SignificanceCache::rebuildIfStale(float now)
+{
+    if (now - last_update_time > cache_update_interval) rebuild(now);
+}
+
 void CollisionSystem::update(float delta)
 {
-    if (!world)
-        world = new b2World(b2Vec2(0, 0));
-    if (delta <= 0.0f)
-        return;
-    
+    if (!world) world = new b2World(b2Vec2(0, 0));
+    if (delta <= 0.0f) return;
+
     // Go over each entity with physics, and create/update bodies if needed.
     for(auto [entity, transform, physics] : sp::ecs::Query<Transform, Physics>()) {
         if (physics.physics_dirty)
@@ -118,16 +171,21 @@ void CollisionSystem::update(float delta)
         sp::ecs::Entity* entity_ptr = (sp::ecs::Entity*)body->GetUserData().pointer;
         Transform* transform;
         Physics* physics = nullptr;
-        if (!*entity_ptr || !(physics = entity_ptr->getComponent<Physics>()) || !(transform = entity_ptr->getComponent<Transform>())) {
+
+        if (!*entity_ptr || !(physics = entity_ptr->getComponent<Physics>()) || !(transform = entity_ptr->getComponent<Transform>()))
+        {
             delete entity_ptr;
             remove_list.push_back(body);
-            if (physics) {
-                // if we have a physics component (thus only missing transform), set it so
+            if (physics)
+            {
+                // If we have a physics component (thus only missing transform), set it so
                 // that we'll recreate the body if the entity gets a transform again later
                 physics->physics_dirty = true;
                 physics->body = nullptr;
             }
-        } else {
+        }
+        else
+        {
             transform->position = b2v(body->GetPosition());
             transform->rotation = glm::degrees(body->GetAngle());
             physics->linear_velocity = b2v(body->GetLinearVelocity());
@@ -135,18 +193,58 @@ void CollisionSystem::update(float delta)
 
             auto position_delta = glm::length(transform->position - transform->last_send_position);
             auto rotation_delta = std::abs(transform->rotation - transform->last_send_rotation);
+
+            // Base adaptive rate calculation based on changes in position/rotation
             auto time_between_updates = 1.0f - position_delta / 200.0f - rotation_delta / 100.0f;
-            if (position_delta  == 0.0f)
-                time_between_updates += random(0.0f, 5.0f);
-            if (time_between_updates < 0.05f)
-                time_between_updates = 0.05f;
+
+            if (position_delta == 0.0f)
+                time_between_updates = std::max(0.05f, time_between_updates + random(0.0f, 5.0f));
+
+            // Use SignificanceCache to modulate update rate by distance from players
+            if (game_server)
+            {
+                float significance = SignificanceCache::getInstance().getSignificance(entity_ptr->getIndex());
+                float significance_range = 5000.0f;
+
+                // Get the actual range from the most significant entity
+                for (auto [sig_entity, sig_transform, sig_comp] : sp::ecs::Query<Transform, MultiplayerSignificant>())
+                {
+                    float distance = glm::length(sig_transform.getPosition() - transform->position);
+                    float calc_sig = 0.0f;
+
+                    if (distance < sig_comp.range)
+                        calc_sig = 1.0f;
+                    else if (distance < sig_comp.range * 2.0f)
+                        calc_sig = 1.0f - ((distance - sig_comp.range) / sig_comp.range);
+
+                    if (calc_sig >= significance)
+                        significance_range = sig_comp.range;
+                }
+
+                // High significance = faster updates
+                if (significance > 0.0f)
+                {
+                    // Scale position_delta by significance_range to normalize movement
+                    float normalized_position_score = (position_delta / significance_range) * 100.0f + rotation_delta * 10.0f;
+
+                    // Adjust time based on significance and normalized movement
+                    time_between_updates = std::max(1.0f - (normalized_position_score * significance), 0.05f);
+                }
+                else
+                {
+                    // If no significant entities are nearby, infrequently update distant objects
+                    time_between_updates = std::max(time_between_updates, 2.0f);
+                }
+            }
+
+            // Update the transform if it hasn't been updated recently
             if (transform->last_send_time + time_between_updates < now)
                 transform->multiplayer_dirty = true;
         }
     }
-    for(auto body : remove_list) {
-        world->DestroyBody(body);
-    }
+
+    // Remove all destroyed bodies.
+    for (auto body : remove_list) world->DestroyBody(body);
 
     // Find all the collisions and process them.
     std::vector<Collision> collisions;

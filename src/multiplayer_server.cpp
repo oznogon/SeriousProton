@@ -149,6 +149,7 @@ void GameServer::update(float /*gameDelta*/)
     }
 
     //Replicate ECS data, we send this as one big packet so ECS state is always consistent on the client.
+    sp::SystemStopwatch ecs_clock;
     sp::io::DataBuffer ecs_packet;
     ecs_packet << CMD_ECS_UPDATE;
     auto empty_ecs_packet_size = ecs_packet.getDataSize();
@@ -156,6 +157,7 @@ void GameServer::update(float /*gameDelta*/)
     auto ecs_overhead_size = empty_ecs_packet_size;
 #endif
     //  For each entity, check which version number we last transmitted and if it is changed, transmit creation/deletion of entities.
+    sp::SystemStopwatch entity_version_clock;
     ecs_entity_version.resize(sp::ecs::Entity::entity_version.size(), std::numeric_limits<uint32_t>::max());
     for(uint32_t index=0; index<sp::ecs::Entity::entity_version.size(); index++) {
         if (ecs_entity_version[index] != sp::ecs::Entity::entity_version[index]) {
@@ -170,22 +172,32 @@ void GameServer::update(float /*gameDelta*/)
                 ecs_packet << CMD_ECS_ENTITY_CREATE << index << ecs_entity_version[index];
         }
     }
-    //  For each component type, check which components are added/changed/deleted and send that over.
+#if MULTIPLAYER_COLLECT_DATA_STATS
+    ADD_MULTIPLAYER_STATS("TIME:ECS:ENTITY_VERSION", static_cast<int>(entity_version_clock.get() * 1000000.0f));
+#endif
+    // For each component type, check which components are added/changed/deleted and send that over.
     for(auto& ecsrb : sp::ecs::MultiplayerReplication::list) {
 #if MULTIPLAYER_COLLECT_DATA_STATS
         auto pre_size = ecs_packet.getDataSize();
 #endif
+        sp::SystemStopwatch component_clock;
         ecsrb->update(ecs_packet);
 #if MULTIPLAYER_COLLECT_DATA_STATS
         ADD_MULTIPLAYER_STATS("ECS:UPDATE:" + string(typeid(*ecsrb).name()), ecs_packet.getDataSize() - pre_size);
         ecs_overhead_size += ecs_packet.getDataSize() - pre_size;
+        ADD_MULTIPLAYER_STATS("TIME:ECS:" + string(typeid(*ecsrb).name()), static_cast<int>(component_clock.get() * 1000000.0f)); // microseconds
 #endif
     }
     if (ecs_packet.getDataSize() > empty_ecs_packet_size) {
         sendAll(ecs_packet);
+#if MULTIPLAYER_COLLECT_DATA_STATS
         ADD_MULTIPLAYER_STATS("ECS:OVERHEAD", ecs_packet.getDataSize() - ecs_overhead_size);
+#endif
     }
-
+#if MULTIPLAYER_COLLECT_DATA_STATS
+    ADD_MULTIPLAYER_STATS("TIME:ECS:TOTAL", static_cast<int>(ecs_clock.get() * 1000000.0f));
+#endif
+    sp::SystemStopwatch legacy_clock;
     std::vector<int32_t> delList;
     for(std::unordered_map<int32_t, P<MultiplayerObject> >::iterator i=objectMap.begin(); i != objectMap.end(); i++)
     {
@@ -226,7 +238,11 @@ void GameServer::update(float /*gameDelta*/)
                         packet << int16_t(n);
                         (obj->memberReplicationInfo[n].sendFunction)(obj->memberReplicationInfo[n].ptr, packet);
                         cnt++;
+#ifdef DEBUG
                         ADD_MULTIPLAYER_STATS(obj->multiplayerClassIdentifier + "::" + obj->memberReplicationInfo[n].name, packet.getDataSize() - packet_size);
+#else
+                        ADD_MULTIPLAYER_STATS(obj->multiplayerClassIdentifier + "::#" + string(n), packet.getDataSize() - packet_size);
+#endif
 
                         obj->memberReplicationInfo[n].update_timeout = obj->memberReplicationInfo[n].update_delay;
                     }
@@ -249,7 +265,11 @@ void GameServer::update(float /*gameDelta*/)
         ADD_MULTIPLAYER_STATS("???::DELETE", packet.getDataSize());
         objectMap.erase(delList[n]);
     }
+#if MULTIPLAYER_COLLECT_DATA_STATS
+    ADD_MULTIPLAYER_STATS("TIME:LEGACY_OBJECTS", static_cast<int>(legacy_clock.get() * 1000000.0f));
+#endif
 
+    sp::SystemStopwatch network_clock;
     handleBroadcastUDPSocket(delta);
 
     if (listen_socket.accept(*new_socket))
@@ -459,11 +479,15 @@ void GameServer::update(float /*gameDelta*/)
         }
     }
 
-    
+
     if (keep_alive_send_timer.isExpired())
     {
         keepAliveAll();
     }
+
+#if MULTIPLAYER_COLLECT_DATA_STATS
+    ADD_MULTIPLAYER_STATS("TIME:NETWORK", static_cast<int>(network_clock.get() * 1000000.0f));
+#endif
 
     float dataPerSecond = float(sendDataCounter) / delta;
     sendDataRate = sendDataRate * (1.f - delta) + dataPerSecond * delta;
@@ -476,10 +500,26 @@ void GameServer::update(float /*gameDelta*/)
         int total = 0;
         for(std::unordered_map<string, int >::iterator i=multiplayer_stats.begin(); i != multiplayer_stats.end(); i++)
             total += i->second;
-        printf("---------------------------------Total: %d\n", total);
-        for(std::unordered_map<string, int >::iterator i=multiplayer_stats.begin(); i != multiplayer_stats.end(); i++)
+        LOG(INFO) << "=== Multiplayer Packet Stats (last 1s) ===";
+        LOG(INFO) << "Total bytes sent: " << total;
+
+        // Sort by size for better readability
+        std::vector<std::pair<string, int>> sorted_stats(multiplayer_stats.begin(), multiplayer_stats.end());
+        std::sort(sorted_stats.begin(), sorted_stats.end(),
+                  [](const std::pair<string, int>& a, const std::pair<string, int>& b) {
+                      return a.second > b.second;
+                  });
+
+        for(const auto& stat : sorted_stats)
         {
-            printf("%60s: %d (%d%%)\n", i->first.c_str(), i->second, i->second * 100 / total);
+            if (stat.first.substr(0, 5) == "TIME:") {
+                // Timing stats - convert from microseconds to milliseconds
+                LOG(INFO) << "  " << stat.first << ": " << (stat.second / 1000.0f) << " ms";
+            } else if (total > 0) {
+                LOG(INFO) << "  " << stat.first << ": " << stat.second << " bytes (" << (stat.second * 100 / total) << "%)";
+            } else {
+                LOG(INFO) << "  " << stat.first << ": " << stat.second << " bytes";
+            }
         }
         multiplayer_stats.clear();
     }

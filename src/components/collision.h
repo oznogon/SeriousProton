@@ -82,4 +82,38 @@ private:
     friend class sp::multiplayer::PhysicsReplication;
 };
 
+// MultiplayerSignificant component marks entities (usually player ships) that are used
+// to calculate significance for network replication rate limiting.
+// Objects near significant entities get updated more frequently.
+class MultiplayerSignificant
+{
+public:
+    // Distance within which objects are considered most significant
+    float range = 5000.0f;
+
+    MultiplayerSignificant() = default;
+    explicit MultiplayerSignificant(float range) : range(std::max(0.1f, std::min(range, 100000.0f))) {}
+};
+
+// Global significance cache calculated at 20Hz, shared across all systems
+// to avoid duplicate O(N×M) calculations
+struct SignificanceCache
+{
+    std::unordered_map<uint32_t, float> entity_significance;
+    float last_update_time = -1.0f;
+
+    // Update cache at 20Hz (original network branch rate)
+    static constexpr float cache_update_interval = 1.0f / 20.0f;
+    static constexpr float min_significance = 0.1f;
+
+    static SignificanceCache& getInstance() {
+        static SignificanceCache instance;
+        return instance;
+    }
+
+    float getSignificance(uint32_t entity_index);
+    void rebuildIfStale(float now);
+    void rebuild(float now);
+};
+
 }
