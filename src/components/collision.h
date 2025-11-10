@@ -8,7 +8,7 @@ namespace sp {
 namespace multiplayer { class TransformReplication; class PhysicsReplication; }
 class CollisionSystem;
 
-// Transform component, to give an entity a position and rotation in the 3D world.
+// Transform component grants an entity a position and rotation in the 3D world.
 class Transform
 {
 public:
@@ -36,10 +36,12 @@ private:
     friend class sp::multiplayer::TransformReplication;
 };
 
-// The physics component will give the entity a physical presents in the physic simulation
-//  this includes collision feedback. A physics component does nothing on it's own, it needs a Position component as well.
-//  The position component will be updated by the physics system on each physics step. Updating the position component from another location will force the
-//  physics to move the object to that position.
+// The Physics component grants an entity a physical presence in the physics
+// simulation, including collision feedback. A physics component does nothing
+// on its own; it also needs a Transform component for positioning.
+// The Physics system updates the Transform component on each physics step.
+// Updating the Transform position from another location forces the Physics
+// system to move the object to that position.
 class Physics
 {
 public:
@@ -58,6 +60,7 @@ public:
     void setRectangle(Type type, glm::vec2 new_size) { if (type == this->type && shape == Shape::Rectangle && size == new_size) return; this->type = type; shape = Shape::Rectangle; size = new_size; physics_dirty = true; multiplayer_dirty = true; }
     Shape getShape() const { return shape; }
     glm::vec2 getSize() const { return size; }
+    float getArea() const { if (shape == Shape::Rectangle) return size.x * size.y; return static_cast<float>(M_PI) * size.x * size.y; }
 
     glm::vec2 getVelocity() const { return linear_velocity; }
     float getAngularVelocity() const { return angular_velocity; }
@@ -70,7 +73,7 @@ private:
 
     Type type = Type::Sensor;
     Shape shape = Shape::Circle;
-    glm::vec2 size{1.0, 1.0};
+    glm::vec2 size{1.0f, 1.0f};
 
     b2Body* body = nullptr;
     glm::vec2 linear_velocity{};
