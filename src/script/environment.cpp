@@ -1,11 +1,43 @@
 #include "script/environment.h"
 #include "script/component.h"
+#include "logging.h"
 #include <string.h>
 
 
 namespace sp::script {
 
 std::unordered_map<std::string, ComponentRegistry> ComponentRegistry::components;
+
+// Internal type to validate destroyScript upvalue (Environment ref) and log
+// destruction requests for debugging.
+struct ScriptDestructionHandle
+{
+    Environment* environment;
+    uint64_t generation_id;
+
+    bool isValid() const
+    {
+        return Environment::isValidEnvironment(environment, generation_id);
+    }
+
+    void markForDestruction()
+    {
+        if (!isValid())
+        {
+            LOG(Warning, "destroyScript() called on an invalid or destroyed environment.");
+            return;
+        }
+
+        if (environment->isMarkedForDestruction())
+        {
+            LOG(Debug, "destroyScript() called again on ", environment->getScriptName(), " after it was already marked for destruction.");
+            return;
+        }
+
+        LOG(Debug, "Marking script ", environment->getScriptName(), " for destruction.");
+        environment->marked_for_destruction = true;
+    }
+};
 
 class LuaTableComponent {
 public:
@@ -33,8 +65,50 @@ public:
 
 lua_State* Environment::L = nullptr;
 
+/// void destroyScript()
+/// Destroys the currently running script.
+/// Use this to clean up scripts that are no longer needed, such as when their associated entity is destroyed.
+/// This function works when called from anywhere in the script, including:
+///   - The script's update() function
+///   - Callback functions
+///   - Functions called from callbacks
+/// The script is not destroyed immediately, but is marked for removal after the current update cycle completes.
+///
+/// Each script's destroyScript() function is a closure that contains a validated reference to that script's environment, regardless of its call context.
+///
+/// Update function example:
+/// function update(delta)
+///     if not my_ship:isValid() then
+///         destroyScript()
+///         return
+///     end
+/// end
+///
+/// Callback example:
+/// ship:addCustomButton("Relay", "abort", "Abort request", function()
+///     destroyScript()
+/// end)
+static int luaDestroyScript(lua_State* L)
+{
+    // Validate Lua script environment handle as a ScriptDestructionHandle.
+    auto* handle = static_cast<ScriptDestructionHandle*>(lua_touserdata(L, lua_upvalueindex(1)));
+
+    if (handle)
+    {
+        LOG(Debug, "ScriptDestructionHandle valid, calling markForDestruction().");
+        handle->markForDestruction();
+    }
+    else LOG(Error, "destroyScript() called with an invalid handle!");
+    return 0;
+}
+
 Environment::Environment(Environment* parent)
 {
+    // Initialize environment ID and register in validation set.
+    environment_id = nextEnvironmentId();
+    getValidEnvironments().insert(this);
+    script_name = "unnamed_script_" + std::to_string(environment_id);
+
     getLuaState();
     lua_newtable(L);
     lua_pushvalue(L, -1);
@@ -47,6 +121,15 @@ Environment::Environment(Environment* parent)
         lua_getglobal(L, s);
         lua_setfield(L, -2, s);
     }
+
+    // Register destroyScript a ScriptDestructionHandle upvalue.
+    ScriptDestructionHandle* handle = static_cast<ScriptDestructionHandle*>(
+        lua_newuserdata(L, sizeof(ScriptDestructionHandle))
+    );
+    handle->environment = this;
+    handle->generation_id = environment_id;
+    lua_pushcclosure(L, luaDestroyScript, 1);
+    lua_setfield(L, -2, "destroyScript");
 
     lua_newtable(L);  /* meta table for the environment, with an __index pointing to the parent environment so we can access it's data. */
     if (parent) {
@@ -298,8 +381,15 @@ lua_State* Environment::getLuaState()
 
 Environment::~Environment()
 {
+    // Remove from valid environments set to invalidate future destroyScript()
+    // calls against it.
+    getValidEnvironments().erase(this);
+
+    // Clear the environment table from registry (invalidates callbacks from this environment)
     lua_pushnil(L);
     lua_rawsetp(L, LUA_REGISTRYINDEX, this);
+
+    LOG(Debug, "Script environment ", script_name, " destroyed.");
 }
 
 bool Environment::isFunction(const string& function_name)
