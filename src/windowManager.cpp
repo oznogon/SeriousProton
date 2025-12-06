@@ -156,6 +156,7 @@ void Window::create()
 
     // Create the window of the application
     auto size = calculateWindowSize();
+    if (size.x <= 0.0f || size.y <= 0.0f) size = {101.0f, 101.0f};
 
 #if defined(ANDROID)
     auto context_profile_mask = SDL_GL_CONTEXT_PROFILE_ES;
@@ -200,6 +201,33 @@ void Window::create()
     if (!window) {
         LOG(Error, "Failed to create SDL2 window:", SDL_GetError());
         exit(1);
+    }
+
+    // Debug: Check touch device availability after window creation
+    static bool checked_after_window = false;
+    if (!checked_after_window)
+    {
+        checked_after_window = true;
+
+        // Check which video driver SDL actually used
+        const char* video_driver = SDL_GetCurrentVideoDriver();
+        printf("[DEBUG] SDL is using video driver: %s\n", video_driver ? video_driver : "NULL");
+
+        int num_touch_devices = SDL_GetNumTouchDevices();
+        printf("[DEBUG] After window creation: SDL found %d touch device(s)\n", num_touch_devices);
+        for (int i = 0; i < num_touch_devices; i++)
+        {
+            SDL_TouchID id = SDL_GetTouchDevice(i);
+            const char* name = SDL_GetTouchName(i);
+            printf("[DEBUG]   Touch device %d: ID=%lld, Name=%s\n", i, (long long)id, name ? name : "NULL");
+        }
+
+        // Enable gesture recording on all touch devices
+        if (num_touch_devices > 0)
+        {
+            int result = SDL_RecordGesture(-1);
+            printf("[DEBUG] Enabling gesture recording after window creation: result=%d\n", result);
+        }
     }
     if (!gl_context) {
         gl_context = SDL_GL_CreateContext(static_cast<SDL_Window*>(window));
@@ -258,6 +286,19 @@ void Window::handleEvent(const SDL_Event& event)
         break;
     case SDL_MOUSEWHEEL:
         render_chain->onMouseWheelScroll(mapPixelToCoords({event.wheel.mouseX, event.wheel.mouseY}), event.wheel.preciseY);
+        break;
+    case SDL_MULTIGESTURE:
+        {
+            glm::vec2 virtual_pos = {event.mgesture.x * current_virtual_size.x, event.mgesture.y * current_virtual_size.y};
+            printf("[DEBUG] Window::handleEvent SDL_MULTIGESTURE: fingers=%d, dDist=%f, dTheta=%f, normalized=(%f,%f), virtual=(%f,%f), virt_size=(%f,%f)\n",
+                   event.mgesture.numFingers, event.mgesture.dDist, event.mgesture.dTheta,
+                   event.mgesture.x, event.mgesture.y,
+                   virtual_pos.x, virtual_pos.y,
+                   current_virtual_size.x, current_virtual_size.y);
+            printf("[DEBUG] Calling render_chain->onMultiGesture()\n");
+            render_chain->onMultiGesture(virtual_pos, event.mgesture.dTheta, event.mgesture.dDist, event.mgesture.numFingers);
+            printf("[DEBUG] render_chain->onMultiGesture() returned\n");
+        }
         break;
     case SDL_FINGERDOWN:
         render_chain->onPointerDown(sp::io::Pointer::Button::Touch, {event.tfinger.x * current_virtual_size.x, event.tfinger.y * current_virtual_size.y}, event.tfinger.fingerId);
@@ -426,17 +467,15 @@ void Window::setupView()
     current_virtual_size = minimal_virtual_size;
 
     if (window_size.x / window_size.y > current_virtual_size.x / current_virtual_size.y)
-    {
         current_virtual_size.x = current_virtual_size.y / window_size.y * window_size.x;
-    }else{
+    else
         current_virtual_size.y = current_virtual_size.x / window_size.x * window_size.y;
-    }
 }
 
 glm::ivec2 Window::calculateWindowSize() const
 {
     int display_nr = 0;
-    for(auto w : all_windows)
+    for (auto w : all_windows)
     {
         if (w == this)
             break;
@@ -453,21 +492,25 @@ glm::ivec2 Window::calculateWindowSize() const
         display_nr = 0;
         SDL_GetDisplayBounds(display_nr, &rect);
     }
+
     if (mode != Mode::Window && rect.w && rect.h)
     {
         return {rect.w, rect.h};
     }
 
     int scale = 2;
-    while(windowWidth * scale < int(rect.w) && windowHeight * scale < int(rect.h))
+    while (windowWidth * scale < int(rect.w) && windowHeight * scale < int(rect.h))
         scale += 1;
-    windowWidth *= scale - 1;
-    windowHeight *= scale - 1;
+    windowWidth = std::min(1, windowWidth * (scale - 1));
+    windowHeight = std::min(1, windowHeight * (scale - 1));
 
-    while(windowWidth >= int(rect.w) || windowHeight >= int(rect.h) - 100)
+    int count = 0;
+    while ((windowWidth >= int(rect.w) || windowHeight >= int(rect.h) - 100) && count <= 64)
     {
+        count++;
         windowWidth = static_cast<int>(std::floor(windowWidth * 0.9f));
         windowHeight = static_cast<int>(std::floor(windowHeight * 0.9f));
     }
-    return {windowWidth, windowHeight};
+
+    return {std::max(640, windowWidth), std::max(480, windowHeight)};
 }

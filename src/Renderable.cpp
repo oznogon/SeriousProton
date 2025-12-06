@@ -78,6 +78,17 @@ void RenderLayer::onMouseWheelScroll(glm::vec2 position, float value)
         link->onMouseWheelScroll(position, value);
 }
 
+void RenderLayer::onMultiGesture(glm::vec2 position, float dTheta, float dDist, int numFingers)
+{
+    printf("[DEBUG] RenderLayer::onMultiGesture: fingers=%d, dDist=%f, active=%d, renderableCount=%zu\n",
+           numFingers, dDist, active, renderableList.size());
+    if (active)
+        foreach (Renderable, r, renderableList)
+            r->onMultiGesture(position, dTheta, dDist, numFingers);
+    if (link)
+        link->onMultiGesture(position, dTheta, dDist, numFingers);
+}
+
 void RenderLayer::onTextInput(const string& text)
 {
     if (active)

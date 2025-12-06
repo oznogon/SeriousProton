@@ -108,16 +108,56 @@ Engine::Engine()
     } 
 #endif // WIN32
 
+    // EXPERIMENT: Try to prefer Wayland for better touch support
+    // But don't force it via environment variable - let SDL_SetHint handle fallback
+    const char* env_video_driver = getenv("SDL_VIDEODRIVER");
+    if (env_video_driver)
+    {
+        printf("[DEBUG] SDL_VIDEODRIVER environment variable is set to: %s\n", env_video_driver);
+    }
+    else
+    {
+        printf("[DEBUG] SDL_VIDEODRIVER environment variable is not set\n");
+        // Use SDL hint instead of setenv to allow fallback to x11
+        SDL_SetHint(SDL_HINT_VIDEODRIVER, "wayland,x11");
+        printf("[DEBUG] Set SDL_HINT_VIDEODRIVER to try wayland first, fallback to x11\n");
+    }
+
     SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0");
     SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
     SDL_SetHint(SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1"); // Have clicking on a window to get focus generate mouse events. For multimonitor support.
 #ifdef SDL_HINT_ANDROID_SEPARATE_MOUSE_AND_TOUCH
     SDL_SetHint(SDL_HINT_ANDROID_SEPARATE_MOUSE_AND_TOUCH, "1");
+    printf("[DEBUG] Set SDL_HINT_ANDROID_SEPARATE_MOUSE_AND_TOUCH=1\n");
 #elif defined(SDL_HINT_MOUSE_TOUCH_EVENTS)
-    SDL_SetHint(SDL_HINT_MOUSE_TOUCH_EVENTS, "0");
-    SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
+    // EXPERIMENT: Try enabling touch events to see if that helps device detection
+    printf("[DEBUG] EXPERIMENTAL: Setting SDL_HINT_MOUSE_TOUCH_EVENTS=1, SDL_HINT_TOUCH_MOUSE_EVENTS=1\n");
+    SDL_SetHint(SDL_HINT_MOUSE_TOUCH_EVENTS, "1");
+    SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "1");
+#else
+    printf("[DEBUG] No touch/mouse event hints set (using SDL defaults)\n");
 #endif
     SDL_Init(SDL_INIT_EVERYTHING);
+
+    // Debug: List all available video drivers
+    int num_video_drivers = SDL_GetNumVideoDrivers();
+    printf("[DEBUG] SDL supports %d video driver(s):\n", num_video_drivers);
+    for (int i = 0; i < num_video_drivers; i++)
+    {
+        const char* driver = SDL_GetVideoDriver(i);
+        printf("[DEBUG]   %d: %s\n", i, driver ? driver : "NULL");
+    }
+
+    // Debug: Check touch device availability (before window creation)
+    int num_touch_devices = SDL_GetNumTouchDevices();
+    printf("[DEBUG] Before window creation: SDL found %d touch device(s)\n", num_touch_devices);
+    for (int i = 0; i < num_touch_devices; i++)
+    {
+        SDL_TouchID id = SDL_GetTouchDevice(i);
+        const char* name = SDL_GetTouchName(i);
+        printf("[DEBUG]   Touch device %d: ID=%lld, Name=%s\n", i, (long long)id, name ? name : "NULL");
+    }
+
     SDL_ShowCursor(false);
     SDL_StopTextInput();
 
@@ -266,6 +306,20 @@ void Engine::runMainLoop()
 
 void Engine::handleEvent(SDL_Event& event)
 {
+    if (event.type == SDL_FINGERDOWN || event.type == SDL_FINGERUP || event.type == SDL_FINGERMOTION)
+    {
+        printf("[DEBUG] Engine::handleEvent received %s: fingerId=%lld, x=%f, y=%f\n",
+               event.type == SDL_FINGERDOWN ? "SDL_FINGERDOWN" : (event.type == SDL_FINGERUP ? "SDL_FINGERUP" : "SDL_FINGERMOTION"),
+               (long long)event.tfinger.fingerId, event.tfinger.x, event.tfinger.y);
+    }
+
+    if (event.type == SDL_MULTIGESTURE)
+    {
+        printf("[DEBUG] Engine::handleEvent received SDL_MULTIGESTURE: fingers=%d, dDist=%f, dTheta=%f, x=%f, y=%f\n",
+               event.mgesture.numFingers, event.mgesture.dDist, event.mgesture.dTheta,
+               event.mgesture.x, event.mgesture.y);
+    }
+
     if (event.type == SDL_QUIT)
         running = false;
 #ifdef DEBUG
@@ -342,6 +396,13 @@ void Engine::handleEvent(SDL_Event& event)
         window_id = SDL_GetWindowID(SDL_GetMouseFocus());
 #endif
         break;
+    case SDL_MULTIGESTURE:
+    case SDL_DOLLARGESTURE:
+        // Multi-gesture and dollar gesture events don't have windowID field
+        // Use the window that currently has mouse/touch focus
+        if (auto focused_window = SDL_GetMouseFocus())
+            window_id = SDL_GetWindowID(focused_window);
+        break;
     case SDL_TEXTEDITING:
         window_id = event.edit.windowID;
         break;
@@ -351,10 +412,16 @@ void Engine::handleEvent(SDL_Event& event)
     }
     if (window_id != 0)
     {
+        if (event.type == SDL_MULTIGESTURE)
+            printf("[DEBUG] Engine: Routing SDL_MULTIGESTURE to window_id=%u\n", window_id);
+
         foreach(Window, window, Window::all_windows)
             if (window->window && SDL_GetWindowID(static_cast<SDL_Window*>(window->window)) == window_id)
                 window->handleEvent(event);
     }
+    else if (event.type == SDL_MULTIGESTURE)
+        printf("[DEBUG] Engine: SDL_MULTIGESTURE has no window_id, cannot route!\n");
+
     sp::io::Keybinding::handleEvent(event);
 }
 

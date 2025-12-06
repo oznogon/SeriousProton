@@ -1,5 +1,4 @@
-#ifndef RENDERABLE_H
-#define RENDERABLE_H
+#pragma once
 
 #include "graphics/renderTarget.h"
 #include "io/pointer.h"
@@ -21,6 +20,7 @@ public:
     virtual void onPointerDrag(glm::vec2 position, sp::io::Pointer::ID id) {}
     virtual void onPointerUp(glm::vec2 position, sp::io::Pointer::ID id) {}
     virtual void onMouseWheelScroll(glm::vec2 position, float value) {};
+    virtual void onMultiGesture(glm::vec2 position, float dTheta, float dDist, int numFingers) { LOG(Info, "Hi I'm RenderChain::RenderChain"); };
     virtual void onTextInput(const string& text) {}
     virtual void onTextInput(sp::TextInputEvent e) {}
 };
@@ -45,6 +45,7 @@ public:
     virtual void onPointerDrag(glm::vec2 position, sp::io::Pointer::ID id) override;
     virtual void onPointerUp(glm::vec2 position, sp::io::Pointer::ID id) override;
     virtual void onMouseWheelScroll(glm::vec2 position, float value) override;
+    virtual void onMultiGesture(glm::vec2 position, float dTheta, float dDist, int numFingers) override;
     virtual void onTextInput(const string& text) override;
     virtual void onTextInput(sp::TextInputEvent e) override;
 
@@ -69,11 +70,10 @@ class Renderable: public virtual PObject
         virtual void onPointerDrag(glm::vec2 position, sp::io::Pointer::ID id) {}
         virtual void onPointerUp(glm::vec2 position, sp::io::Pointer::ID id) {}
         virtual void onMouseWheelScroll(glm::vec2 position, float value) {};
+        virtual void onMultiGesture(glm::vec2 position, float dTheta, float dDist, int numFingers) { LOG(Info, "Hi I'm Renderable"); };
         virtual void onTextInput(const string& text) {}
         virtual void onTextInput(sp::TextInputEvent e) {}
     protected:
     private:
         RenderLayer* layer;
 };
-
-#endif // RENDERABLE_H

@@ -1,5 +1,4 @@
-#ifndef ENGINE_H
-#define ENGINE_H
+#pragma once
 
 #include <unordered_map>
 #include "stringImproved.h"
@@ -54,5 +53,3 @@ public:
 private:
     void handleEvent(SDL_Event& event);
 };
-
-#endif//ENGINE_H

@@ -111,6 +111,11 @@ void PostProcessor::onMouseWheelScroll(glm::vec2 position, float value)
     chain->onMouseWheelScroll(position, value);
 }
 
+void PostProcessor::onMultiGesture(glm::vec2 position, float dTheta, float dDist, int numFingers)
+{
+    chain->onMultiGesture(position, dTheta, dDist, numFingers);
+}
+
 void PostProcessor::onTextInput(const string& text)
 {
     chain->onTextInput(text);
