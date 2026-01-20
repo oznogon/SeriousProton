@@ -69,10 +69,11 @@ namespace sp {
     public:
         static std::unique_ptr<Details> load(std::vector<uint8_t>&& data)
         {
-            if (!codebook)
+            static bool initialized = false;
+            if (!initialized)
             {
                 basist::basisu_transcoder_init();
-                codebook = std::make_unique<basist::etc1_global_selector_codebook>(basist::g_global_selector_cb_size, basist::g_global_selector_cb);
+                initialized = true;
             }
 
             std::unique_ptr<Details> result{ new Details{} };
@@ -81,9 +82,9 @@ namespace sp {
                 return {};
 
             if (result->transcoder.get_has_alpha())
-                result->best_format = getBestFormatAlpha(result->transcoder.get_format());
+                result->best_format = getBestFormatAlpha(result->transcoder.get_basis_tex_format());
             else
-                result->best_format = getBestFormatOpaque(result->transcoder.get_format());
+                result->best_format = getBestFormatOpaque(result->transcoder.get_basis_tex_format());
 
             result->transcoding_data = std::move(data);
             return result;
@@ -146,8 +147,6 @@ namespace sp {
             return transcoder.get_levels();
         }
     private:
-        static std::unique_ptr<basist::etc1_global_selector_codebook> codebook;
-
         // Use GPU capabilities, in order of preference.
         static basist::transcoder_texture_format getBestFormatAlpha(basist::basis_tex_format tex_format)
         {
@@ -204,7 +203,7 @@ namespace sp {
         }
 
         Details()
-            :transcoder{codebook.get()}
+            :transcoder{}
         {
         }
 
@@ -212,8 +211,6 @@ namespace sp {
         std::vector<uint8_t> transcoding_data;
         basist::transcoder_texture_format best_format{ basist::transcoder_texture_format::cTFRGBA32 };
     };
-
-    std::unique_ptr<basist::etc1_global_selector_codebook> KTX2Texture::Details::codebook;
 
     bool KTX2Texture::loadFromStream(P<ResourceStream> stream)
     {

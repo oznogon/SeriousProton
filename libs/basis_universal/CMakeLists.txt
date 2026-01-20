@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.10)
 
 find_package(Threads REQUIRED)
 
-set(BASIS_VERSION "v1_15_update2")
+set(BASIS_VERSION "v1_60")
 set(BASIS_URL "https://github.com/BinomialLLC/basis_universal")
 if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.11)
     include(FetchContent)
@@ -37,9 +37,9 @@ if(NOT basis_POPULATED)
     endif()
     set(STATIC TRUE CACHE BOOL "")
 
-    # As of 1.15, basis is not setup to be used as a library.
+    # As of 1.60, basis is not setup to provide separate encoder/transcoder libraries.
     # So roll our own based on its CMakeLists.txt.
-    # We want two things: 
+    # We want two things:
     #   * an encoder library (texture reprocessing), to be used by consumer projects.
     #   * the transcoder (runtime usage).
     add_library(basisu-encoder STATIC
@@ -49,21 +49,23 @@ if(NOT basis_POPULATED)
 	    "${basis_SOURCE_DIR}/encoder/basisu_enc.cpp"
 	    "${basis_SOURCE_DIR}/encoder/basisu_etc.cpp"
 	    "${basis_SOURCE_DIR}/encoder/basisu_frontend.cpp"
-	    "${basis_SOURCE_DIR}/encoder/basisu_global_selector_palette_helpers.cpp"
 	    "${basis_SOURCE_DIR}/encoder/basisu_gpu_texture.cpp"
         "${basis_SOURCE_DIR}/encoder/basisu_pvrtc1_4.cpp"
 	    "${basis_SOURCE_DIR}/encoder/basisu_resampler.cpp"
 	    "${basis_SOURCE_DIR}/encoder/basisu_resample_filters.cpp"
 	    "${basis_SOURCE_DIR}/encoder/basisu_ssim.cpp"
-	    "${basis_SOURCE_DIR}/encoder/basisu_astc_decomp.cpp"
 	    "${basis_SOURCE_DIR}/encoder/basisu_uastc_enc.cpp"
         "${basis_SOURCE_DIR}/encoder/basisu_bc7enc.cpp"
-	    "${basis_SOURCE_DIR}/encoder/lodepng.cpp"
-	    "${basis_SOURCE_DIR}/encoder/apg_bmp.c"
 	    "${basis_SOURCE_DIR}/encoder/jpgd.cpp"
 	    "${basis_SOURCE_DIR}/encoder/basisu_kernels_sse.cpp"
+	    "${basis_SOURCE_DIR}/encoder/basisu_opencl.cpp"
+	    "${basis_SOURCE_DIR}/encoder/pvpngreader.cpp"
+	    "${basis_SOURCE_DIR}/encoder/basisu_uastc_hdr_4x4_enc.cpp"
+	    "${basis_SOURCE_DIR}/encoder/basisu_astc_hdr_6x6_enc.cpp"
+	    "${basis_SOURCE_DIR}/encoder/basisu_astc_hdr_common.cpp"
+	    "${basis_SOURCE_DIR}/encoder/3rdparty/android_astc_decomp.cpp"
+	    "${basis_SOURCE_DIR}/encoder/3rdparty/tinyexr.cpp"
 	    "${basis_SOURCE_DIR}/transcoder/basisu_transcoder.cpp"
-        "${basis_SOURCE_DIR}/zstd/zstd.c"
      )
     target_include_directories(basisu-encoder INTERFACE "${basis_SOURCE_DIR}")
     target_link_libraries(basisu-encoder PUBLIC Threads::Threads)
@@ -77,7 +79,7 @@ if(NOT basis_POPULATED)
         PRIVATE
             "$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-fvisibility=hidden;-fPIC;-fno-strict-aliasing;-Wall;-Wextra;-Wno-unused-local-typedefs;-Wno-unused-value;-Wno-unused-parameter;-Wno-unused-variable>"
     )
-    target_compile_features(basisu-encoder PUBLIC cxx_std_11)
+    target_compile_features(basisu-encoder PUBLIC cxx_std_17)
 
     # Runtime transcoder.
     add_library(basisu-transcoder STATIC "${basis_SOURCE_DIR}/transcoder/basisu_transcoder.cpp" "${basis_SOURCE_DIR}/zstd/zstddeclib.c")
@@ -115,6 +117,6 @@ if(NOT basis_POPULATED)
         PRIVATE
             "$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-fvisibility=hidden;-fPIC;-fno-strict-aliasing;-Wall;-Wextra;-Wno-unused-local-typedefs;-Wno-unused-value;-Wno-unused-parameter;-Wno-unused-variable>"
     )
-    target_compile_features(basisu-transcoder PUBLIC cxx_std_11)
+    target_compile_features(basisu-transcoder PUBLIC cxx_std_17)
     target_include_directories(basisu-transcoder INTERFACE "${basis_SOURCE_DIR}")
 endif()
