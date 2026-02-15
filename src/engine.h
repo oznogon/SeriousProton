@@ -1,5 +1,4 @@
-#ifndef ENGINE_H
-#define ENGINE_H
+#pragma once
 
 #include <unordered_map>
 #include "stringImproved.h"
@@ -19,10 +18,11 @@ class Engine
 {
 public:
     using EngineTiming = std::map<string, float>;
-    
+
 private:
-    bool running;
-    
+    bool is_running = false;
+    bool is_headless = false;
+
     std::unordered_map<string, P<PObject> > objectMap;
     float elapsedTime;
     float gameSpeed;
@@ -33,7 +33,7 @@ private:
 #endif
     std::vector<sp::ecs::System*> systems;
 public:
-    Engine();
+    Engine(bool is_headless = false);
     ~Engine();
     
     void setGameSpeed(float speed);
@@ -50,9 +50,8 @@ public:
 
     void runMainLoop();
     void shutdown();
-    bool isRunning() { return running; }
+    bool isRunning() { return is_running; }
+    bool isHeadless() { return is_headless; }
 private:
     void handleEvent(SDL_Event& event);
 };
-
-#endif//ENGINE_H

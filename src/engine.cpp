@@ -31,7 +31,7 @@ PObject* DEBUG_PobjListStart;
 
 Engine* engine;
 
-Engine::Engine()
+Engine::Engine(bool is_headless) : is_headless(is_headless)
 {
     engine = this;
 
@@ -117,12 +117,26 @@ Engine::Engine()
     SDL_SetHint(SDL_HINT_MOUSE_TOUCH_EVENTS, "0");
     SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
 #endif
-    if (SDL_Init(SDL_INIT_EVERYTHING) < 0)
+    if (!is_headless)
     {
-        const char* sdl_error{SDL_GetError()};
-        LOG(Error, "SDL error in Engine initialization: ", sdl_error);
+        if (SDL_Init(
+            SDL_INIT_VIDEO |
+            SDL_INIT_AUDIO |
+            SDL_INIT_GAMECONTROLLER) < 0) // GAMECONTROLLER also inits SDL_INIT_JOYSTICK
+        {
+            LOG(ERROR) << "SDL audio/video initialization failed: " << SDL_GetError();
+            SDL_ClearError();
+        }
+    }
+
+    if (SDL_Init(
+        SDL_INIT_TIMER |
+        SDL_INIT_EVENTS) < 0)
+    {
+        LOG(ERROR) << "SDL error in timer, joystick, game controller, or events initialization: " << SDL_GetError();
         SDL_ClearError();
     }
+
     SDL_ShowCursor(false);
     SDL_StopTextInput();
 
@@ -130,7 +144,7 @@ Engine::Engine()
 
     initRandom();
     gameSpeed = 1.0f;
-    running = true;
+    is_running = true;
     elapsedTime = 0.0f;
     soundManager = new SoundManager();
 }
@@ -165,7 +179,7 @@ void Engine::runMainLoop()
         debug_output_timer.repeat(5);
 #endif
 
-        while(running)
+        while(is_running)
         {
             // Handle SDL_QUIT event
             SDL_Event event;
@@ -173,7 +187,7 @@ void Engine::runMainLoop()
             {
                 if (event.type == SDL_QUIT)
                 {
-                    running = false;
+                    is_running = false;
                 }
             }
 #ifdef DEBUG
@@ -208,7 +222,7 @@ void Engine::runMainLoop()
         sp::SystemTimer debug_output_timer;
         debug_output_timer.repeat(5);
 #endif
-        while(running)
+        while(is_running)
         {
             // Handle events
             SDL_Event event;
@@ -272,7 +286,7 @@ void Engine::runMainLoop()
 void Engine::handleEvent(SDL_Event& event)
 {
     if (event.type == SDL_QUIT)
-        running = false;
+        is_running = false;
 #ifdef DEBUG
     if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)
         running = false;
@@ -385,5 +399,5 @@ Engine::EngineTiming Engine::getEngineTiming()
 
 void Engine::shutdown()
 {
-    running = false;
+    is_running = false;
 }
