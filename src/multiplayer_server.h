@@ -73,12 +73,12 @@ private:
     struct ClientInfo
     {
         std::unique_ptr<sp::io::network::StreamSocket> socket;
-        int32_t client_id;
-        int32_t command_client_id;
-        EClientReceiveState receive_state;
-        int32_t command_object_id;
+        int32_t client_id = 0;
+        int32_t command_client_id = 0;
+        EClientReceiveState receive_state = CRS_Auth;
+        int32_t command_object_id = 0;
         sp::SystemStopwatch round_trip_start_time;
-        int32_t ping;
+        int32_t ping = 0;
         std::vector<int32_t> proxy_ids;
     };
     int32_t nextclient_id;
