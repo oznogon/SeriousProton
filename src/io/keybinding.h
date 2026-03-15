@@ -32,8 +32,9 @@ public:
 
         Joystick = JoystickButton | JoystickAxis,
         Controller = ControllerButton | ControllerAxis,
+        Mouse = Pointer | MouseMovement | MouseWheel,
 
-        Default = Keyboard | Pointer | Joystick | Controller | Virtual,
+        Default = Keyboard | Virtual | Joystick | Controller | Mouse,
     };
 
     // Key interaction types, indicative of the output (control) method.
