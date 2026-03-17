@@ -701,15 +701,6 @@ void Keybinding::allPostUpdate()
     {
         if (keybinding->repeat_hold_ticks == 0) continue;
 
-        bool has_repeating = false;
-        for (const auto& bind : keybinding->bindings)
-        {
-            if (bind.interaction == Interaction::Repeating)
-                has_repeating = true;
-            break;
-        }
-        if (!has_repeating) continue;
-
         const unsigned int wait = keybinding->repeat_started
             ? repeat_interval
             : repeat_delay + repeat_interval;
