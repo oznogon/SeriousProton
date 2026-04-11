@@ -28,7 +28,7 @@ extern PObject* DEBUG_PobjListStart;
 class PObject : sp::NonCopyable
 {
 private:
-    int refCount;
+    int refCount = 0;
     bool _destroyed_flag;
 
     //Make the P template a friend so it can access the private refCount and destroyed.
