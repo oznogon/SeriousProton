@@ -1,6 +1,6 @@
-generic-scrolling-container 20260410
+generic-scrolling-container 20260410 -- major change to rendering
 fix-strict-compilation 20260410
 fix-warnings 20260410
 
-hotkeys-remapping-with-dialog 20260411
-new-sp-line-drawing 20260411
+hotkeys-remapping-with-dialog 20260411 -- major change to input
+new-sp-line-drawing 20260411 -- major change to line rendering
