@@ -4,3 +4,4 @@ fix-warnings 20260410
 
 hotkeys-remapping-with-dialog 20260411 -- major change to input
 new-sp-line-drawing 20260411 -- major change to line rendering
+screenshot-stb 20260411 -- new `stb_image_write` dependency
