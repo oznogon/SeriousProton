@@ -62,7 +62,6 @@ class FileResourceStream : public ResourceStream
 {
     SDL_RWops *io;
     size_t size = 0;
-    bool open_success;
 public:
     FileResourceStream(string filename)
     {

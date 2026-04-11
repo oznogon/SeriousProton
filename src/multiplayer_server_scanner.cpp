@@ -22,7 +22,7 @@ void ServerScanner::scanMasterServer(string url)
     LOG(INFO, "Starting master server scanning");
 
     master_server_url = url;
-    master_server_scan_thread = std::move(std::thread(&ServerScanner::masterServerScanThread, this));
+    master_server_scan_thread = std::thread(&ServerScanner::masterServerScanThread, this);
 }
 
 void ServerScanner::scanLocalNetwork()

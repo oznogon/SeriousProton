@@ -48,7 +48,6 @@ public:
 private:
     int version_number;
     sp::io::network::Address server;
-    int port_nr;
 
     std::unique_ptr<sp::io::network::StreamSocket> socket;
     std::unordered_map<int32_t, P<MultiplayerObject> > objectMap;

@@ -674,7 +674,7 @@ void GameServer::registerOnMasterServer(string master_url)
 {
     stopMasterServerRegistry();
     this->master_server_url = master_url;
-    master_server_update_thread = std::move(std::thread(&GameServer::runMasterServerUpdateThread, this));
+    master_server_update_thread = std::thread(&GameServer::runMasterServerUpdateThread, this);
 }
 
 void GameServer::stopMasterServerRegistry()

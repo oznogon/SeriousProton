@@ -40,7 +40,6 @@ private:
     unsigned int frame_buffer = 0;
     unsigned int color_buffer = 0;
     unsigned int depth_buffer = 0;
-    unsigned int stencil_buffer = 0;
 };
 
 }//namespace sp

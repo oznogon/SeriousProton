@@ -13,7 +13,7 @@
 P<GameClient> game_client;
 
 GameClient::GameClient(int version_number, sp::io::network::Address server, int port_nr)
-: version_number(version_number), server(server), port_nr(port_nr)
+: version_number(version_number), server(server)
 {
     SDL_assert(!game_server);
     SDL_assert(!game_client);

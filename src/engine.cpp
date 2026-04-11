@@ -232,7 +232,8 @@ void Engine::runMainLoop()
             
             sp::SystemStopwatch engine_timing_stopwatch;
             foreach(Updatable, u, updatableList) {
-                auto name = string(typeid(**u).name());
+                auto& u_deref = **u;
+                auto name = string(typeid(u_deref).name());
                 u->update(delta);
                 engine_timing["update:" + name] = engine_timing_stopwatch.restart();
             }
