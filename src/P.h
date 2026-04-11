@@ -161,7 +161,15 @@ protected:
         release();
         ptr = p;
         if (ptr != NULL)
-            ptr->refCount ++;
+        {
+            // PObject::PObject() always initializes refCount=0 before any derived
+            // class body runs, so this increment is safe.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wuninitialized"
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+            ptr->refCount++;
+#pragma GCC diagnostic pop
+        }
     }
 };
 
