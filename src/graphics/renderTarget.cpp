@@ -760,7 +760,7 @@ void RenderTarget::drawTiled(const sp::Rect& rect, std::string_view texture, glm
     {
         for(int y=0; y<tile_count.y; y++)
         {
-            if(vertex_data.size() >= std::numeric_limits<uint64_t>::max() - 4)
+            if(vertex_data.size() >= std::numeric_limits<uint16_t>::max() - 4)
             {
                 if (info.texture)
                     finish(info.texture);
