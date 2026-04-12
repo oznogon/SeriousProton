@@ -117,7 +117,8 @@ void Window::swapBuffers()
 
 void Window::saveAllScreenshotsToFile()
 {
-    // Generate a shared timestamp so all windows in this batch share a base name.
+    // Generate a shared timestamp so all windows in this batch share a base
+    // name.
     auto now = time(nullptr);
     char timestamp[32];
     strftime(timestamp, sizeof(timestamp), "screenshot_%Y%m%d_%H%M%S", localtime(&now));
@@ -125,6 +126,9 @@ void Window::saveAllScreenshotsToFile()
     bool multiple = all_windows.size() > 1;
     int index = 0;
 
+    // Set GL_PACK_ALIGNMENT to 1 to avoid a buffer overflow. The default value
+    // is 4 bytes, but the width isn't necessarily divisible by that. This is a
+    // performance hit, but only screenshots use glReadPixels.
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
     for (auto w : all_windows)
     {
@@ -135,9 +139,6 @@ void Window::saveAllScreenshotsToFile()
         int width, height;
         SDL_GL_GetDrawableSize(static_cast<SDL_Window*>(w->window), &width, &height);
 
-        // Set GL_PACK_ALIGNMENT to 1 to avoid a buffer overflow. The default
-        // value is 4 bytes, but the width isn't necessarily divisible by that.
-        // This is a performance hit, but only screenshots use glReadPixels.
         auto pixels = std::make_shared<std::vector<unsigned char>>(width * height * 3);
         glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels->data());
 

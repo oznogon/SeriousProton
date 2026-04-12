@@ -18,8 +18,8 @@ public:
     glm::vec2 getVirtualSize() const { return current_virtual_size; }
     void render();
     void swapBuffers();
-    // Writes each window's framebuffer to a PNG. Uses a _N index suffix when
-    // there are multiple windows. Called automatically by the screenshot key.
+    // Writes each window's framebuffer to a PNG, and adds a numeric suffix if
+    // multimonitor is enabled.
     static void saveAllScreenshotsToFile();
 
     Mode getMode() { return mode; }
@@ -52,4 +52,3 @@ private:
     void setupView();
     glm::ivec2 calculateWindowSize() const;
 };
-
