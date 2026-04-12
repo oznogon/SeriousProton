@@ -18,8 +18,9 @@ public:
     glm::vec2 getVirtualSize() const { return current_virtual_size; }
     void render();
     void swapBuffers();
-    // Writes framebuffer to PNG
-    void saveScreenshotToFile(int width, int height);
+    // Writes each window's framebuffer to a PNG. Uses a _N index suffix when
+    // there are multiple windows. Called automatically by the screenshot key.
+    static void saveAllScreenshotsToFile();
 
     Mode getMode() { return mode; }
     void setMode(Mode mode);

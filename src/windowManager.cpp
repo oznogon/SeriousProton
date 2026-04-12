@@ -104,7 +104,9 @@ void Window::render()
     render_chain->render(target);
     target.finish();
 
-    if (screenshot_key.getDown()) saveScreenshotToFile(w, h);
+    // If multimonitor, trigger screenshots only on the first window.
+    if (*all_windows.front() == this && screenshot_key.getDown())
+        saveAllScreenshotsToFile();
 }
 
 void Window::swapBuffers()
@@ -113,46 +115,58 @@ void Window::swapBuffers()
     SDL_GL_SwapWindow(static_cast<SDL_Window*>(window));
 }
 
-void Window::saveScreenshotToFile(int width, int height)
+void Window::saveAllScreenshotsToFile()
 {
-    // Get actual viewport size if width or height are 0.
-    if (width == 0 || height == 0)
-    {
-        GLint viewport[4];
-        glGetIntegerv(GL_VIEWPORT, viewport);
-        width = viewport[2];
-        height = viewport[3];
-    }
-
-    // Allocate buffer for RGB pixel data and capture from framebuffer.
-    auto pixels = std::make_shared<std::vector<unsigned char>>(width * height * 3);
-    glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels->data());
-
-    // Generate filename.
+    // Generate a shared timestamp so all windows in this batch share a base name.
     auto now = time(nullptr);
-    char filename[64];
-    strftime(filename, sizeof(filename), "screenshot_%Y%m%d_%H%M%S.png", localtime(&now));
+    char timestamp[32];
+    strftime(timestamp, sizeof(timestamp), "screenshot_%Y%m%d_%H%M%S", localtime(&now));
 
-    // Launch background thread to flip, encode, and write the screenshot
-    // without blocking the render thread.
-    std::thread([pixels, width, height, filename]()
+    bool multiple = all_windows.size() > 1;
+    int index = 0;
+
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    for (auto w : all_windows)
     {
-        // OpenGL origin is bottom-left, PNG origin is top-left, so flip the
-        // image vertically.
-        std::vector<unsigned char> flipped(width * height * 3);
-        for (int y = 0; y < height; y++)
-            memcpy(&flipped[y * width * 3], &(*pixels)[(height - 1 - y) * width * 3], width * 3);
+        // Make this window's GL context current to read its back buffer.
+        SDL_GL_MakeCurrent(static_cast<SDL_Window*>(w->window), gl_context);
 
-        // Generate full screenshot path. stb adds the .png extension.
-        const string output_directory = ".";
-        string full_path = output_directory + "/" + filename;
+        // Capture this window's width and height.
+        int width, height;
+        SDL_GL_GetDrawableSize(static_cast<SDL_Window*>(w->window), &width, &height);
 
-        // Write PNG.
-        if (stbi_write_png(full_path.c_str(), width, height, 3, flipped.data(), width * 3))
-            LOG(Info, "Screenshot saved to ", full_path);
+        // Set GL_PACK_ALIGNMENT to 1 to avoid a buffer overflow. The default
+        // value is 4 bytes, but the width isn't necessarily divisible by that.
+        // This is a performance hit, but only screenshots use glReadPixels.
+        auto pixels = std::make_shared<std::vector<unsigned char>>(width * height * 3);
+        glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels->data());
+
+        // Add a _N index suffix when there are multiple windows.
+        char filename[80];
+        if (multiple)
+            snprintf(filename, sizeof(filename), "%s_%d.png", timestamp, index);
         else
-            LOG(Error, "Failed to save screenshot to ", full_path);
-    }).detach();
+            snprintf(filename, sizeof(filename), "%s.png", timestamp);
+
+        // Launch a background thread to flip, encode, and write without blocking render.
+        std::thread([pixels, width, height, filename]()
+        {
+            // OpenGL origin is bottom-left, PNG origin is top-left, so flip vertically.
+            std::vector<unsigned char> flipped(width * height * 3);
+            for (int y = 0; y < height; y++)
+                memcpy(&flipped[y * width * 3], &(*pixels)[(height - 1 - y) * width * 3], width * 3);
+
+            const string output_directory = ".";
+            string full_path = output_directory + "/" + filename;
+
+            if (stbi_write_png(full_path.c_str(), width, height, 3, flipped.data(), width * 3))
+                LOG(Info, "Screenshot saved to ", full_path);
+            else
+                LOG(Error, "Failed to save screenshot to ", full_path);
+        }).detach();
+
+        index++;
+    }
 }
 
 void Window::setMode(Mode new_mode)
