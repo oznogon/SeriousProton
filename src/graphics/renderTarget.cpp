@@ -351,7 +351,7 @@ void RenderTarget::drawSpriteClipped(std::string_view texture, glm::vec2 center,
     }
     else if (y1 > clip_rect.position.y + clip_rect.size.y)
     {
-        v1 = v0 + uv_rect.size.y * (clip_rect.size.y - y0) / (y1 - y0);
+        v1 = v0 + uv_rect.size.y * ((clip_rect.position.y + clip_rect.size.y) - y0) / (y1 - y0);
         y1 = clip_rect.position.y + clip_rect.size.y;
     }
 
