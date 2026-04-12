@@ -743,8 +743,8 @@ void Keybinding::allPostUpdate()
         if (!has_repeating) continue;
 
         const unsigned int wait = keybinding->repeat_started
-            ? repeat_interval
-            : repeat_delay + repeat_interval;
+            ? keybinding->repeat_interval
+            : keybinding->repeat_delay + keybinding->repeat_interval;
 
         if (now - keybinding->repeat_hold_ticks >= wait)
         {
@@ -945,7 +945,7 @@ void Keybinding::updateKeys(int key_number, float value)
 {
     if (rebinding_preview_mode && rebinding_preview_target)
     {
-        if ((value > threshold || value < -threshold) && (key_number & (static_cast<int>(rebinding_type) << 16)))
+        if ((value > rebinding_preview_target->threshold || value < -rebinding_preview_target->threshold) && (key_number & (static_cast<int>(rebinding_type) << 16)))
         {
             rebinding_preview_key = key_number;
             rebinding_preview_inverted = value < 0.0f;
@@ -956,7 +956,7 @@ void Keybinding::updateKeys(int key_number, float value)
     }
     else if (rebinding_key)
     {
-        if ((value > threshold || value < -threshold) && (key_number & (static_cast<int>(rebinding_type) << 16)))
+        if ((value > rebinding_key->threshold || value < -rebinding_key->threshold) && (key_number & (static_cast<int>(rebinding_type) << 16)))
         {
             bool cancelled = false;
             if (rebinding_cancel_key)
