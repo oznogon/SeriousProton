@@ -9,3 +9,5 @@ screenshot-stb 20260411 -- new `stb_image_write` dependency
 hotkeys-remapping-with-dialog 20260412 -- remerge
 new-sp-line-drawing 20260412 -- remerge
 fix-sprite-clipped-offset 20260412
+drawpoint-off-by-1 20260412
+drawtiled-overflow 20260412
