@@ -162,13 +162,21 @@ protected:
         ptr = p;
         if (ptr != NULL)
         {
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
             // PObject::PObject() always initializes refCount=0 before any derived
             // class body runs, so this increment is safe.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wuninitialized"
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
             ptr->refCount++;
+#ifdef _MSC_VER
+#pragma warning(pop)
+#elif defined(__GNUC__)
 #pragma GCC diagnostic pop
+#endif
         }
     }
 };
