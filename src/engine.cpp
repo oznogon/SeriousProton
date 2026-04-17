@@ -10,7 +10,31 @@
 #include "systems/collision.h"
 
 #include <thread>
+#include <typeinfo>
+#include <unordered_map>
 #include <SDL.h>
+
+#if defined(__GNUG__) || defined(__clang__)
+#include <cxxabi.h>
+#endif
+
+static string demangle(const char* mangled_name)
+{
+    static std::unordered_map<const char*, string> cache;
+    auto it = cache.find(mangled_name);
+    if (it != cache.end())
+        return it->second;
+#if defined(__GNUG__) || defined(__clang__)
+    int status = 0;
+    char* demangled = abi::__cxa_demangle(mangled_name, nullptr, nullptr, &status);
+    string result = (status == 0 && demangled) ? string(demangled) : string(mangled_name);
+    free(demangled);
+#else
+    string result(mangled_name);
+#endif
+    cache[mangled_name] = result;
+    return result;
+}
 
 #ifdef STEAMSDK
 #include "steam/steam_api.h"
@@ -24,7 +48,6 @@
 #endif
 
 #ifdef DEBUG
-#include <typeinfo>
 int DEBUG_PobjCount;
 PObject* DEBUG_PobjListStart;
 #endif
@@ -189,12 +212,29 @@ void Engine::runMainLoop()
                 update_delta = 0.001f;
             update_delta *= gameSpeed;
 
-            foreach(Updatable, u, updatableList)
+            EngineTiming engine_timing;
+            sp::SystemStopwatch engine_timing_stopwatch;
+
+            foreach (Updatable, u, updatableList)
+            {
+                auto& u_deref = **u;
+                auto name = demangle(typeid(u_deref).name());
                 u->update(update_delta);
-            for(auto system : systems)
+                engine_timing["update:" + name] = engine_timing_stopwatch.restart();
+            }
+            for (auto system : systems)
+            {
                 system->update(update_delta);
+                engine_timing[demangle(typeid(*system).name())] = engine_timing_stopwatch.restart();
+            }
             sp::CollisionSystem::update(update_delta);
+            engine_timing["collision"] = engine_timing_stopwatch.restart();
             elapsedTime += update_delta;
+
+            engine_timing["server_update"] = 0.0f;
+            if (game_server) engine_timing["server_update"] = game_server->getUpdateTime();
+
+            last_engine_timing = engine_timing;
             soundManager->updateTick();
 #ifdef STEAMSDK
             SteamAPI_RunCallbacks();
@@ -232,13 +272,14 @@ void Engine::runMainLoop()
             
             sp::SystemStopwatch engine_timing_stopwatch;
             foreach(Updatable, u, updatableList) {
-                auto name = string(typeid(**u).name());
+                auto& u_deref = **u;
+                auto name = demangle(typeid(u_deref).name());
                 u->update(delta);
                 engine_timing["update:" + name] = engine_timing_stopwatch.restart();
             }
             for(auto system : systems) {
                 system->update(delta);
-                engine_timing[typeid(*system).name()] = engine_timing_stopwatch.restart();
+                engine_timing[demangle(typeid(*system).name())] = engine_timing_stopwatch.restart();
             }
             elapsedTime += delta;
             sp::CollisionSystem::update(delta);

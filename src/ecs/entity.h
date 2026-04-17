@@ -72,6 +72,8 @@ public:
 
 	static void destroyAllEntities();
 
+	static size_t getActiveCount();
+
 	static void setPreDestroyCallback(std::function<void(Entity)> callback) {
 		pre_destroy_callback = callback;
 	}

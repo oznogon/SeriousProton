@@ -132,9 +132,14 @@ void Server::setStaticFilePath(const string& static_file_path)
 
 void Server::addURLHandler(const string& url, std::function<string(const Request&)> func)
 {
+    addURLHandler(url, func, "");
+}
+
+void Server::addURLHandler(const string& url, std::function<string(const Request&)> func, const string& content_type)
+{
     std::lock_guard<std::recursive_mutex> lock(mutex);
     
-    http_handlers[url] = func;
+    http_handlers[url] = {func, content_type};
 }
 
 void Server::addSimpleWebsocketHandler(const string& url, std::function<void(const string& data)> func)
@@ -228,8 +233,9 @@ void Server::update(float delta)
         
         if (connection.request_pending)
         {
-            string reply = http_handlers[connection.request.path](connection.request);
-            connection.startHttpReply(200);
+            auto& [handler, content_type] = http_handlers[connection.request.path];
+            string reply = handler(connection.request);
+            connection.startHttpReply(200, content_type);
             if (reply.size() > 0)
                 connection.httpChunk(reply);
             connection.httpChunk("");
