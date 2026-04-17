@@ -12,16 +12,36 @@
 #include "io/network/steamP2PSocket.h"
 #endif
 
-
-#define MULTIPLAYER_COLLECT_DATA_STATS 0
-
-#if MULTIPLAYER_COLLECT_DATA_STATS
-sp::SystemTimer multiplayer_stats_dump;
-static std::unordered_map<string, int> multiplayer_stats;
-#define ADD_MULTIPLAYER_STATS(name, bytes) do { if (bytes) { multiplayer_stats[name] += (bytes); } } while(0)
-#else
-#define ADD_MULTIPLAYER_STATS(name, bytes) do {} while(0)
+#if defined(__GNUG__) || defined(__clang__)
+#include <cxxabi.h>
 #endif
+#include <typeinfo>
+#include <unordered_map>
+
+static string demangle(const char* mangled_name)
+{
+    static std::unordered_map<const char*, string> cache;
+    auto it = cache.find(mangled_name);
+    if (it != cache.end())
+        return it->second;
+#if defined(__GNUG__) || defined(__clang__)
+    int status = 0;
+    char* demangled = abi::__cxa_demangle(mangled_name, nullptr, nullptr, &status);
+    string result = (status == 0 && demangled) ? string(demangled) : string(mangled_name);
+    free(demangled);
+#else
+    string result(mangled_name);
+#endif
+    cache[mangled_name] = result;
+    return result;
+}
+
+#define ADD_MULTIPLAYER_STATS(name, bytes) do { \
+    if (collect_network_stats) { \
+        auto _b = (bytes); \
+        if (_b) multiplayer_stats[(name)] += _b; \
+    } \
+} while(0)
 
 
 P<GameServer> game_server;
@@ -63,9 +83,7 @@ GameServer::GameServer(string server_name, int version_number, int listen_port)
         LOG(Error, "Failed to listen for steam P2P connections");
     }
 #endif
-#if MULTIPLAYER_COLLECT_DATA_STATS
-    multiplayer_stats_dump.repeat(1.0f);
-#endif
+    multiplayer_stats_dump_timer.repeat(1.0f);
 }
 
 GameServer::~GameServer()
@@ -152,9 +170,7 @@ void GameServer::update(float /*gameDelta*/)
     sp::io::DataBuffer ecs_packet;
     ecs_packet << CMD_ECS_UPDATE;
     auto empty_ecs_packet_size = ecs_packet.getDataSize();
-#if MULTIPLAYER_COLLECT_DATA_STATS
     auto ecs_overhead_size = empty_ecs_packet_size;
-#endif
     //  For each entity, check which version number we last transmitted and if it is changed, transmit creation/deletion of entities.
     ecs_entity_version.resize(sp::ecs::Entity::entity_version.size(), std::numeric_limits<uint32_t>::max());
     for(uint32_t index=0; index<sp::ecs::Entity::entity_version.size(); index++) {
@@ -172,14 +188,10 @@ void GameServer::update(float /*gameDelta*/)
     }
     //  For each component type, check which components are added/changed/deleted and send that over.
     for(auto& ecsrb : sp::ecs::MultiplayerReplication::list) {
-#if MULTIPLAYER_COLLECT_DATA_STATS
         auto pre_size = ecs_packet.getDataSize();
-#endif
         ecsrb->update(ecs_packet);
-#if MULTIPLAYER_COLLECT_DATA_STATS
-        ADD_MULTIPLAYER_STATS("ECS:UPDATE:" + string(typeid(*ecsrb).name()), ecs_packet.getDataSize() - pre_size);
+        ADD_MULTIPLAYER_STATS("ECS:UPDATE:" + demangle(typeid(*ecsrb).name()), ecs_packet.getDataSize() - pre_size);
         ecs_overhead_size += ecs_packet.getDataSize() - pre_size;
-#endif
     }
     if (ecs_packet.getDataSize() > empty_ecs_packet_size) {
         sendAll(ecs_packet);
@@ -208,9 +220,7 @@ void GameServer::update(float /*gameDelta*/)
             sp::io::DataBuffer packet;
             packet << CMD_UPDATE_VALUE;
             packet << int32_t(obj->multiplayerObjectId);
-#if MULTIPLAYER_COLLECT_DATA_STATS
             int overhead = packet.getDataSize();
-#endif
             int cnt = 0;
             for(unsigned int n=0; n<obj->memberReplicationInfo.size(); n++)
             {
@@ -220,13 +230,17 @@ void GameServer::update(float /*gameDelta*/)
                 }else{
                     if ((obj->memberReplicationInfo[n].isChangedFunction)(obj->memberReplicationInfo[n].ptr, &obj->memberReplicationInfo[n].prev_data))
                     {
-#if MULTIPLAYER_COLLECT_DATA_STATS
                         int packet_size = packet.getDataSize();
-#endif
                         packet << int16_t(n);
                         (obj->memberReplicationInfo[n].sendFunction)(obj->memberReplicationInfo[n].ptr, packet);
                         cnt++;
-                        ADD_MULTIPLAYER_STATS(obj->multiplayerClassIdentifier + "::" + obj->memberReplicationInfo[n].name, packet.getDataSize() - packet_size);
+                        ADD_MULTIPLAYER_STATS(obj->multiplayerClassIdentifier + "::"
+#ifdef DEBUG
+                            + obj->memberReplicationInfo[n].name
+#else
+                            + "member_" + string(n)
+#endif
+                            , packet.getDataSize() - packet_size);
 
                         obj->memberReplicationInfo[n].update_timeout = obj->memberReplicationInfo[n].update_delay;
                     }
@@ -470,21 +484,30 @@ void GameServer::update(float /*gameDelta*/)
     dataPerSecond = float(sendDataCounterPerClient) / delta;
     sendDataRatePerClient = sendDataRatePerClient * (1.f - delta) + dataPerSecond * delta;
 
-#if MULTIPLAYER_COLLECT_DATA_STATS
-    if (multiplayer_stats_dump.isExpired())
+    if (multiplayer_stats_dump_timer.isExpired())
     {
-        int total = 0;
-        for(std::unordered_map<string, int >::iterator i=multiplayer_stats.begin(); i != multiplayer_stats.end(); i++)
-            total += i->second;
-        printf("---------------------------------Total: %d\n", total);
-        for(std::unordered_map<string, int >::iterator i=multiplayer_stats.begin(); i != multiplayer_stats.end(); i++)
-        {
-            printf("%60s: %d (%d%%)\n", i->first.c_str(), i->second, i->second * 100 / total);
-        }
+        last_network_stats_snapshot = multiplayer_stats;
         multiplayer_stats.clear();
     }
-#endif
     update_run_time = update_run_time_clock.get();
+}
+
+int GameServer::getClientCount()
+{
+    int count = 0;
+    for(auto& client : clientList)
+        if (client.receive_state == CRS_Main)
+            count++;
+    return count;
+}
+
+std::vector<std::pair<int32_t, int32_t>> GameServer::getClientPings()
+{
+    std::vector<std::pair<int32_t, int32_t>> result;
+    for(auto& client : clientList)
+        if (client.receive_state == CRS_Main)
+            result.push_back({client.client_id, client.ping});
+    return result;
 }
 
 void GameServer::replicateInitialData(std::function<void(sp::io::DataBuffer&)> send_packet)
@@ -674,7 +697,7 @@ void GameServer::registerOnMasterServer(string master_url)
 {
     stopMasterServerRegistry();
     this->master_server_url = master_url;
-    master_server_update_thread = std::move(std::thread(&GameServer::runMasterServerUpdateThread, this));
+    master_server_update_thread = std::thread(&GameServer::runMasterServerUpdateThread, this);
 }
 
 void GameServer::stopMasterServerRegistry()

@@ -64,6 +64,11 @@ private:
     float lastGameSpeed;
     float boardcastServerDelay;
 
+    bool collect_network_stats = false;
+    sp::SystemTimer multiplayer_stats_dump_timer;
+    std::unordered_map<string, int> multiplayer_stats;
+    std::unordered_map<string, int> last_network_stats_snapshot;
+
     enum EClientReceiveState
     {
         CRS_Auth,
@@ -74,11 +79,11 @@ private:
     {
         std::unique_ptr<sp::io::network::StreamSocket> socket;
         int32_t client_id;
-        int32_t command_client_id;
+        int32_t command_client_id = 0;
         EClientReceiveState receive_state;
-        int32_t command_object_id;
+        int32_t command_object_id = 0;
         sp::SystemStopwatch round_trip_start_time;
-        int32_t ping;
+        int32_t ping = 0;
         std::vector<int32_t> proxy_ids;
     };
     int32_t nextclient_id;
@@ -107,6 +112,12 @@ public:
     inline float getSendDataRate() { return sendDataRate; }
     inline float getSendDataRatePerClient() { return sendDataRatePerClient; }
     inline float getUpdateTime() { return update_run_time; }
+
+    void setCollectNetworkStats(bool enable) { collect_network_stats = enable; }
+
+    int getClientCount();
+    std::vector<std::pair<int32_t, int32_t>> getClientPings();
+    const std::unordered_map<string, int>& getNetworkStatsSnapshot() { return last_network_stats_snapshot; }
 
     string getServerName() { return server_name; }
     void setServerName(string name) { server_name = name; }

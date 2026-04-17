@@ -100,6 +100,11 @@ void Entity::destroyAllEntities()
 	}
 }
 
+size_t Entity::getActiveCount()
+{
+	return entity_version.size() - free_list.size();
+}
+
 void Entity::dumpDebugInfo()
 {
 	LOG(Debug, "Entity count:", entity_version.size() - free_list.size(), " Free entities:", free_list.size());
