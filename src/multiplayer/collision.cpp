@@ -4,6 +4,9 @@
 #include "components/collision.h"
 #include "engine.h"
 
+#include <glm/geometric.hpp>
+#include <cmath>
+
 
 namespace sp::multiplayer {
 
@@ -25,24 +28,63 @@ void TransformReplication::sendAll(sp::io::DataBuffer& packet)
 
 void TransformReplication::update(sp::io::DataBuffer& packet)
 {
-    for(auto [index, data] : info) {
-        if (!sp::ecs::Entity::forced(index, data).hasComponent<sp::Transform>()) {
-            info.remove(index);
-            packet << CMD_ECS_DEL_COMPONENT << component_index << index;
+    {
+        batch_buffer.clear();
+        uint16_t delete_count = 0;
+
+        for(auto [index, data] : info) {
+            if (!sp::ecs::Entity::forced(index, data).hasComponent<sp::Transform>()) {
+                info.remove(index);
+                batch_buffer << index;
+                delete_count++;
+            }
+        }
+
+        if (delete_count == 1) {
+            packet << CMD_ECS_DEL_COMPONENT << component_index;
+            packet.write(batch_buffer);
+        } else if (delete_count > 1) {
+            packet << CMD_ECS_DEL_COMPONENT_BATCH << component_index << delete_count;
+            packet.write(batch_buffer);
         }
     }
+
+    batch_buffer.clear();
+    uint16_t update_count = 0;
+    auto now = engine->getElapsedTime();
+
     for(auto [entity, transform] : sp::ecs::Query<sp::Transform>()) {
         if (!info.has(entity.getIndex()) || transform.multiplayer_dirty) {
-            info.set(entity.getIndex(), entity.getVersion());
-            packet << CMD_ECS_SET_COMPONENT << component_index << entity.getIndex();
             auto p = transform.getPosition();
             auto r = transform.getRotation();
-            packet << p.x << p.y << r;
+            if (info.has(entity.getIndex())) {
+                auto position_delta = glm::length(p - transform.last_send_position);
+                auto rotation_delta = std::abs(r - transform.last_send_rotation);
+                if (position_delta < 0.5f && rotation_delta < 0.5f)
+                    continue;
+                auto time_between_updates = 1.0f - position_delta / 200.0f - rotation_delta / 100.0f;
+                if (time_between_updates < 0.05f)
+                    time_between_updates = 0.05f;
+                if (transform.last_send_time + time_between_updates > now)
+                    continue;
+            }
+            update_count++;
+            batch_buffer << entity.getIndex() << p.x << p.y << r;
+
+            info.set(entity.getIndex(), entity.getVersion());
             transform.multiplayer_dirty = false;
             transform.last_send_position = p;
             transform.last_send_rotation = r;
-            transform.last_send_time = engine->getElapsedTime();
+            transform.last_send_time = now;
         }
+    }
+
+    if (update_count == 1) {
+        packet << CMD_ECS_SET_COMPONENT << component_index;
+        packet.write(batch_buffer);
+    } else if (update_count > 1) {
+        packet << CMD_ECS_SET_COMPONENT_BATCH << component_index << update_count;
+        packet.write(batch_buffer);
     }
 }
 

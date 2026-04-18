@@ -15,6 +15,9 @@ public:
     void update(sp::io::DataBuffer& packet) override;
     void receive(sp::ecs::Entity entity, sp::io::DataBuffer& packet) override;
     void remove(sp::ecs::Entity entity) override;
+
+private:
+    sp::io::DataBuffer batch_buffer;
 };
 
 class PhysicsReplication : public sp::ecs::ComponentReplicationBase

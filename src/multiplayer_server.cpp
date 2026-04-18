@@ -187,15 +187,17 @@ void GameServer::update(float /*gameDelta*/)
         }
     }
     //  For each component type, check which components are added/changed/deleted and send that over.
-    for(auto& ecsrb : sp::ecs::MultiplayerReplication::list) {
-        auto pre_size = ecs_packet.getDataSize();
-        ecsrb->update(ecs_packet);
-        ADD_MULTIPLAYER_STATS("ECS:UPDATE:" + demangle(typeid(*ecsrb).name()), ecs_packet.getDataSize() - pre_size);
-        ecs_overhead_size += ecs_packet.getDataSize() - pre_size;
-    }
-    if (ecs_packet.getDataSize() > empty_ecs_packet_size) {
-        sendAll(ecs_packet);
-        ADD_MULTIPLAYER_STATS("ECS:OVERHEAD", ecs_packet.getDataSize() - ecs_overhead_size);
+    if (!clientList.empty()) {
+        for(auto& ecsrb : sp::ecs::MultiplayerReplication::list) {
+            auto pre_size = ecs_packet.getDataSize();
+            ecsrb->update(ecs_packet);
+            ADD_MULTIPLAYER_STATS("ECS:UPDATE:" + demangle(typeid(*ecsrb).name()), ecs_packet.getDataSize() - pre_size);
+            ecs_overhead_size += ecs_packet.getDataSize() - pre_size;
+        }
+        if (ecs_packet.getDataSize() > empty_ecs_packet_size) {
+            sendAll(ecs_packet);
+            ADD_MULTIPLAYER_STATS("ECS:OVERHEAD", ecs_packet.getDataSize() - ecs_overhead_size);
+        }
     }
 
     std::vector<int32_t> delList;

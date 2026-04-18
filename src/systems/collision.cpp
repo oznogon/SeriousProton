@@ -135,9 +135,9 @@ void CollisionSystem::update(float delta)
 
             auto position_delta = glm::length(transform->position - transform->last_send_position);
             auto rotation_delta = std::abs(transform->rotation - transform->last_send_rotation);
+            if (position_delta < 0.5f && rotation_delta < 0.5f)
+                continue;
             auto time_between_updates = 1.0f - position_delta / 200.0f - rotation_delta / 100.0f;
-            if (position_delta  == 0.0f)
-                time_between_updates += random(0.0f, 5.0f);
             if (time_between_updates < 0.05f)
                 time_between_updates = 0.05f;
             if (transform->last_send_time + time_between_updates < now)
