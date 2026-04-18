@@ -307,6 +307,41 @@ void GameClient::update(float /*delta*/)
                                     sp::ecs::MultiplayerReplication::list[component_index]->remove(entity_mapping[index]);
                         }
                         break;
+                    case CMD_ECS_SET_COMPONENT_BATCH:
+                        {
+                            uint16_t component_index;
+                            uint16_t count;
+                            packet >> component_index >> count;
+                            if (component_index < sp::ecs::MultiplayerReplication::list.size()) {
+                                for (uint16_t i = 0; i < count; i++) {
+                                    uint32_t index;
+                                    packet >> index;
+                                    if (index < entity_mapping.size() && entity_mapping[index]) {
+                                        sp::ecs::MultiplayerReplication::list[component_index]->receive(entity_mapping[index], packet);
+                                    } else {
+                                        LOG(Error, "MP: ECS batch set component of unknown entity: ", index);
+                                    }
+                                }
+                            } else {
+                                LOG(Error, "MP: ECS batch set component of unknown component index: ", component_index);
+                            }
+                        }
+                        break;
+                    case CMD_ECS_DEL_COMPONENT_BATCH:
+                        {
+                            uint16_t component_index;
+                            uint16_t count;
+                            packet >> component_index >> count;
+                            if (component_index < sp::ecs::MultiplayerReplication::list.size()) {
+                                for (uint16_t i = 0; i < count; i++) {
+                                    uint32_t index;
+                                    packet >> index;
+                                    if (index < entity_mapping.size() && entity_mapping[index])
+                                        sp::ecs::MultiplayerReplication::list[component_index]->remove(entity_mapping[index]);
+                                }
+                            }
+                        }
+                        break;
                     default:
                         LOG(Error, "Unknown ECS command in packet?...");
                     }

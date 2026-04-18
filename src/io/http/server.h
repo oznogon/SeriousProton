@@ -48,6 +48,7 @@ public:
     //Add a callback function to handle a specific URL request.
     // The URL should be prefixed with a "/", the return value of the callback is send back as data to the browser.
     void addURLHandler(const string& url, std::function<string(const Request&)> func);
+    void addURLHandler(const string& url, std::function<string(const Request&)> func, const string& content_type);
     //Add a simple websocket handler, this handler will process any websocket message from any websocket connected to a specific URL.
     //  No distinction or state between connections is made.
     //  URLs should start with a "/"
@@ -67,7 +68,7 @@ private:
 
     std::thread handler_thread;
     std::recursive_mutex mutex;
-    std::map<string, std::function<string(const Request&)>> http_handlers;
+    std::map<string, std::pair<std::function<string(const Request&)>, string>> http_handlers;
     std::map<string, std::function<void(const string& data)>> simple_websocket_handlers;
     std::map<string, std::function<P<WebsocketHandler>()>> advanced_websocket_handlers;
 
