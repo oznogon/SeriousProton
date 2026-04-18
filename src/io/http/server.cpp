@@ -118,7 +118,8 @@ Server::~Server()
         std::lock_guard<std::recursive_mutex> lock(mutex);
         listen_socket.close();
     }
-    handler_thread.join();
+    if (handler_thread.joinable())
+        handler_thread.join();
 }
 
 void Server::setStaticFilePath(const string& static_file_path)
