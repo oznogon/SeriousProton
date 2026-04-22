@@ -168,6 +168,8 @@ protected:
 #elif defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#pragma GCC diagnostic ignored "-Wuninitialized"
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #endif
             // PObject::PObject() always initializes refCount=0 before any derived
             // class body runs, so this increment is safe.
