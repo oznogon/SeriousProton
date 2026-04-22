@@ -105,7 +105,7 @@ Server::Server(int port_nr)
 {
     if (!listen_socket.listen(port_nr))
     {
-        LOG(Error, "Failed to listen on port:", port_nr, "for http server");
+        LOG(Error, "Failed to listen on port ", port_nr, " for HTTP server");
         return;
     }
 
