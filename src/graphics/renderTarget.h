@@ -111,6 +111,7 @@ public:
     glm::vec2 getVirtualSize();
     glm::ivec2 getPhysicalSize(); //Size in pixels
     glm::ivec2 virtualToPixelPosition(glm::vec2);
+    static glm::ivec2 getTextureSize(std::string_view texture);
 
 private:
     glm::vec2 virtual_size;

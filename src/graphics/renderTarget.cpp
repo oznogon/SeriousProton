@@ -1643,4 +1643,9 @@ void RenderTarget::popClipRegion()
     }
 }
 
+glm::ivec2 RenderTarget::getTextureSize(std::string_view texture)
+{
+    return getTextureInfo(texture).size;
+}
+
 }
