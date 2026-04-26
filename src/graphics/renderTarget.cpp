@@ -1279,4 +1279,9 @@ glm::ivec2 RenderTarget::virtualToPixelPosition(glm::vec2 v)
     return {v.x * physical_size.x / virtual_size.x, v.y * physical_size.y / virtual_size.y};
 }
 
+glm::ivec2 RenderTarget::getTextureSize(std::string_view texture)
+{
+    return getTextureInfo(texture).size;
+}
+
 }
