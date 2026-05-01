@@ -15,3 +15,6 @@ drawtiled-overflow 20260412
 prometheus-metrics-applied 20260418 -- major networking, HTTP server changes
 
 prometheus-metrics-applied 20260421
+
+extra-crew-screens 20260501
+gate-char8_t 20260501 -- mitigate GCC 16 build issues
