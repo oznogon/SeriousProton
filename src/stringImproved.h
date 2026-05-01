@@ -1,5 +1,4 @@
-#ifndef STRING_IMPROVED_H
-#define STRING_IMPROVED_H
+#pragma once
 
 #include <cstdlib>
 #include <cstdint>
@@ -29,6 +28,9 @@ public:
     string(const char* str, int length) : std::string(str, length) {}
 
     string(const char c) : std::string(1, c) {}
+#ifdef __cpp_lib_char8_t
+    string(const std::u8string& str) : std::string(reinterpret_cast<const char*>(str.data()), str.length()) {}
+#endif
 
     string(const int nr) : std::string()
     {
@@ -703,5 +705,3 @@ namespace std
         }
     };
 }
-
-#endif//STRING_H

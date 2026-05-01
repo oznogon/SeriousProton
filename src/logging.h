@@ -1,5 +1,5 @@
-#ifndef LOGGING_H
-#define LOGGING_H
+#pragma once
+
 #include <sstream>
 #include <string_view>
 
@@ -60,6 +60,7 @@ inline const Logging& operator<<(const Logging& log, const unsigned long i) { re
 inline const Logging& operator<<(const Logging& log, const float f) { return log << string(f).c_str(); }
 inline const Logging& operator<<(const Logging& log, const double f) { return log << string(float(f), 2).c_str(); }
 inline const Logging& operator<<(const Logging& log, const unsigned long long i) { return log << string(int(i)).c_str(); }
+#ifdef __cpp_lib_char8_t
+inline const Logging& operator<<(const Logging& log, const std::u8string& s) { return log << string(s).c_str(); }
+#endif
 template<typename T, glm::qualifier Q> inline const Logging& operator<<(const Logging& log, const glm::vec<2, T, Q> v) { return log << v.x << "," << v.y; }
-
-#endif//LOGGING_H
