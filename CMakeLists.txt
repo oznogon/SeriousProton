@@ -24,6 +24,7 @@ file(MAKE_DIRECTORY "${EXTERNAL_DIR}" "${DOWNLOADS_DIR}")
 
 # We just want C++17 for everything we build
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_EXTENSIONS ON)
 
 include("cmake/DrMingw.cmake")
 
@@ -362,6 +363,7 @@ target_compile_options(seriousproton_deps
         "$<$<AND:$<BOOL:${CMAKE_COMPILER_IS_GNUCC}>,$<OR:$<CONFIG:RelWithDebInfo>,$<CONFIG:Release>>>:${OPTIMIZER_FLAGS}>"
         "$<$<NOT:$<BOOL:${MSVC}>>:-Wall;-Wextra;-Woverloaded-virtual;-Wdouble-promotion;-Wsuggest-override;-Werror=return-type;-Wno-unused-parameter;-Wno-unused-but-set-parameter>"
         "$<$<BOOL:${MSVC}>:/MP;/permissive->"
+        "$<$<AND:$<CXX_COMPILER_ID:GNU>,$<PLATFORM_ID:Linux>>:-std=gnu++17>"
 )
 
 include("cmake/SteamSDK.cmake")
