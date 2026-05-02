@@ -18,3 +18,4 @@ prometheus-metrics-applied 20260421
 
 extra-crew-screens 20260501
 gate-char8_t 20260501 -- mitigate GCC 16 build issues
+parallelize-lto 20260501
