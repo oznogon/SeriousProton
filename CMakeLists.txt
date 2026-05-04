@@ -284,6 +284,8 @@ set(source_files #All SeriousProton's objects to compile
     src/components/multiplayer.h
     src/systems/collision.h
     src/systems/collision.cpp
+    src/systems/interpolation.h
+    src/systems/interpolation.cpp
 
     src/multiplayer/collision.h
     src/multiplayer/collision.cpp
