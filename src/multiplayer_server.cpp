@@ -236,13 +236,12 @@ void GameServer::update(float /*gameDelta*/)
                         packet << int16_t(n);
                         (obj->memberReplicationInfo[n].sendFunction)(obj->memberReplicationInfo[n].ptr, packet);
                         cnt++;
-                        ADD_MULTIPLAYER_STATS(obj->multiplayerClassIdentifier + "::"
 #ifdef DEBUG
-                            + obj->memberReplicationInfo[n].name
+                        string _member_name = obj->multiplayerClassIdentifier + "::" + obj->memberReplicationInfo[n].name;
 #else
-                            + "member_" + string(n)
+                        string _member_name = obj->multiplayerClassIdentifier + "::" + "member_" + string(n);
 #endif
-                            , packet.getDataSize() - packet_size);
+                        ADD_MULTIPLAYER_STATS(_member_name, packet.getDataSize() - packet_size);
 
                         obj->memberReplicationInfo[n].update_timeout = obj->memberReplicationInfo[n].update_delay;
                     }
