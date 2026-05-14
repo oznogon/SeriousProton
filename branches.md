@@ -21,3 +21,5 @@ gate-char8_t 20260501 -- mitigate GCC 16 build issues
 parallelize-lto 20260501
 
 master 20260502 -- parallelize-lto
+
+hotkeys-remapping-with-dialog 20260513 -- set default interaction if only one is supported
