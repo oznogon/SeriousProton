@@ -137,7 +137,14 @@ public:
     // Returns a value in the range -1 to 1 for this keybinding. On keyboard keys this is always 0 or 1, but for joysticks this can be anywhere in the range -1.0 to 1.0
     float getValue() const;
 
-    void setSupportedInteractions(Interaction i) { supported_interactions = i; }
+    void setSupportedInteractions(Interaction i) {
+        supported_interactions = i;
+        // If only one interaction is supported, use it as the default for
+        // bindings that don't specify one (including default keys).
+        int bits = static_cast<int>(i);
+        if (i != Interaction::None && (bits & (bits - 1)) == 0)
+            default_interaction = i;
+    }
     Interaction getSupportedInteractions() const { return supported_interactions; }
 
     // Per-interaction aggregate query methods.
