@@ -259,6 +259,7 @@ private:
     float sensitivity = 1.0f;
 
     float value;
+    float raw_value = 0.0f;
     bool down_event;
     bool up_event;
     float continuous_value = 0.0f;
