@@ -393,7 +393,7 @@ bool Keybinding::getUp() const
 
 float Keybinding::getValue() const
 {
-    return value;
+    return raw_value;
 }
 
 void Keybinding::startUserRebind(Type bind_type, Interaction bind_interaction)
@@ -703,6 +703,8 @@ void Keybinding::setValue(float new_value, int key_type)
     // Store the absolute value so threshold comparisons on the next
     // call work correctly for negative axis directions.
     this->value = threshold_value;
+    // Store the signed value so getValue() preserves directional information.
+    this->raw_value = new_value;
 }
 
 void Keybinding::postUpdate()
