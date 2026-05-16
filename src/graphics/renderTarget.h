@@ -68,8 +68,15 @@ public:
     void drawStretched(sp::Rect rect, std::string_view texture, glm::u8vec4 color={255,255,255,255});
     void drawStretchedH(sp::Rect rect, std::string_view texture, glm::u8vec4 color={255,255,255,255});
     void drawStretchedV(sp::Rect rect, std::string_view texture, glm::u8vec4 color={255,255,255,255});
-    void drawStretchedHV(sp::Rect rect, float corner_size, std::string_view texture, glm::u8vec4 color={255,255,255,255});
-    void drawStretchedHVClipped(sp::Rect rect, sp::Rect clip_rect, float corner_size, std::string_view texture, glm::u8vec4 color={255,255,255,255});
+    enum class StretchedRotation
+    {
+        Rotate0,
+        Rotate90,
+        Rotate180,
+        Rotate270
+    };
+    void drawStretchedHV(sp::Rect rect, float corner_size, std::string_view texture, glm::u8vec4 color={255,255,255,255}, StretchedRotation rotation=StretchedRotation::Rotate0);
+    void drawStretchedHVClipped(sp::Rect rect, sp::Rect clip_rect, float corner_size, std::string_view texture, glm::u8vec4 color={255,255,255,255}, StretchedRotation rotation=StretchedRotation::Rotate0);
 
     void finish();
     struct VertexData
