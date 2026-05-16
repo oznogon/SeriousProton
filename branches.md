@@ -23,3 +23,5 @@ parallelize-lto 20260501
 master 20260502 -- parallelize-lto
 
 hotkeys-remapping-with-dialog 20260513 -- set default interaction if only one is supported
+
+hotkeys-remapping-with-dialog 20260514 -- also store raw input value on rebind to preserve sign
