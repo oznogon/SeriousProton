@@ -1006,7 +1006,7 @@ void RenderTarget::drawStretchedV(sp::Rect rect, std::string_view texture, glm::
         finish(info.texture);
 }
 
-void RenderTarget::drawStretchedHV(sp::Rect rect, float corner_size, std::string_view texture, glm::u8vec4 color)
+void RenderTarget::drawStretchedHV(sp::Rect rect, float corner_size, std::string_view texture, glm::u8vec4 color, StretchedRotation rotation)
 {
     auto info = getTextureInfo(texture);
     if (info.texture || vertex_data.size() >= std::numeric_limits<uint16_t>::max() - 16U)
@@ -1015,6 +1015,20 @@ void RenderTarget::drawStretchedHV(sp::Rect rect, float corner_size, std::string
 
     corner_size = std::min(corner_size, rect.size.y / 2.0f);
     corner_size = std::min(corner_size, rect.size.x / 2.0f);
+
+    auto getUV = [&](float u, float v) -> glm::vec2 {
+        switch (rotation)
+        {
+        case StretchedRotation::Rotate90:
+            return {uv_rect.position.x + uv_rect.size.x * (1.0f - v), uv_rect.position.y + uv_rect.size.y * u};
+        case StretchedRotation::Rotate180:
+            return {uv_rect.position.x + uv_rect.size.x * (1.0f - u), uv_rect.position.y + uv_rect.size.y * (1.0f - v)};
+        case StretchedRotation::Rotate270:
+            return {uv_rect.position.x + uv_rect.size.x * v, uv_rect.position.y + uv_rect.size.y * (1.0f - u)};
+        default:
+            return {uv_rect.position.x + uv_rect.size.x * u, uv_rect.position.y + uv_rect.size.y * v};
+        }
+    };
 
     auto n = vertex_data.size();
     index_data.insert(index_data.end(), {
@@ -1041,61 +1055,76 @@ void RenderTarget::drawStretchedHV(sp::Rect rect, float corner_size, std::string
     });
     vertex_data.push_back({
         {rect.position.x, rect.position.y},
-        color, {uv_rect.position.x, uv_rect.position.y}});
+        color, getUV(0.0f, 0.0f)
+    });
     vertex_data.push_back({
         {rect.position.x + corner_size, rect.position.y},
-        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y}});
+        color, getUV(0.5f, 0.0f)
+    });
     vertex_data.push_back({
         {rect.position.x + rect.size.x - corner_size, rect.position.y},
-        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y}});
+        color, getUV(0.5f, 0.0f)
+    });
     vertex_data.push_back({
         {rect.position.x + rect.size.x, rect.position.y},
-        color, {uv_rect.position.x + uv_rect.size.x, uv_rect.position.y}});
+        color, getUV(1.0f, 0.0f)
+    });
 
     vertex_data.push_back({
         {rect.position.x, rect.position.y + corner_size},
-        color, {uv_rect.position.x, uv_rect.position.y + uv_rect.size.y * 0.5f}});
+        color, getUV(0.0f, 0.5f)
+    });
     vertex_data.push_back({
         {rect.position.x + corner_size, rect.position.y + corner_size},
-        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y + uv_rect.size.y * 0.5f}});
+        color, getUV(0.5f, 0.5f)
+    });
     vertex_data.push_back({
         {rect.position.x + rect.size.x - corner_size, rect.position.y + corner_size},
-        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y + uv_rect.size.y * 0.5f}});
+        color, getUV(0.5f, 0.5f)
+    });
     vertex_data.push_back({
         {rect.position.x + rect.size.x, rect.position.y + corner_size},
-        color, {uv_rect.position.x + uv_rect.size.x, uv_rect.position.y + uv_rect.size.y * 0.5f}});
+        color, getUV(1.0f, 0.5f)
+    });
 
     vertex_data.push_back({
         {rect.position.x, rect.position.y + rect.size.y - corner_size},
-        color, {uv_rect.position.x, uv_rect.position.y + uv_rect.size.y * 0.5f}});
+        color, getUV(0.0f, 0.5f)
+    });
     vertex_data.push_back({
         {rect.position.x + corner_size, rect.position.y + rect.size.y - corner_size},
-        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y + uv_rect.size.y * 0.5f}});
+        color, getUV(0.5f, 0.5f)
+    });
     vertex_data.push_back({
         {rect.position.x + rect.size.x - corner_size, rect.position.y + rect.size.y - corner_size},
-        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y + uv_rect.size.y * 0.5f}});
+        color, getUV(0.5f, 0.5f)
+    });
     vertex_data.push_back({
         {rect.position.x + rect.size.x, rect.position.y + rect.size.y - corner_size},
-        color, {uv_rect.position.x + uv_rect.size.x, uv_rect.position.y + uv_rect.size.y * 0.5f}});
+        color, getUV(1.0f, 0.5f)
+    });
 
     vertex_data.push_back({
         {rect.position.x, rect.position.y + rect.size.y},
-        color, {uv_rect.position.x, uv_rect.position.y + uv_rect.size.y}});
+        color, getUV(0.0f, 1.0f)
+    });
     vertex_data.push_back({
         {rect.position.x + corner_size, rect.position.y + rect.size.y},
-        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y + uv_rect.size.y}});
+        color, getUV(0.5f, 1.0f)
+    });
     vertex_data.push_back({
         {rect.position.x + rect.size.x - corner_size, rect.position.y + rect.size.y},
-        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y + uv_rect.size.y}});
+        color, getUV(0.5f, 1.0f)
+    });
     vertex_data.push_back({
         {rect.position.x + rect.size.x, rect.position.y + rect.size.y},
-        color, {uv_rect.position.x + uv_rect.size.x, uv_rect.position.y + uv_rect.size.y}});
+        color, getUV(1.0f, 1.0f)
+    });
 
-    if (info.texture)
-        finish(info.texture);
+    if (info.texture) finish(info.texture);
 }
 
-void RenderTarget::drawStretchedHVClipped(sp::Rect rect, sp::Rect clip_rect, float corner_size, std::string_view texture, glm::u8vec4 color)
+void RenderTarget::drawStretchedHVClipped(sp::Rect rect, sp::Rect clip_rect, float corner_size, std::string_view texture, glm::u8vec4 color, StretchedRotation rotation)
 {
     if (clip_rect.size.x < 0 || clip_rect.size.y < 0)
         return;
@@ -1195,28 +1224,43 @@ void RenderTarget::drawStretchedHVClipped(sp::Rect rect, sp::Rect clip_rect, flo
         y3 = clip_rect.position.y + clip_rect.size.y;
     }
 
-    vertex_data.push_back({ {x0, y0}, color, {uvx0, uvy0}});
-    vertex_data.push_back({ {x1, y0}, color, {uvx1, uvy0}});
-    vertex_data.push_back({ {x2, y0}, color, {uvx1, uvy0}});
-    vertex_data.push_back({ {x3, y0}, color, {uvx2, uvy0}});
+    auto rotateUV = [&](float u, float v) -> glm::vec2 {
+        float nu = (u - uv_rect.position.x) / uv_rect.size.x;
+        float nv = (v - uv_rect.position.y) / uv_rect.size.y;
+        switch (rotation)
+        {
+        case StretchedRotation::Rotate90:
+            return {uv_rect.position.x + uv_rect.size.x * (1.0f - nv), uv_rect.position.y + uv_rect.size.y * nu};
+        case StretchedRotation::Rotate180:
+            return {uv_rect.position.x + uv_rect.size.x * (1.0f - nu), uv_rect.position.y + uv_rect.size.y * (1.0f - nv)};
+        case StretchedRotation::Rotate270:
+            return {uv_rect.position.x + uv_rect.size.x * nv, uv_rect.position.y + uv_rect.size.y * (1.0f - nu)};
+        default:
+            return {u, v};
+        }
+    };
 
-    vertex_data.push_back({ {x0, y1}, color, {uvx0, uvy1}});
-    vertex_data.push_back({ {x1, y1}, color, {uvx1, uvy1}});
-    vertex_data.push_back({ {x2, y1}, color, {uvx1, uvy1}});
-    vertex_data.push_back({ {x3, y1}, color, {uvx2, uvy1}});
+    vertex_data.push_back({ {x0, y0}, color, rotateUV(uvx0, uvy0) });
+    vertex_data.push_back({ {x1, y0}, color, rotateUV(uvx1, uvy0) });
+    vertex_data.push_back({ {x2, y0}, color, rotateUV(uvx1, uvy0) });
+    vertex_data.push_back({ {x3, y0}, color, rotateUV(uvx2, uvy0) });
 
-    vertex_data.push_back({ {x0, y2}, color, {uvx0, uvy1}});
-    vertex_data.push_back({ {x1, y2}, color, {uvx1, uvy1}});
-    vertex_data.push_back({ {x2, y2}, color, {uvx1, uvy1}});
-    vertex_data.push_back({ {x3, y2}, color, {uvx2, uvy1}});
+    vertex_data.push_back({ {x0, y1}, color, rotateUV(uvx0, uvy1) });
+    vertex_data.push_back({ {x1, y1}, color, rotateUV(uvx1, uvy1) });
+    vertex_data.push_back({ {x2, y1}, color, rotateUV(uvx1, uvy1) });
+    vertex_data.push_back({ {x3, y1}, color, rotateUV(uvx2, uvy1) });
 
-    vertex_data.push_back({ {x0, y3}, color, {uvx0, uvy2}});
-    vertex_data.push_back({ {x1, y3}, color, {uvx1, uvy2}});
-    vertex_data.push_back({ {x2, y3}, color, {uvx1, uvy2}});
-    vertex_data.push_back({ {x3, y3}, color, {uvx2, uvy2}});
+    vertex_data.push_back({ {x0, y2}, color, rotateUV(uvx0, uvy1) });
+    vertex_data.push_back({ {x1, y2}, color, rotateUV(uvx1, uvy1) });
+    vertex_data.push_back({ {x2, y2}, color, rotateUV(uvx1, uvy1) });
+    vertex_data.push_back({ {x3, y2}, color, rotateUV(uvx2, uvy1) });
 
-    if (info.texture)
-        finish(info.texture);
+    vertex_data.push_back({ {x0, y3}, color, rotateUV(uvx0, uvy2) });
+    vertex_data.push_back({ {x1, y3}, color, rotateUV(uvx1, uvy2) });
+    vertex_data.push_back({ {x2, y3}, color, rotateUV(uvx1, uvy2) });
+    vertex_data.push_back({ {x3, y3}, color, rotateUV(uvx2, uvy2) });
+
+    if (info.texture) finish(info.texture);
 }
 
 void RenderTarget::finish()
