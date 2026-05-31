@@ -27,3 +27,5 @@ hotkeys-remapping-with-dialog 20260513 -- set default interaction if only one is
 hotkeys-remapping-with-dialog 20260514 -- also store raw input value on rebind to preserve sign
 
 extra-crew-screens 20260516 -- rotatable drawStretchedHV
+
+master 20260531 -- fix-strict-compilation
