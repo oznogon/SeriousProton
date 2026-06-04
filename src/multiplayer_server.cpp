@@ -7,6 +7,7 @@
 #include "ecs/multiplayer.h"
 
 #include "io/http/request.h"
+#include "random.h"
 
 #ifdef STEAMSDK
 #include "io/network/steamP2PSocket.h"
@@ -458,7 +459,24 @@ void GameServer::update(float /*gameDelta*/)
                 break;
             }
         }
-        if (clientList[n].socket != NULL) {
+        if (clientList[n].socket != NULL && engine)
+        {
+            float now = engine->getElapsedTime();
+            auto& delayed = clientList[n].delayed_packets;
+            for (auto it = delayed.begin(); it != delayed.end(); )
+            {
+                if (it->second <= now)
+                {
+                    sp::io::DataBuffer p;
+                    p.appendRaw(it->first.data(), it->first.size());
+                    clientList[n].socket->queue(p);
+                    it = delayed.erase(it);
+                }
+                else
+                {
+                    ++it;
+                }
+            }
             clientList[n].socket->sendSendQueue();
         }
         if (clientList[n].socket == NULL || clientList[n].socket->getState() == sp::io::network::StreamSocket::State::Closed)
@@ -690,7 +708,27 @@ void GameServer::sendAll(sp::io::DataBuffer& packet)
     for(auto& client : clientList)
     {
         if (client.receive_state != CRS_Auth && client.socket)
-            client.socket->queue(packet);
+        {
+            // Optionally simulate high latency on clients by queuing and
+            // delaying packets. High (250ms) and random (0-250ms) lag can
+            // stack when both are enabled.
+            if (simulate_high_latency || simulate_random_latency)
+            {
+                float delay = 0.0f;
+                if (simulate_high_latency) delay += 0.25f;
+                if (simulate_random_latency) delay += random(0.0f, 0.25f);
+                std::vector<uint8_t> data(
+                    static_cast<const uint8_t*>(packet.getData()),
+                    static_cast<const uint8_t*>(packet.getData()) + packet.getDataSize()
+                );
+                client.delayed_packets.push_back({
+                    std::move(data),
+                    engine->getElapsedTime() + delay
+                });
+            }
+            // Otherwise, just queue packets as they're generated.
+            else client.socket->queue(packet);
+        }
     }
 }
 

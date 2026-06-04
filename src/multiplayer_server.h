@@ -85,6 +85,7 @@ private:
         sp::SystemStopwatch round_trip_start_time;
         int32_t ping = 0;
         std::vector<int32_t> proxy_ids;
+        std::vector<std::pair<std::vector<uint8_t>, float>> delayed_packets;
     };
     int32_t nextclient_id;
     std::vector<ClientInfo> clientList;
@@ -100,6 +101,8 @@ private:
     std::thread master_server_update_thread;
     MasterServerState master_server_state = MasterServerState::Disabled;
 public:
+    bool simulate_high_latency = false;
+    bool simulate_random_latency = false;
     GameServer(string server_name, int versionNumber, int listenPort = defaultServerPort);
     virtual ~GameServer();
 
