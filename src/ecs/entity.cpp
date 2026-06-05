@@ -28,10 +28,15 @@ Entity Entity::create()
 
 Entity Entity::fromIndex(uint32_t index)
 {
-	Entity e;
-	e.index = index;
-	e.version = entity_version[index];
-	return e;
+    if (index >= entity_version.size())
+    {
+        LOG(Warning, "Entity::fromIndex() called with out-of-range index: ", index);
+        return {};
+    }
+    Entity e;
+    e.index = index;
+    e.version = entity_version[index];
+    return e;
 }
 
 Entity::operator bool() const
