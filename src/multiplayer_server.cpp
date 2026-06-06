@@ -108,6 +108,8 @@ void GameServer::connectToProxy(sp::io::network::Address address, int port)
 
 void GameServer::destroy()
 {
+    sendProxyRegistryDeregister();
+
     clientList.clear();
     objectMap.clear();
 
@@ -251,6 +253,9 @@ void GameServer::update(float /*gameDelta*/)
     }
 
     handleBroadcastUDPSocket(delta);
+
+    if (proxy_registry_heartbeat_timer.isExpired())
+        sendProxyRegistryHeartbeat();
 
     if (listen_socket.accept(*new_socket))
     {
@@ -824,4 +829,133 @@ std::unordered_set<int32_t> GameServer::onVoiceChat(int32_t client_id, int32_t /
         }
     }
     return result;
+}
+
+static void parseRegistryUrl(const string& url, string& hostname, int& port, string& path_prefix)
+{
+    hostname = url;
+    port = 80;
+    path_prefix = "";
+
+    if (hostname.startswith("http://"))
+        hostname = hostname.substr(7);
+
+    int path_start = hostname.find("/");
+    if (path_start >= 0)
+    {
+        path_prefix = hostname.substr(path_start);
+        hostname = hostname.substr(0, path_start);
+    }
+
+    int port_start = hostname.find(":");
+    if (port_start >= 0)
+    {
+        port = hostname.substr(port_start + 1).toInt();
+        hostname = hostname.substr(0, port_start);
+    }
+}
+
+void GameServer::sendProxyRegistryDeregister()
+{
+    if (proxy_registry_url == "" || proxy_registry_assigned_port == 0)
+        return;
+
+    string hostname;
+    int port;
+    string path_prefix;
+    parseRegistryUrl(proxy_registry_url, hostname, port, path_prefix);
+
+    sp::io::http::Request http(hostname, port);
+    string data = "password=" + proxy_registry_password
+                + "&port=" + string(proxy_registry_assigned_port);
+
+    auto response = http.post(path_prefix + "/deregister.php", data);
+    if (response.status != 200)
+        LOG(Warning) << "Proxy registry deregister failed: HTTP " << response.status;
+
+    proxy_registry_assigned_port = 0;
+}
+
+void GameServer::sendProxyRegistryHeartbeat()
+{
+    if (proxy_registry_url == "" || proxy_registry_assigned_port == 0)
+        return;
+
+    string hostname;
+    int port;
+    string path_prefix;
+    parseRegistryUrl(proxy_registry_url, hostname, port, path_prefix);
+
+    sp::io::http::Request http(hostname, port);
+    string data = "password=" + proxy_registry_password
+                + "&port=" + string(proxy_registry_assigned_port)
+                + "&name=" + server_name
+                + "&version=" + string(version_number);
+
+    auto response = http.post(path_prefix + "/heartbeat.php", data);
+    if (response.status != 200)
+        LOG(Warning) << "Proxy registry heartbeat failed: HTTP " << response.status;
+}
+
+void GameServer::registerOnProxyRegistry(string registry_url, string password)
+{
+    proxy_registry_url = registry_url;
+    proxy_registry_password = password;
+
+    string hostname;
+    int port;
+    string path_prefix;
+    parseRegistryUrl(registry_url, hostname, port, path_prefix);
+
+    LOG(Info) << "Registering with proxy registry at " << registry_url;
+
+    sp::io::http::Request http(hostname, port);
+    string data = "password=" + proxy_registry_password
+                + "&name=" + server_name
+                + "&version=" + string(version_number);
+
+    auto response = http.post(path_prefix + "/register.php", data);
+    if (response.status != 200)
+    {
+        LOG(Error) << "Proxy registry registration failed: HTTP " << response.status << " - " << response.body;
+        return;
+    }
+
+    // Expected: "ASSIGNED <host> <port> <password>"
+    auto parts = response.body.split(" ");
+    if (parts.size() >= 3 && parts[0] == "ASSIGNED")
+    {
+        string proxy_host = parts[1];
+        int proxy_port = parts[2].toInt();
+        proxy_registry_assigned_port = proxy_port;
+        proxy_registry_heartbeat_timer.repeat(60.0f);
+
+        LOG(Info) << "Assigned proxy port " << proxy_port << ", connecting with retry...";
+
+        // Retry connecting to the proxy — it may still be starting up.
+        for (int attempt = 0; attempt < 10; attempt++)
+        {
+            connectToProxy(sp::io::network::Address(proxy_host), proxy_port);
+            bool connected = false;
+            for (auto& ci : clientList)
+            {
+                if (ci.socket && ci.receive_state == CRS_Auth)
+                {
+                    connected = true;
+                    break;
+                }
+            }
+            if (connected)
+                break;
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
+    }
+    else if (response.body == "NO_PORTS_AVAILABLE")
+    {
+        LOG(Error) << "Proxy registry: no ports available";
+    }
+    else
+    {
+        LOG(Error) << "Unexpected registry response: " << response.body;
+    }
 }

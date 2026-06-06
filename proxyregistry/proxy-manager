@@ -1,0 +1,96 @@
+#!/bin/bash
+# proxy-manager — maintain proxy registry health
+#
+# Run from cron every 5 minutes or as a systemd timer.
+#
+#   */5 * * * *  /path/to/proxyregistry/proxy-manager
+#
+# Assumes SQLite3 is installed and the config.inc.php constants
+# below are kept in sync with the web-facing config.
+
+set -euo pipefail
+
+# --- Configuration (keep in sync with config.inc.php) ----------
+
+DB="/var/www/proxyregistry/data/registry.db"
+EE="/usr/local/bin/EmptyEpsilon"
+HEARTBEAT_TIMEOUT=120
+PORT_MIN=40000
+PORT_MAX=40100
+LOG_DIR="/var/www/proxyregistry/data/logs"
+REGISTRY_PASSWORD="change-me"
+PROXY_PUBLIC_HOST="127.0.0.1"
+
+# --- Helpers ----------------------------------------------------
+
+die() { echo "[$(date -Iseconds)] $*" >&2; exit 1; }
+info() { echo "[$(date -Iseconds)] $*"; }
+
+command -v sqlite3 >/dev/null 2>&1 || die "sqlite3 not found"
+command -v "$EE"        >/dev/null 2>&1 || die "EmptyEpsilon binary not found at $EE"
+mkdir -p "$LOG_DIR"
+
+# --- 1. Kill stale assigned proxies -----------------------------
+# Proxies whose game server hasn't heartbeated within the timeout.
+
+info "Checking for stale proxies..."
+
+sqlite3 "$DB" "
+    SELECT port, pid FROM proxy_slots
+    WHERE status = 'assigned'
+      AND last_heartbeat < datetime('now', '-${HEARTBEAT_TIMEOUT} seconds')
+" 2>/dev/null | while IFS='|' read -r port pid; do
+    if [ -n "$pid" ] && [ "$pid" -gt 0 ] 2>/dev/null; then
+        info "Killing stale proxy port=$port pid=$pid"
+        kill "$pid" 2>/dev/null || true
+    fi
+    sqlite3 "$DB" "UPDATE proxy_slots SET
+        status='free', pid=NULL, server_password=NULL,
+        server_name=NULL, server_version=NULL, server_ip=NULL,
+        assigned_at=NULL, last_heartbeat=NULL, last_error='Stale'
+        WHERE port=$port"
+done
+
+# --- 2. Clean up 'starting' entries that never finished ---------
+# These are slots where register.php set status='starting' but then
+# crashed before marking them 'assigned'.
+
+info "Cleaning up stuck 'starting' entries..."
+
+sqlite3 "$DB" "
+    SELECT port, pid FROM proxy_slots
+    WHERE status = 'starting'
+      AND assigned_at < datetime('now', '-30 seconds')
+" 2>/dev/null | while IFS='|' read -r port pid; do
+    if [ -n "$pid" ] && [ "$pid" -gt 0 ] 2>/dev/null; then
+        info "Killing stuck starter port=$port pid=$pid"
+        kill "$pid" 2>/dev/null || true
+    fi
+    sqlite3 "$DB" "UPDATE proxy_slots SET
+        status='free', pid=NULL, last_error='Startup timeout'
+        WHERE port=$port"
+done
+
+# --- 3. (Optional) Pre-warm free slots --------------------------
+# Uncomment to keep a minimum number of idle GameServerProxy
+# instances pre-spawned for faster assignments.
+#
+# WARM_COUNT=5
+# free_count=$(sqlite3 "$DB" "SELECT COUNT(*) FROM proxy_slots WHERE status='free'" 2>/dev/null || echo 0)
+# if [ "$free_count" -lt "$WARM_COUNT" ]; then
+#     # Pick ports to start
+#     sqlite3 "$DB" "
+#         SELECT port FROM proxy_slots
+#         WHERE status='free'
+#         ORDER BY port
+#         LIMIT $((WARM_COUNT - free_count))
+#     " 2>/dev/null | while read -r port; do
+#         log="$LOG_DIR/proxy_${port}.log"
+#         nohup "$EE" proxy=listen:"$port":prewarmed:"$port":Prewarmed > "$log" 2>&1 &
+#         pid=$!
+#         sqlite3 "$DB" "UPDATE proxy_slots SET status='free', pid=$pid WHERE port=$port"
+#         info "Pre-warmed proxy port=$port pid=$pid"
+#     done
+# fi
+
+info "Done."

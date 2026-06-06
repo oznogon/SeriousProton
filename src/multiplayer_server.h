@@ -94,6 +94,11 @@ private:
     string master_server_url;
     std::thread master_server_update_thread;
     MasterServerState master_server_state = MasterServerState::Disabled;
+
+    string proxy_registry_url;
+    string proxy_registry_password;
+    int32_t proxy_registry_assigned_port = 0;
+    sp::SystemTimer proxy_registry_heartbeat_timer;
 public:
     GameServer(string server_name, int versionNumber, int listenPort = defaultServerPort);
     virtual ~GameServer();
@@ -112,6 +117,7 @@ public:
     void setServerName(string name) { server_name = name; }
     
     void registerOnMasterServer(string master_server_url);
+    void registerOnProxyRegistry(string registry_url, string password);
     MasterServerState getMasterServerState() { return master_server_state; }
     void stopMasterServerRegistry();
     void setPassword(string password);
@@ -135,7 +141,9 @@ private:
     void handleNewProxy(ClientInfo& info, int32_t temp_id);
     
     void runMasterServerUpdateThread();
-    
+    void sendProxyRegistryHeartbeat();
+    void sendProxyRegistryDeregister();
+
     void handleBroadcastUDPSocket(float delta);
 
     friend class MultiplayerObject;
