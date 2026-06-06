@@ -29,3 +29,5 @@ hotkeys-remapping-with-dialog 20260514 -- also store raw input value on rebind t
 extra-crew-screens 20260516 -- rotatable drawStretchedHV
 
 master 20260531 -- fix-strict-compilation
+
+master 20260606 -- reverse-proxy-registry
