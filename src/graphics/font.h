@@ -75,9 +75,12 @@ public:
 
     virtual void setBaselineOffset(float offset) { baseline_offset = offset; }
     virtual float getBaselineOffset() const { return baseline_offset; }
+    virtual void setLineHeight(float height) { line_height = height; }
+    virtual float getLineHeight() const { return line_height; }
 
 private:
     float baseline_offset = 0.0f;
+    float line_height = 1.0f;
 };
 
 }

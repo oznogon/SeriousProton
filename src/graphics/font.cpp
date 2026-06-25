@@ -144,7 +144,7 @@ void Font::PreparedFontString::finish()
     auto start_of_line = data.begin();
     for(auto it = data.begin(); it != data.end(); ++it)
     {
-        current_line_spacing = std::max(current_line_spacing, font->getLineSpacing(pixel_size) * it->size / float(pixel_size));
+        current_line_spacing = std::max(current_line_spacing, font->getLineSpacing(pixel_size) * it->size / float(pixel_size)) * font->getLineHeight();
         if (it->char_code == 0)
         {
             total_line_spacing += current_line_spacing;
