@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <thread>
+#include <atomic>
 #include <functional>
 
 
@@ -99,6 +100,7 @@ private:
 
     string master_server_url;
     std::thread master_server_update_thread;
+    std::atomic<sp::io::network::TcpSocket*> master_server_http_socket{nullptr};
     MasterServerState master_server_state = MasterServerState::Disabled;
 
     string proxy_registry_url;

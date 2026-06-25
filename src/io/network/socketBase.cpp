@@ -27,6 +27,7 @@ void SocketBase::setBlocking(bool blocking)
     this->blocking = blocking;
     if (handle == INVALID_SOCKET)
     {
+        LOG(Warning, "Failed to setBlocking due to being called on an incomplete socket");
         return;
     }
 
@@ -59,6 +60,21 @@ void SocketBase::setTimeout(int milliseconds)
     timeout.tv_sec = milliseconds / 1000;
     timeout.tv_usec = milliseconds * 1000;
     ::setsockopt(handle, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&timeout), sizeof(timeout));
+#endif
+}
+
+void SocketBase::shutdown()
+{
+    if (handle == INVALID_SOCKET)
+    {
+        LOG(Warning, "Failed to shutdown due to being called on an incomplete socket");
+        return;
+    }
+
+#ifdef _WIN32
+    ::shutdown(handle, SD_BOTH);
+#else
+    ::shutdown(handle, SHUT_RDWR);
 #endif
 }
 

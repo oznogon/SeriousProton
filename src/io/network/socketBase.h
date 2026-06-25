@@ -15,6 +15,7 @@ class SocketBase : sp::NonCopyable
 public:
     void setBlocking(bool blocking);
     void setTimeout(int milliseconds);
+    void shutdown();
 
 protected:
     bool isLastErrorNonBlocking();

@@ -90,8 +90,6 @@ GameServer::GameServer(string server_name, int version_number, int listen_port)
 GameServer::~GameServer()
 {
     destroy();
-    if (master_server_update_thread.joinable())
-        master_server_update_thread.join();
 }
 
 void GameServer::connectToProxy(sp::io::network::Address address, int port)
@@ -128,6 +126,14 @@ void GameServer::connectToProxy(sp::io::network::Address address, int port)
 void GameServer::destroy()
 {
     sendProxyRegistryDeregister();
+
+    master_server_url = "";
+    if (auto* s = master_server_http_socket.load())
+    {
+        s->shutdown();
+        s->close();
+        master_server_update_thread.join();
+    }
 
     clientList.clear();
     objectMap.clear();
@@ -783,6 +789,7 @@ void GameServer::runMasterServerUpdateThread()
     
     master_server_state = MasterServerState::Registering;
     sp::io::http::Request http(hostname, port);
+    master_server_http_socket = &http.getSocket();
     while(!isDestroyed() && master_server_url != "")
     {
         auto response = http.post(uri, "port=" + string(listen_port) + "&name=" + server_name + "&version=" + string(version_number));
@@ -802,6 +809,7 @@ void GameServer::runMasterServerUpdateThread()
         for(int n=0;n<60 && !isDestroyed() && master_server_url != "";n++)
             std::this_thread::sleep_for(std::chrono::duration<float>(1.f));
     }
+    master_server_http_socket = nullptr;
     master_server_state = MasterServerState::Disabled;
 }
 

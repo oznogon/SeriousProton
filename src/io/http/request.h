@@ -35,6 +35,8 @@ public:
     Response post(const string& path, const string& data);
 
     Response request(const string& method, const string& path, const string& data);
+
+    sp::io::network::TcpSocket& getSocket() { return socket; }
 private:
     int port;
     Scheme scheme;
