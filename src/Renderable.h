@@ -1,5 +1,4 @@
-#ifndef RENDERABLE_H
-#define RENDERABLE_H
+#pragma once
 
 #include "graphics/renderTarget.h"
 #include "io/pointer.h"
@@ -30,7 +29,6 @@ class RenderLayer : public RenderChain
 private:
     PVector<Renderable> renderableList;
     RenderChain* link;
-
 public:
     bool active;
 
@@ -54,26 +52,24 @@ public:
 //Abstract class for entity that can be rendered.
 class Renderable: public virtual PObject
 {
-    public:
-        Renderable();
-        Renderable(RenderLayer* renderLayer);
-        virtual ~Renderable();
-        virtual void render(sp::RenderTarget& target) = 0;
-        void moveToRenderLayer(RenderLayer* renderLayer);
-        RenderLayer* getRenderLayer();
-        
-        //Anything that can be rendered can process input.
-        virtual bool onPointerMove(glm::vec2 position, sp::io::Pointer::ID id) { return false; }
-        virtual void onPointerLeave(sp::io::Pointer::ID id) {}
-        virtual bool onPointerDown(sp::io::Pointer::Button button, glm::vec2 position, sp::io::Pointer::ID id) { return false; }
-        virtual void onPointerDrag(glm::vec2 position, sp::io::Pointer::ID id) {}
-        virtual void onPointerUp(glm::vec2 position, sp::io::Pointer::ID id) {}
-        virtual void onMouseWheelScroll(glm::vec2 position, float value) {};
-        virtual void onTextInput(const string& text) {}
-        virtual void onTextInput(sp::TextInputEvent e) {}
-    protected:
-    private:
-        RenderLayer* layer;
-};
+public:
+    Renderable();
+    Renderable(RenderLayer* renderLayer);
+    virtual ~Renderable();
+    virtual void render(sp::RenderTarget& target) = 0;
+    void moveToRenderLayer(RenderLayer* renderLayer);
+    RenderLayer* getRenderLayer();
 
-#endif // RENDERABLE_H
+    // Anything that can be rendered can process input.
+    virtual bool onPointerMove(glm::vec2 position, sp::io::Pointer::ID id) { return false; }
+    virtual void onPointerLeave(sp::io::Pointer::ID id) {}
+    virtual bool onPointerDown(sp::io::Pointer::Button button, glm::vec2 position, sp::io::Pointer::ID id) { return false; }
+    virtual void onPointerDrag(glm::vec2 position, sp::io::Pointer::ID id) {}
+    virtual void onPointerUp(glm::vec2 position, sp::io::Pointer::ID id) {}
+    virtual void onMouseWheelScroll(glm::vec2 position, float value) {};
+    virtual void onTextInput(const string& text) {}
+    virtual void onTextInput(sp::TextInputEvent e) {}
+protected:
+private:
+    RenderLayer* layer;
+};

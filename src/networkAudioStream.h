@@ -1,5 +1,4 @@
-#ifndef NETWORK_AUDIOSTREAM_H
-#define NETWORK_AUDIOSTREAM_H
+#pragma once
 
 #include <audio/source.h>
 #include <memory>
@@ -8,8 +7,8 @@
 #include <mutex>
 #include <vector>
 
-
 struct OpusDecoder;
+
 class NetworkAudioStream: public sp::audio::Source
 {
 public:
@@ -22,7 +21,7 @@ protected:
     // Inherited functions
     virtual void onMixSamples(int16_t* stream, int sample_count) override;
 
-    //Members
+    // Members
     unsigned int sample_rate;
     std::mutex             samples_lock;
     std::vector<int16_t>   samples;
@@ -40,5 +39,3 @@ public:
 private:
     std::unordered_map<int32_t, std::unique_ptr<NetworkAudioStream>> streams;
 };
-
-#endif //NETWORK_AUDIOSTREAM_H

@@ -1,5 +1,4 @@
-#ifndef SP_DYNAMIC_LIBRARY_H
-#define SP_DYNAMIC_LIBRARY_H
+#pragma once
 
 #include <memory>
 #include <filesystem>
@@ -60,5 +59,3 @@ Function DynamicLibrary::getFunction(std::string_view name)
 {
     return reinterpret_cast<Function>(getFunction<void*>(name));
 }
-
-#endif // SP_DYNAMIC_LIBRARY_H

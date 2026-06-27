@@ -1,20 +1,23 @@
-#ifndef SP_JSON_H
-#define SP_JSON_H
+#pragma once
 
 #include <string>
 #include <optional>
 #include <nlohmann/json.hpp>
 
-namespace sp {
-    namespace json {
-        // nlohmann uses exceptions by default - these are helper to provide exception-less parsing with diagnostics.
+namespace sp
+{
+    namespace json
+    {
+        // nlohmann uses exceptions by default. These helpers provide
+        // exceptionless parsing with diagnostics.
         template<typename InputType>
         std::optional<nlohmann::json> parse(InputType&& i, std::string& error, const bool ignore_comments = false);
 
         template<typename IteratorType>
         std::optional<nlohmann::json> parse(IteratorType first, IteratorType last, std::string& error, const bool ignore_comments = false);
         
-        namespace details {
+        namespace details
+        {
             class JsonParser : public nlohmann::detail::json_sax_dom_parser<nlohmann::json>
             {
             public:
@@ -34,7 +37,6 @@ namespace sp {
             };
         } // namespace details
     } // namespace json
-    
 } // namespace sp
 
 
@@ -47,7 +49,9 @@ std::optional<nlohmann::json> sp::json::parse(InputType&& i, std::string& error,
     constexpr auto input_format = nlohmann::json::input_format_t::json;
     auto success = nlohmann::json::sax_parse(std::forward<InputType>(i), &parser, input_format, strict_mode, ignore_comments);
     
-    return success ? std::make_optional(result) : std::optional<nlohmann::json>{};
+    return success
+        ? std::make_optional(result)
+        : std::optional<nlohmann::json>{};
 }
 
 template<typename IteratorType>
@@ -61,6 +65,7 @@ std::optional<nlohmann::json> sp::json::parse(IteratorType first, IteratorType l
     
     auto success = nlohmann::json::sax_parse(first, last, &parser, input_format, strict_mode, ignore_comments);
     
-    return success ? std::make_optional(result) : std::optional<nlohmann::json>{};
+    return success
+        ? std::make_optional(result)
+        : std::optional<nlohmann::json>{};
 }
-#endif // SP_JSON_H

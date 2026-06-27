@@ -1,5 +1,4 @@
-#ifndef SP_GRAPHICS_KTX2TEXTURE_H
-#define SP_GRAPHICS_KTX2TEXTURE_H
+#pragma once
 
 #include <memory>
 #include <optional>
@@ -39,4 +38,3 @@ namespace sp {
         std::unique_ptr<Details> details;
     };
 }
-#endif // SP_GRAPHICS_KTX2TEXTURE_H

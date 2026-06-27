@@ -1,5 +1,4 @@
-#ifndef UPDATABLE_H
-#define UPDATABLE_H
+#pragma once
 
 #include "P.h"
 
@@ -15,5 +14,3 @@ class Updatable: public virtual PObject
     protected:
     private:
 };
-
-#endif // UPDATABLE_H

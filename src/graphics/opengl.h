@@ -1,5 +1,4 @@
-#ifndef SP_GRAPHICS_OPENGL_H
-#define SP_GRAPHICS_OPENGL_H
+#pragma once
 
 #include <glad/glad.h>
 
@@ -96,4 +95,3 @@ namespace sp {
 #define glGenVertexArraysANY sp_glGenVertexArraysANY
 #define glIsVertexArrayANY sp_glIsVertexArrayANY
 #endif // SP_ENABLE_OPENGL_TRACING
-#endif//SP_GRAPHICS_OPENGL_H

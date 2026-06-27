@@ -1,5 +1,4 @@
-#ifndef NETWORK_AUDIO_RECORDER_H
-#define NETWORK_AUDIO_RECORDER_H
+#pragma once
 
 #include <stdint.h>
 #include <list>
@@ -42,5 +41,3 @@ private:
     bool sendAudioPacket();
     void finishSending();
 };
-
-#endif //NETWORK_VOICE_RECORDER_H
