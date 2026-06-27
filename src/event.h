@@ -2,7 +2,6 @@
 #define EVENT_H
 
 #include <unordered_map>
-#include <vector>
 
 #include "P.h"
 #include "stringImproved.h"

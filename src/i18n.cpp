@@ -1,7 +1,5 @@
 #include "i18n.h"
 
-#include <cassert>
-
 
 #include "resources.h"
 #include "logging.h"

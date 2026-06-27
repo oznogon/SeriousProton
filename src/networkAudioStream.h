@@ -2,7 +2,6 @@
 
 #include <audio/source.h>
 #include <memory>
-#include <iostream>
 #include <unordered_map>
 #include <mutex>
 #include <vector>
