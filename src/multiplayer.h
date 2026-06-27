@@ -8,7 +8,6 @@
 #include "ecs/entity.h"
 #include "multiplayer_internal.h"
 
-class MultiplayerObject;
 
 
 #define REGISTER_MULTIPLAYER_CLASS(className, name) MultiplayerClassListItem MultiplayerClassListItem ## className(name, createMultiplayerObject<className>);
