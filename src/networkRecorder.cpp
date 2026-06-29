@@ -113,7 +113,7 @@ void NetworkAudioRecorder::startSending()
         audio_packet << CMD_AUDIO_COMM_START << game_client->getClientId() << int32_t(keys[active_key_index].target_identifier);
         game_client->sendPacket(audio_packet);
     }
-    else if (game_server)
+    else if (game_server.isAlive())
     {
         game_server->startAudio(0, keys[active_key_index].target_identifier);
     }
@@ -137,7 +137,7 @@ bool NetworkAudioRecorder::sendAudioPacket()
 
             game_client->sendPacket(audio_packet);
         }
-        else if (game_server)
+        else if (game_server.isAlive())
         {
             game_server->gotAudioPacket(0, packet_buffer, packet_size);
         }
@@ -174,7 +174,7 @@ void NetworkAudioRecorder::finishSending()
         audio_packet << CMD_AUDIO_COMM_STOP << game_client->getClientId();
         game_client->sendPacket(audio_packet);
     }
-    else if (game_server)
+    else if (game_server.isAlive())
     {
         game_server->stopAudio(0);
     }

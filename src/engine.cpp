@@ -232,7 +232,7 @@ void Engine::runMainLoop()
             elapsedTime += update_delta;
 
             engine_timing["server_update"] = 0.0f;
-            if (game_server) engine_timing["server_update"] = game_server->getUpdateTime();
+            if (game_server.isAlive()) engine_timing["server_update"] = game_server->getUpdateTime();
 
             last_engine_timing = engine_timing;
             soundManager->updateTick();
@@ -298,7 +298,7 @@ void Engine::runMainLoop()
             engine_timing_stopwatch.restart(); // skip vsync interval in timing
 
             engine_timing["server_update"] = 0.0f;
-            if (game_server)
+            if (game_server.isAlive())
                 engine_timing["server_update"] = game_server->getUpdateTime();
             
             last_engine_timing = engine_timing;

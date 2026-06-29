@@ -44,7 +44,7 @@ MultiplayerObject::MultiplayerObject(string multiplayerClassIdentifier)
     multiplayerObjectId = noId;
     replicated = false;
 
-    if (game_server)
+    if (game_server.isAlive())
     {
         on_server = true;
         game_server->registerObject(this);
@@ -105,7 +105,7 @@ template void multiplayerReplicationFunctions<sp::ecs::Entity>::receiveData(void
 
 void MultiplayerObject::sendClientCommand(sp::io::DataBuffer& packet)
 {
-    if (game_server)
+    if (game_server.isAlive())
     {
         onReceiveClientCommand(0, packet);
     }else if (game_client)
@@ -119,7 +119,7 @@ void MultiplayerObject::sendClientCommand(sp::io::DataBuffer& packet)
 
 void MultiplayerObject::broadcastServerCommand(sp::io::DataBuffer& packet)
 {
-    if (game_server)
+    if (game_server.isAlive())
     {
         onReceiveServerCommand(packet);
         game_server->broadcastServerCommandFromObject(multiplayerObjectId, packet);

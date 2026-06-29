@@ -129,6 +129,17 @@ public:
         return ptr != nullptr && !ptr->isDestroyed();
     }
 
+    /*
+    Returns true if the pointer is non-null and the pointed-to PObject has not
+    been destroyed. Prefer this over if (p), which invokes the non-const
+    operator bool and therefore check_release(), which deletes the object as a
+    side effect when its _destroyed_flag is set.
+    */
+    bool isAlive() const
+    {
+        return ptr != nullptr && !ptr->isDestroyed();
+    }
+
     template<class T2> operator P<T2>()
     {
         return dynamic_cast<T2*>(**this);
