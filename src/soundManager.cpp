@@ -223,6 +223,7 @@ void SoundManager::startMusic(const string& name, bool loop)
     if (music_channel.music.isPlaying())
     {
         music_channel.next_stream = name;
+        music_channel.next_loop = loop;
         music_channel.mode = FadeOut;
         music_channel.fade_delay = fade_music_time;
     }else{
@@ -241,16 +242,15 @@ void SoundManager::updateTick()
     
     if (music_set.size() > 0)
     {
-        if (music_channel.music.isPlaying() && music_channel.mode == None)
+        if (music_channel.mode == None && music_channel.next_stream.empty())
         {
-            if (music_channel.next_stream.empty())
+            if (!music_channel.music.isPlaying())
             {
-                /* TODO
-                if (music_channel.music.getPlayingOffset() > music_channel.music.getDuration() - sf::seconds(fade_music_time))
-                {
-                    startMusic(getResourceStream(music_set[irandom(0, static_cast<int>(music_set.size()) - 1)]), false);
-                }
-                */
+                auto next = music_set[irandom(0, static_cast<int>(music_set.size()) - 1)];
+                music_channel.music.setVolume(0);
+                music_channel.music.open(next, false);
+                music_channel.mode = FadeIn;
+                music_channel.fade_delay = fade_music_time;
             }
         }
     }
@@ -291,7 +291,7 @@ void SoundManager::updateChannel(MusicChannel& channel, float delta)
             if (!channel.next_stream.empty())
             {
                 channel.music.setVolume(0);
-                channel.music.open(channel.next_stream, false);
+                channel.music.open(channel.next_stream, channel.next_loop);
                 channel.next_stream.clear();
                 channel.mode = FadeIn;
                 channel.fade_delay = fade_music_time;

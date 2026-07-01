@@ -28,6 +28,7 @@ private:
     struct MusicChannel
     {
         string next_stream;
+        bool next_loop = false;
         sp::audio::Music music;
         FadeMode mode;
         float fade_delay;

@@ -40,7 +40,7 @@ bool Music::open(const string& resource_name, bool loop)
     vorbis = stb_vorbis_open_memory(file_data.data(), static_cast<int>(file_data.size()), &error, nullptr);
     if (!vorbis)
     {
-        LOG(Error, "Failed to read music file", resource_name, "error:", error);
+        LOG(Error, "Failed to read music file ", resource_name, " error: ", error);
         return false;
     }
     
@@ -54,6 +54,50 @@ bool Music::open(const string& resource_name, bool loop)
 void Music::setVolume(float _volume)
 {
     volume = _volume / 100.0f;
+}
+
+string Music::getTagsDisplayName(const string& resource_name)
+{
+    auto stream = getResourceStream(resource_name);
+    if (!stream)
+        return resource_name.substr(resource_name.rfind("/") + 1, resource_name.rfind("."));
+
+    std::vector<uint8_t> file_data;
+    file_data.resize(stream->getSize());
+    stream->read(file_data.data(), file_data.size());
+
+    int error = 0;
+    auto* v = stb_vorbis_open_memory(file_data.data(), static_cast<int>(file_data.size()), &error, nullptr);
+    if (!v)
+        return resource_name.substr(resource_name.rfind("/") + 1, resource_name.rfind("."));
+
+    auto comment = stb_vorbis_get_comment(v);
+
+    string artist;
+    string title;
+    for (int i = 0; i < comment.comment_list_length; i++)
+    {
+        string line(comment.comment_list[i]);
+        int eq = line.find("=");
+        if (eq > 0)
+        {
+            string key = line.substr(0, eq).upper();
+            string value = line.substr(eq + 1);
+            if (key == "ARTIST")
+                artist = value;
+            else if (key == "TITLE")
+                title = value;
+        }
+    }
+
+    stb_vorbis_close(v);
+
+    if (!artist.empty() && !title.empty())
+        return artist + " - " + title;
+    if (!title.empty())
+        return title;
+
+    return resource_name.substr(resource_name.rfind("/") + 1, resource_name.rfind("."));
 }
 
 void Music::onMixSamples(int16_t* stream, int sample_count)

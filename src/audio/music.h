@@ -14,6 +14,8 @@ public:
     bool open(const string& name, bool loop);
 
     void setVolume(float volume); //range: 0-100
+
+    static string getTagsDisplayName(const string& resource_name);
 protected:
     virtual void onMixSamples(int16_t* stream, int sample_count) override;
 
