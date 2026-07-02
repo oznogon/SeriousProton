@@ -20,11 +20,12 @@ public:
     using EngineTiming = std::map<string, float>;
 
 private:
-    bool running;
+    bool running = true;
+    bool collect_engine_timing = false;
 
     std::unordered_map<string, P<PObject> > objectMap;
-    float elapsedTime;
-    float gameSpeed;
+    float elapsed_time = 0.0f;
+    float game_speed = 1.0f;
 
     EngineTiming last_engine_timing;
 #ifdef WIN32
@@ -53,6 +54,8 @@ public:
     void runMainLoop();
     void shutdown();
     bool isRunning() { return running; }
+    bool isCollectingEngineTiming() { return collect_engine_timing; }
+    void collectEngineTiming() { collect_engine_timing = true; }
 private:
     void handleEvent(SDL_Event& event);
 };
