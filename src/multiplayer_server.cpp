@@ -125,6 +125,7 @@ void GameServer::connectToProxy(sp::io::network::Address address, int port)
 
 void GameServer::destroy()
 {
+    proxy_registry_url = "";
     sendProxyRegistryDeregister();
 
     master_server_url = "";
