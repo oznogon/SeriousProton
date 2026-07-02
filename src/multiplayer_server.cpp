@@ -84,7 +84,8 @@ GameServer::GameServer(string server_name, int version_number, int listen_port)
         LOG(Error, "Failed to listen for steam P2P connections");
     }
 #endif
-    multiplayer_stats_dump_timer.repeat(1.0f);
+    if (collect_network_stats)
+        multiplayer_stats_dump_timer.repeat(1.0f);
 }
 
 GameServer::~GameServer()
@@ -515,7 +516,7 @@ void GameServer::update(float /*gameDelta*/)
     dataPerSecond = float(sendDataCounterPerClient) / delta;
     sendDataRatePerClient = sendDataRatePerClient * (1.f - delta) + dataPerSecond * delta;
 
-    if (multiplayer_stats_dump_timer.isExpired())
+    if (collect_network_stats && multiplayer_stats_dump_timer.isExpired())
     {
         last_network_stats_snapshot = multiplayer_stats;
         multiplayer_stats.clear();
