@@ -63,7 +63,7 @@ private:
     float update_run_time;
     
     float lastGameSpeed;
-    float boardcastServerDelay;
+    float broadcast_server_delay;
 
     bool collect_network_stats = false;
     sp::SystemTimer multiplayer_stats_dump_timer;

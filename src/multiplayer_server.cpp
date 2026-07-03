@@ -56,7 +56,7 @@ GameServer::GameServer(string server_name, int version_number, int listen_port)
     lastGameSpeed = engine->getGameSpeed();
     sendDataRate = 0.0f;
     sendDataRatePerClient = 0.0f;
-    boardcastServerDelay = 0.0f;
+    broadcast_server_delay = 0.0f;
     keep_alive_send_timer.repeat(10);;
 
     nextObjectId = 1;
@@ -64,14 +64,14 @@ GameServer::GameServer(string server_name, int version_number, int listen_port)
 
     if (!listen_socket.listen(static_cast<uint16_t>(listen_port)))
     {
-        LOG(ERROR) << "Failed to listen on TCP port: " << listen_port;
+        LOG(Error, "Failed to listen on TCP port: ", listen_port);
         destroy();
     }
     listen_socket.setBlocking(false);
     new_socket = std::make_unique<sp::io::network::TcpSocket>();
     if (!broadcast_listen_socket.bind(static_cast<uint16_t>(listen_port)))
     {
-        LOG(ERROR) << "Failed to listen on UDP port: " << listen_port;
+        LOG(Error, "Failed to listen on UDP port: ", listen_port);
     }
     if (!broadcast_listen_socket.joinMulticast(666))
     {
@@ -96,10 +96,10 @@ GameServer::~GameServer()
 void GameServer::connectToProxy(sp::io::network::Address address, int port)
 {
     auto socket = std::make_unique<sp::io::network::TcpSocket>();
-    LOG(INFO) << "Connecting to proxy: " << address.getHumanReadable()[0];
+    LOG(Info, "Connecting to proxy: ", address.getHumanReadable()[0]);
     if (!socket->connect(address, port))
     {
-        LOG(ERROR) << "Failed to connect to proxy";
+        LOG(Error, "Failed to connect to proxy");
         return;
     }
 
@@ -120,7 +120,7 @@ void GameServer::connectToProxy(sp::io::network::Address address, int port)
         packet << CMD_REQUEST_AUTH << int32_t(version_number) << bool(server_password != "");
         info.socket->send(packet);
     }
-    LOG(INFO) << "New proxy connection: " << info.client_id << " waiting for authentication";
+    LOG(Info, "New proxy connection: ", info.client_id, " waiting for authentication");
     clientList.push_back(std::move(info));
 }
 
@@ -332,7 +332,7 @@ void GameServer::update(float /*gameDelta*/)
                                     clientList[n].socket->queue(auth_request_packet);
                                 }
                             }else{
-                                LOG(ERROR) << n << ":Client version mismatch: " << version_number << " != " << client_version;
+                                LOG(Error, n, ":Client version mismatch: ", version_number, " != ", client_version);
                                 clientList[n].socket->close();
                                 clientList[n].socket = NULL;
                             }
@@ -345,7 +345,7 @@ void GameServer::update(float /*gameDelta*/)
                         }
                         break;
                     default:
-                        LOG(ERROR) << "Unknown command from client while authenticating: " << command;
+                        LOG(Error, "Unknown command from client while authenticating: ", command);
                         clientList[n].socket->close();
                         clientList[n].socket = NULL;
                         break;
@@ -461,7 +461,7 @@ void GameServer::update(float /*gameDelta*/)
                         }
                         break;
                     default:
-                        LOG(ERROR) << "Unknown command from client: " << command;
+                        LOG(Error, "Unknown command from client: ", command);
                     }
                 }
                 break;
@@ -527,40 +527,48 @@ void GameServer::update(float /*gameDelta*/)
 int GameServer::getClientCount()
 {
     int count = 0;
-    for(auto& client : clientList)
-        if (client.receive_state == CRS_Main)
-            count++;
+    for (auto& client : clientList)
+        if (client.receive_state == CRS_Main) count++;
+
     return count;
 }
 
 std::vector<std::pair<int32_t, int32_t>> GameServer::getClientPings()
 {
     std::vector<std::pair<int32_t, int32_t>> result;
-    for(auto& client : clientList)
+    for (auto& client : clientList)
+    {
         if (client.receive_state == CRS_Main)
             result.push_back({client.client_id, client.ping});
+    }
+
     return result;
 }
 
 void GameServer::replicateInitialData(std::function<void(sp::io::DataBuffer&)> send_packet)
 {
-    //Replicate ECS data, we send this as one big packet so ECS state is always consistent on the client.
+    // Replicate ECS data. We send this as one big packet so ECS state is
+    // always consistent on the client.
     sp::io::DataBuffer ecs_packet;
     ecs_packet << CMD_ECS_UPDATE;
-    //  For each entity, check which version number we last transmitted and if it is changed, transmit creation/deletion of entities.
-    for(uint32_t index=0; index<ecs_entity_version.size(); index++) {
+
+    // For each entity, check which version number we last transmitted. If it
+    // changed, transmit creation/deletion of entities.
+    for (uint32_t index=0; index<ecs_entity_version.size(); index++)
+    {
         if (!(ecs_entity_version[index] & sp::ecs::Entity::destroyed_flag))
             ecs_packet << CMD_ECS_ENTITY_CREATE << index << ecs_entity_version[index];
     }
-    //  For each component type, send all existing components.
-    for(auto& ecsrb : sp::ecs::MultiplayerReplication::list)
+
+    // For each component type, send all existing components.
+    for (auto& ecsrb : sp::ecs::MultiplayerReplication::list)
         ecsrb->sendAll(ecs_packet);
 
     sendDataCounter += ecs_packet.getDataSize();
     send_packet(ecs_packet);
 
-    //On a new client, first create all the already existing objects. And update all the values.
-    for(std::unordered_map<int32_t, P<MultiplayerObject> >::iterator i=objectMap.begin(); i != objectMap.end(); i++)
+    // On a new client, first create all existing objects and update all values.
+    for (std::unordered_map<int32_t, P<MultiplayerObject> >::iterator i=objectMap.begin(); i != objectMap.end(); i++)
     {
         P<MultiplayerObject> obj = i->second;
         if (obj && obj->replicated)
@@ -626,16 +634,17 @@ void GameServer::handleBroadcastUDPSocket(float delta)
     sp::io::DataBuffer recvPacket;
     if (broadcast_listen_socket.receive(recvPacket, recvAddress, recvPort))
     {
-        //We do not care about what we received. Reply that we live!
+        // We do not care about what we received. Reply that we live!
         sp::io::DataBuffer sendPacket;
         sendPacket << int32_t(multiplayerVerficationNumber) << int32_t(version_number) << server_name;
         broadcast_listen_socket.send(sendPacket, recvAddress, recvPort);
     }
-    if (boardcastServerDelay > 0.0f)
+
+    if (broadcast_server_delay > 0.0f)
+        broadcast_server_delay -= delta;
+    else
     {
-        boardcastServerDelay -= delta;
-    }else{
-        boardcastServerDelay = 5.0f;
+        broadcast_server_delay = 5.0f;
 
         sp::io::DataBuffer sendPacket;
         sendPacket << int32_t(multiplayerVerficationNumber) << int32_t(version_number) << server_name;
@@ -656,14 +665,15 @@ void GameServer::newClientConnection(std::unique_ptr<sp::io::network::StreamSock
         packet << CMD_REQUEST_AUTH << int32_t(version_number) << bool(server_password != "");
         info.socket->queue(packet);
     }
-    LOG(INFO) << "New connection: " << info.client_id << " waiting for authentication";
+    LOG(Info, "New connection ", info.client_id, " is waiting for authentication");
     clientList.push_back(std::move(info));
 }
 
 void GameServer::registerObject(P<MultiplayerObject> obj)
 {
-    //Note, at this point in time, the pointed object is only of the MultiplayerObject class.
-    // This due to the fact that in C++ does not "is" it's final sub-class till construction is completed.
+    // Note that at this point in the object's construction, the dynamic type is
+    // only MultiplayerObject. This is because in C++, the object doesn't become
+    // its final subclass until the constructor completes.
     obj->multiplayerObjectId = nextObjectId;
     obj->replicated = false;
     nextObjectId++;
@@ -680,7 +690,7 @@ void GameServer::generateCreatePacketFor(P<MultiplayerObject> obj, sp::io::DataB
 {
     packet << CMD_CREATE << obj->multiplayerObjectId << obj->multiplayerClassIdentifier;
 
-    for(unsigned int n=0; n<obj->memberReplicationInfo.size(); n++)
+    for (unsigned int n = 0; n < obj->memberReplicationInfo.size(); n++)
     {
         packet << int16_t(n);
         (obj->memberReplicationInfo[n].sendFunction)(obj->memberReplicationInfo[n].ptr, packet);
@@ -705,7 +715,7 @@ void GameServer::keepAliveAll()
     sp::io::DataBuffer packet;
     packet << CMD_ALIVE;
     sendDataCounterPerClient += packet.getDataSize();
-    for(auto& client : clientList)
+    for (auto& client : clientList)
     {
         if (client.socket)
         {
@@ -718,7 +728,7 @@ void GameServer::keepAliveAll()
 void GameServer::sendAll(sp::io::DataBuffer& packet)
 {
     sendDataCounterPerClient += packet.getDataSize();
-    for(auto& client : clientList)
+    for (auto& client : clientList)
     {
         if (client.receive_state != CRS_Auth && client.socket)
         {
@@ -762,55 +772,61 @@ void GameServer::stopMasterServerRegistry()
 void GameServer::runMasterServerUpdateThread()
 {
     master_server_state = MasterServerState::Disabled;
+
+    // Barest minimum validation of the registry server's URL.
     if (!master_server_url.startswith("http://"))
     {
-        LOG(ERROR) << "Master server URL " << master_server_url << " does not start with \"http://\"";
+        LOG(Error, "Registry server URL ", master_server_url, " doesn't start with \"http://\"");
         return;
     }
     string hostname = master_server_url.substr(7);
+
     int path_start = hostname.find("/");
     if (path_start < 0)
     {
-        LOG(ERROR) << "Master server URL " << master_server_url << " does not have a URI after the hostname";
+        LOG(Error, "Registry server URL ", master_server_url, " doesn't have a URI after the hostname.");
         return;
     }
+
     int port = 80;
     int port_start = hostname.find(":");
     string uri = hostname.substr(path_start);
+    // If a port is attached to the hostname, parse it out.
+    // No validation is performed.
     if (port_start >= 0)
     {
-        // If a port is attached to the hostname, parse it out.
-        // No validation is performed.
         port = hostname.substr(port_start + 1, path_start).toInt();
         hostname = hostname.substr(0, port_start);
-    }else{
-        hostname = hostname.substr(0, path_start);
     }
+    else hostname = hostname.substr(0, path_start);
     
-    LOG(INFO) << "Registering at master server " << master_server_url;
+    LOG(Info, "Registering this game server to the registry at ", master_server_url);
     
     master_server_state = MasterServerState::Registering;
     sp::io::http::Request http(hostname, port);
     master_server_http_socket = &http.getSocket();
-    while(!isDestroyed() && master_server_url != "")
+
+    while (!isDestroyed() && master_server_url != "")
     {
         auto response = http.post(uri, "port=" + string(listen_port) + "&name=" + server_name + "&version=" + string(version_number));
+
+        // Log any errors returned by the registry server.
         if (response.status != 200)
         {
-            LOG(WARNING) << "Failed to register at master server " << master_server_url << " (status " << response.status << ")";
+            LOG(Warning, "Failed to register at registry server ", master_server_url, " (status ", response.status, ")");
             master_server_state = MasterServerState::FailedToReachMasterServer;
-        }else if (response.body != "OK")
-        {
-            LOG(WARNING) << "Master server " << master_server_url << " reports error on registering: " << response.body;
-            master_server_state = MasterServerState::FailedPortForwarding;
-        }else
-        {
-            master_server_state = MasterServerState::Success;
         }
+        else if (response.body != "OK")
+        {
+            LOG(Warning, "Registry server ", master_server_url, " reported an error upon registering this game server: ", response.body);
+            master_server_state = MasterServerState::FailedPortForwarding;
+        }
+        else master_server_state = MasterServerState::Success;
         
-        for(int n=0;n<60 && !isDestroyed() && master_server_url != "";n++)
-            std::this_thread::sleep_for(std::chrono::duration<float>(1.f));
+        for (int n = 0; n < 60 && !isDestroyed() && master_server_url != ""; n++)
+            std::this_thread::sleep_for(std::chrono::duration<float>(1.0f));
     }
+
     master_server_http_socket = nullptr;
     master_server_state = MasterServerState::Disabled;
 }
@@ -823,8 +839,7 @@ void GameServer::startAudio(int32_t client_id, int32_t target_identifier)
     audio_packet << CMD_AUDIO_COMM_START << client_id;
     sendAudioPacketFrom(client_id, audio_packet);
 
-    if (client_id != 0)
-        audio_stream_manager.start(client_id);
+    if (client_id != 0) audio_stream_manager.start(client_id);
 }
 
 void GameServer::gotAudioPacket(int32_t client_id, const unsigned char* packet, int packet_size)
@@ -846,27 +861,26 @@ void GameServer::stopAudio(int32_t client_id)
 
     voice_targets.erase(client_id);
 
-    if (client_id != 0)
-        audio_stream_manager.stop(client_id);
+    if (client_id != 0) audio_stream_manager.stop(client_id);
 }
 
 void GameServer::sendAudioPacketFrom(int32_t client_id, sp::io::DataBuffer& packet)
 {
     auto it = voice_targets.find(client_id);
-    if (it == voice_targets.end())
-        return;
-    auto& ids = it->second;
+    if (it == voice_targets.end()) return;
 
-    for(auto& client : clientList)
+    auto& ids = it->second;
+    for (auto& client : clientList)
     {
         if (client.receive_state != CRS_Auth && client.socket)
         {
             bool send = ids.find(client.client_id) != ids.end();
+
             if (client.proxy_ids.size() > 0)
             {
                 sp::io::DataBuffer target_packet;
                 target_packet << CMD_PROXY_TO_CLIENTS;
-                for(auto id : client.proxy_ids)
+                for (auto id : client.proxy_ids)
                 {
                     if (ids.find(id) != ids.end())
                     {
@@ -875,29 +889,27 @@ void GameServer::sendAudioPacketFrom(int32_t client_id, sp::io::DataBuffer& pack
                     }
                 }
             }
-            if (send)
-            {
-                client.socket->queue(packet);
-            }
+
+            if (send) client.socket->queue(packet);
         }
     }
 }
 
 std::unordered_set<int32_t> GameServer::onVoiceChat(int32_t client_id, int32_t /*target_identifier*/)
 {
-    //Default, target all clients
+    // Default, target all clients.
     std::unordered_set<int32_t> result;
-    if (client_id != 0)
-        result.insert(0);
-    for(auto& client : clientList)
+    if (client_id != 0) result.insert(0);
+
+    for (auto& client : clientList)
     {
         if (client.receive_state != CRS_Auth)
         {
             if (client_id != client.client_id)
                 result.insert(client.client_id);
-            for(auto id : client.proxy_ids)
-                if (client_id != id)
-                    result.insert(id);
+
+            for (auto id : client.proxy_ids)
+                if (client_id != id) result.insert(id);
         }
     }
     return result;
@@ -941,9 +953,10 @@ void GameServer::sendProxyRegistryDeregister()
     string data = "password=" + proxy_registry_password
                 + "&port=" + string(proxy_registry_assigned_port);
 
-    auto response = http.post(path_prefix + "/deregister.php", data);
+    const string full_path = path_prefix + "/deregister.php";
+    auto response = http.post(full_path, data);
     if (response.status != 200)
-        LOG(Warning) << "Proxy registry deregister failed: HTTP " << response.status;
+        LOG(Warning, "Deregistration at proxy registry ", full_path, " failed. (status ", response.status, ", body ", response.body, ")");
 
     proxy_registry_assigned_port = 0;
 }
@@ -964,9 +977,10 @@ void GameServer::sendProxyRegistryHeartbeat()
                 + "&name=" + server_name
                 + "&version=" + string(version_number);
 
-    auto response = http.post(path_prefix + "/heartbeat.php", data);
+    const string full_path = path_prefix + "/heartbeat.php";
+    auto response = http.post(full_path, data);
     if (response.status != 200)
-        LOG(Warning) << "Proxy registry heartbeat failed: HTTP " << response.status;
+        LOG(Warning, "Proxy registry heartbeat at ", full_path, " failed. (status ", response.status, ", body ", response.body, ")");
 }
 
 void GameServer::registerOnProxyRegistry(string registry_url, string password)
@@ -979,17 +993,18 @@ void GameServer::registerOnProxyRegistry(string registry_url, string password)
     string path_prefix;
     parseRegistryUrl(registry_url, hostname, port, path_prefix);
 
-    LOG(Info) << "Registering with proxy registry at " << registry_url;
+    LOG(Info, "Registering with proxy registry at ", registry_url);
 
     sp::io::http::Request http(hostname, port);
     string data = "password=" + proxy_registry_password
                 + "&name=" + server_name
                 + "&version=" + string(version_number);
 
-    auto response = http.post(path_prefix + "/register.php", data);
+    const string full_path = path_prefix + "/register.php";
+    auto response = http.post(full_path, data);
     if (response.status != 200)
     {
-        LOG(Error) << "Proxy registry registration failed: HTTP " << response.status << " - " << response.body;
+        LOG(Error, "Registration to proxy registry at ", full_path, " failed. (status ", response.status, ", body ", response.body, ")");
         return;
     }
 
@@ -1002,13 +1017,14 @@ void GameServer::registerOnProxyRegistry(string registry_url, string password)
         proxy_registry_assigned_port = proxy_port;
         proxy_registry_heartbeat_timer.repeat(60.0f);
 
-        LOG(Info) << "Assigned proxy port " << proxy_port << ", connecting with retry...";
+        LOG(Info, "Assigned proxy port ", proxy_port, ", connecting with retry...");
 
-        // Retry connecting to the proxy — it may still be starting up.
+        // Retry connecting to the proxy, it might still be starting up.
         for (int attempt = 0; attempt < 10; attempt++)
         {
             connectToProxy(sp::io::network::Address(proxy_host), proxy_port);
             bool connected = false;
+
             for (auto& ci : clientList)
             {
                 if (ci.socket && ci.receive_state == CRS_Auth)
@@ -1017,17 +1033,13 @@ void GameServer::registerOnProxyRegistry(string registry_url, string password)
                     break;
                 }
             }
-            if (connected)
-                break;
+
+            if (connected) break;
             std::this_thread::sleep_for(std::chrono::seconds(1));
         }
     }
     else if (response.body == "NO_PORTS_AVAILABLE")
-    {
-        LOG(Error) << "Proxy registry: no ports available";
-    }
+        LOG(Error, "Proxy registry reports no ports available");
     else
-    {
-        LOG(Error) << "Unexpected registry response: " << response.body;
-    }
+        LOG(Error, "Unexpected registry response: ", response.body);
 }

@@ -39,7 +39,7 @@ class GameServerProxy : public Updatable
     string password;
     int32_t serverVersion = 0;
     string proxyName;
-    float boardcastServerDelay;
+    float broadcast_server_delay;
     std::unique_ptr<sp::io::network::TcpSocket> mainSocket;
 public:
     GameServerProxy(sp::io::network::Address hostname, int hostPort = defaultServerPort, string password = "", int listenPort = defaultServerPort, string proxyName="");
