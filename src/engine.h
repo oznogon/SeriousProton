@@ -55,7 +55,7 @@ public:
     void shutdown();
     bool isRunning() { return running; }
     bool isCollectingEngineTiming() { return collect_engine_timing; }
-    void collectEngineTiming() { collect_engine_timing = true; }
+    void setCollectEngineTiming(bool value = true) { collect_engine_timing = value; }
 private:
     void handleEvent(SDL_Event& event);
 };
