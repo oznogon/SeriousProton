@@ -198,7 +198,7 @@ void Engine::runMainLoop()
 
             auto realtime_delta = frame_timer.restart();
             auto update_delta = realtime_delta;
-            update_delta = std::clamp(delta, 0.001f, 0.5f) * game_speed;
+            update_delta = std::clamp(update_delta, 0.001f, 0.5f) * game_speed;
 
             EngineTiming engine_timing;
             sp::SystemStopwatch engine_timing_stopwatch;
@@ -262,7 +262,7 @@ void Engine::runMainLoop()
 
 #ifdef DEBUG
             if (debug_output_timer.isExpired())
-                LOG(DEBUG) << "Object count: " << DEBUG_PobjCount << " " << updatableList.size();
+                LOG(Debug, "Object count: ", DEBUG_PobjCount, " ", updatableList.size());
 #endif
 
             float delta = frame_timer.restart();
@@ -432,6 +432,7 @@ void Engine::handleEvent(SDL_Event& event)
                 window->handleEvent(event);
         }
     }
+
     sp::io::Keybinding::handleEvent(event);
 }
 
