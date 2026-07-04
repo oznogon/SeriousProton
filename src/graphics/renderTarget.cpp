@@ -491,6 +491,9 @@ void RenderTarget::drawGLLineBlendAdd(const std::vector<glm::vec2>& points, glm:
 
 void RenderTarget::drawGLCircleOutline(glm::vec2 center, float radius, float thickness, glm::u8vec4 color, size_t point_count)
 {
+    // Exit early if the window isn't visible.
+    if (physical_size.x <= 0) return;
+
     // Don't draw for invalid thickness or radius values.
     if (thickness <= 0.0f || radius <= 0.0f) return;
 
@@ -617,6 +620,9 @@ void RenderTarget::drawLine(glm::vec2 start, glm::vec2 end, float width, glm::u8
 // Gradient line segment
 void RenderTarget::drawLine(glm::vec2 start, glm::vec2 end, float width, glm::u8vec4 start_color, glm::u8vec4 end_color)
 {
+    // Exit early if the window isn't visible.
+    if (physical_size.x <= 0) return;
+
     if (line_drawing_mode == LineDrawingMode::GL)
     {
         drawGLLine(start, end, start_color, end_color);
@@ -636,6 +642,10 @@ void RenderTarget::drawLine(glm::vec2 start, glm::vec2 end, float width, glm::u8
 // Multi-segment line with bevel joins
 void RenderTarget::drawLine(const std::vector<glm::vec2>& points, float width, glm::u8vec4 color)
 {
+    // Exit early if the window isn't visible.
+    if (physical_size.x <= 0) return;
+
+    // Exit early if the line doesn't exist.
     if (points.size() < 2) return;
 
     if (line_drawing_mode == LineDrawingMode::GL)
