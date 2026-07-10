@@ -10,6 +10,7 @@
 namespace sp {
 	namespace gl {
 		bool contextIsES = false;
+		int max_texture_size = 0;
 	}
 }
 
@@ -125,6 +126,10 @@ void initOpenGL()
             exit(1);
         }
     }
+
+    // Query maximum supported texture size.
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl::max_texture_size);
+    LOG(Info, "GL_MAX_TEXTURE_SIZE = ", gl::max_texture_size);
 
     // Find out supported compressed textures.
     GLint count{};

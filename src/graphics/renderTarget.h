@@ -22,6 +22,19 @@ private:
 
     friend class ::Window;
 public:
+    enum class AtlasSizeMode {
+        Automatic,
+        Force2K,
+        Force4K
+    };
+    static void setAtlasSizeMode(AtlasSizeMode mode);
+    static AtlasSizeMode getAtlasSizeMode();
+    static bool is4KAtlasSupported();
+    static sp::Texture* getAtlasTexture();
+    static glm::ivec2 getAtlasTextureSize();
+    static float getAtlasUsageRate();
+    void drawAtlasTexture(sp::Rect rect);
+
     static void setDefaultFont(sp::Font* font);
     static sp::Font* getDefaultFont();
 

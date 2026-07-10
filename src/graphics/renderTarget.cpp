@@ -65,8 +65,43 @@ struct ImageInfo
 static sp::AtlasTexture* atlas_texture;
 static std::unordered_map<string, ImageInfo> image_info;
 static std::unordered_map<sp::Font*, std::unordered_map<int, Rect>> atlas_glyphs;
-static constexpr glm::ivec2 atlas_size = {2048, 2048};
-static constexpr glm::vec2 atlas_white_pixel = {(float(atlas_size.x)-0.5f)/float(atlas_size.x), (float(atlas_size.y)-0.5f)/float(atlas_size.y)};
+static RenderTarget::AtlasSizeMode atlas_size_mode = RenderTarget::AtlasSizeMode::Automatic;
+
+static glm::ivec2 computeAtlasSize()
+{
+    int max_tex = sp::gl::max_texture_size;
+    int desired = 2048;
+    if (atlas_size_mode == RenderTarget::AtlasSizeMode::Force4K)
+        desired = 4096;
+    else if (atlas_size_mode == RenderTarget::AtlasSizeMode::Force2K)
+        desired = 2048;
+    else
+        desired = std::min(max_tex, 4096);
+    int size = 2048;
+    while (size * 2 <= desired && size * 2 <= max_tex)
+        size *= 2;
+    return {size, size};
+}
+
+static const glm::ivec2& getAtlasSize()
+{
+    static glm::ivec2 size = computeAtlasSize();
+    return size;
+}
+
+static glm::vec2 getAtlasWhitePixel()
+{
+    static glm::vec2 white_pixel = []{
+        auto size = getAtlasSize();
+        return glm::vec2{(float(size.x)-0.5f)/float(size.x), (float(size.y)-0.5f)/float(size.y)};
+    }();
+    return white_pixel;
+}
+
+static int getFontPixelSize()
+{
+    return getAtlasSize().x >= 4096 ? 64 : 32;
+}
 
 
 static ImageInfo getTextureInfo(std::string_view texture)
@@ -95,7 +130,7 @@ static ImageInfo getTextureInfo(std::string_view texture)
         stream = getResourceStream(string(texture) + ".ktx2");
     }
 
-    constexpr glm::ivec2 atlas_threshold{ 128, 128 };
+    glm::ivec2 atlas_threshold = getAtlasSize().x >= 4096 ? glm::ivec2{256, 256} : glm::ivec2{128, 128};
     KTX2Texture ktxtexture;
     Image image;
     if (stream)
@@ -233,7 +268,7 @@ void main()
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     if (!atlas_texture)
-        atlas_texture = new AtlasTexture(atlas_size);
+        atlas_texture = new AtlasTexture(getAtlasSize());
 }
 
 void RenderTarget::setDefaultFont(sp::Font* font)
@@ -244,6 +279,69 @@ void RenderTarget::setDefaultFont(sp::Font* font)
 sp::Font* RenderTarget::getDefaultFont()
 {
     return default_font;
+}
+
+void RenderTarget::setAtlasSizeMode(AtlasSizeMode mode)
+{
+    if (atlas_texture)
+    {
+        LOG(Warning, "Atlas already created, atlas size mode will apply on next restart.");
+        return;
+    }
+    if (mode == AtlasSizeMode::Force4K && sp::gl::max_texture_size < 4096)
+    {
+        LOG(Warning, "4K atlas not supported (GL_MAX_TEXTURE_SIZE=", sp::gl::max_texture_size, "), falling back to Automatic.");
+        atlas_size_mode = AtlasSizeMode::Automatic;
+        return;
+    }
+    atlas_size_mode = mode;
+}
+
+RenderTarget::AtlasSizeMode RenderTarget::getAtlasSizeMode()
+{
+    return atlas_size_mode;
+}
+
+bool RenderTarget::is4KAtlasSupported()
+{
+    return sp::gl::max_texture_size >= 4096;
+}
+
+sp::Texture* RenderTarget::getAtlasTexture()
+{
+    return atlas_texture;
+}
+
+glm::ivec2 RenderTarget::getAtlasTextureSize()
+{
+    return getAtlasSize();
+}
+
+float RenderTarget::getAtlasUsageRate()
+{
+    if (atlas_texture)
+        return atlas_texture->usageRate();
+    return 0.0f;
+}
+
+void RenderTarget::drawAtlasTexture(sp::Rect rect)
+{
+    finish();
+    if (!atlas_texture) return;
+
+    auto n = vertex_data.size();
+    index_data.insert(index_data.end(), {
+        uint16_t(n), uint16_t(n + 1), uint16_t(n + 2),
+        uint16_t(n + 1), uint16_t(n + 3), uint16_t(n + 2),
+    });
+
+    glm::u8vec4 color{255, 255, 255, 255};
+    vertex_data.push_back({{rect.position.x, rect.position.y}, color, {0.0f, 0.0f}});
+    vertex_data.push_back({{rect.position.x, rect.position.y + rect.size.y}, color, {0.0f, 1.0f}});
+    vertex_data.push_back({{rect.position.x + rect.size.x, rect.position.y}, color, {1.0f, 0.0f}});
+    vertex_data.push_back({{rect.position.x + rect.size.x, rect.position.y + rect.size.y}, color, {1.0f, 1.0f}});
+
+    finish(atlas_texture);
 }
 
 void RenderTarget::setLineDrawingMode(LineDrawingMode mode)
@@ -420,8 +518,8 @@ void RenderTarget::drawGLLine(glm::vec2 start, glm::vec2 end, glm::u8vec4 color)
     if (lines_index_data.size() >= std::numeric_limits<uint16_t>::max() - 2U)
         finish();
     auto n = lines_vertex_data.size();
-    lines_vertex_data.push_back({start, color, atlas_white_pixel});
-    lines_vertex_data.push_back({end, color, atlas_white_pixel});
+    lines_vertex_data.push_back({start, color, getAtlasWhitePixel()});
+    lines_vertex_data.push_back({end, color, getAtlasWhitePixel()});
     lines_index_data.insert(lines_index_data.end(), {
         uint16_t(n), uint16_t(n + 1),
     });
@@ -432,8 +530,8 @@ void RenderTarget::drawGLLine(glm::vec2 start, glm::vec2 end, glm::u8vec4 start_
     if (lines_index_data.size() >= std::numeric_limits<uint16_t>::max() - 2U)
         finish();
     auto n = lines_vertex_data.size();
-    lines_vertex_data.push_back({start, start_color, atlas_white_pixel});
-    lines_vertex_data.push_back({end, end_color, atlas_white_pixel});
+    lines_vertex_data.push_back({start, start_color, getAtlasWhitePixel()});
+    lines_vertex_data.push_back({end, end_color, getAtlasWhitePixel()});
     lines_index_data.insert(lines_index_data.end(), {
         uint16_t(n), uint16_t(n + 1),
     });
@@ -445,7 +543,7 @@ void RenderTarget::drawGLLine(const std::initializer_list<glm::vec2>& points, gl
         finish();
     auto n = lines_vertex_data.size();
     for(auto& p : points)
-        lines_vertex_data.push_back({p, color, atlas_white_pixel});
+        lines_vertex_data.push_back({p, color, getAtlasWhitePixel()});
     for(unsigned int idx=0; idx<points.size() - 1;idx++)
     {
         lines_index_data.insert(lines_index_data.end(), {
@@ -462,7 +560,7 @@ void RenderTarget::drawGLLine(const std::vector<glm::vec2>& points, glm::u8vec4 
         finish();
     auto n = lines_vertex_data.size();
     for(auto& p : points)
-        lines_vertex_data.push_back({p, color, atlas_white_pixel});
+        lines_vertex_data.push_back({p, color, getAtlasWhitePixel()});
     for(unsigned int idx=0; idx<points.size() - 1;idx++)
     {
         lines_index_data.insert(lines_index_data.end(), {
@@ -478,7 +576,7 @@ void RenderTarget::drawGLLineBlendAdd(const std::vector<glm::vec2>& points, glm:
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
     auto n = lines_vertex_data.size();
     for(auto& p : points)
-        lines_vertex_data.push_back({p, color, atlas_white_pixel});
+        lines_vertex_data.push_back({p, color, getAtlasWhitePixel()});
     for(unsigned int idx=0; idx<points.size() - 1;idx++)
     {
         lines_index_data.insert(lines_index_data.end(), {
@@ -715,7 +813,7 @@ void RenderTarget::drawPoint(glm::vec2 position, glm::u8vec4 color)
 {
     if (points_index_data.size() >= std::numeric_limits<uint16_t>::max() - 2U)
         finish();
-    points_vertex_data.push_back({position, color, atlas_white_pixel});
+    points_vertex_data.push_back({position, color, getAtlasWhitePixel()});
     points_index_data.insert(points_index_data.end(), {uint16_t(points_vertex_data.size() - 1)});
 }
 
@@ -832,7 +930,7 @@ void RenderTarget::drawTriangleStrip(const std::initializer_list<glm::vec2>& poi
 
     auto n = vertex_data.size();
     for(auto& p : points)
-        vertex_data.push_back({p, color, atlas_white_pixel});
+        vertex_data.push_back({p, color, getAtlasWhitePixel()});
     for(unsigned int idx=0; idx<points.size() - 2;idx++)
     {
         index_data.insert(index_data.end(), {
@@ -848,7 +946,7 @@ void RenderTarget::drawTriangleStrip(const std::vector<glm::vec2>& points, glm::
 
     auto n = vertex_data.size();
     for (auto& p : points)
-        vertex_data.push_back({p, color, atlas_white_pixel});
+        vertex_data.push_back({p, color, getAtlasWhitePixel()});
     for (size_t idx = 0; idx < points.size() - 2 ;idx++)
     {
         index_data.insert(index_data.end(), {
@@ -897,7 +995,7 @@ void RenderTarget::drawTriangles(const std::vector<glm::vec2>& points, const std
 
     auto n = vertex_data.size();
     for(auto& p : points)
-        vertex_data.push_back({p, color, atlas_white_pixel});
+        vertex_data.push_back({p, color, getAtlasWhitePixel()});
     for(auto idx : indices)
         index_data.push_back(uint16_t(n + idx));
 }
@@ -918,7 +1016,7 @@ void RenderTarget::fillCircle(glm::vec2 center, float radius, glm::u8vec4 color,
     for (size_t idx = 0; idx < actual_point_count; idx++)
     {
         float f = static_cast<float>(idx) / static_cast<float>(actual_point_count) * static_cast<float>(M_PI) * 2.0f;
-        vertex_data.push_back({center + glm::vec2{std::sin(f) * radius, std::cos(f) * radius}, color, atlas_white_pixel});
+        vertex_data.push_back({center + glm::vec2{std::sin(f) * radius, std::cos(f) * radius}, color, getAtlasWhitePixel()});
     }
     for (size_t idx = 2; idx < actual_point_count; idx++)
     {
@@ -958,10 +1056,10 @@ void RenderTarget::fillRect(const sp::Rect& rect, glm::u8vec4 color)
         uint16_t(n), uint16_t(n + 1), uint16_t(n + 2),
         uint16_t(n + 1), uint16_t(n + 3), uint16_t(n + 2),
     });
-    vertex_data.push_back({{rect.position.x, rect.position.y}, color, atlas_white_pixel});
-    vertex_data.push_back({{rect.position.x, rect.position.y + rect.size.y}, color, atlas_white_pixel});
-    vertex_data.push_back({{rect.position.x + rect.size.x, rect.position.y}, color, atlas_white_pixel});
-    vertex_data.push_back({{rect.position.x + rect.size.x, rect.position.y + rect.size.y}, color, atlas_white_pixel});
+    vertex_data.push_back({{rect.position.x, rect.position.y}, color, getAtlasWhitePixel()});
+    vertex_data.push_back({{rect.position.x, rect.position.y + rect.size.y}, color, getAtlasWhitePixel()});
+    vertex_data.push_back({{rect.position.x + rect.size.x, rect.position.y}, color, getAtlasWhitePixel()});
+    vertex_data.push_back({{rect.position.x + rect.size.x, rect.position.y + rect.size.y}, color, getAtlasWhitePixel()});
 }
 
 void RenderTarget::drawTexturedQuad(std::string_view texture,
@@ -995,7 +1093,7 @@ void RenderTarget::drawTexturedQuad(std::string_view texture,
 void RenderTarget::drawText(sp::Rect rect, std::string_view text, Alignment align, float font_size, sp::Font* font, glm::u8vec4 color, int flags)
 {
     if (!font) font = default_font;
-    auto prepared = font->prepare(text, 32, font_size, color, rect.size, align, flags);
+    auto prepared = font->prepare(text, getFontPixelSize(), font_size, color, rect.size, align, flags);
     drawText(rect, prepared, flags);
 }
 
@@ -1005,7 +1103,7 @@ void RenderTarget::drawText(sp::Rect rect, const sp::Font::PreparedFontString& p
     for(auto gd : prepared.data)
     {
         Font::GlyphInfo glyph;
-        if (gd.char_code == 0 || !prepared.getFont()->getGlyphInfo(gd.char_code, 32, glyph))
+        if (gd.char_code == 0 || !prepared.getFont()->getGlyphInfo(gd.char_code, getFontPixelSize(), glyph))
         {
             glyph.advance = 0.0f;
             glyph.bounds.size.x = 0.0f;
@@ -1017,7 +1115,7 @@ void RenderTarget::drawText(sp::Rect rect, const sp::Font::PreparedFontString& p
             auto it = ags.find(gd.char_code);
             if (it == ags.end())
             {
-                uv_rect = atlas_texture->add(prepared.getFont()->drawGlyph(gd.char_code, 32), 1);
+                uv_rect = atlas_texture->add(prepared.getFont()->drawGlyph(gd.char_code, getFontPixelSize()), 1);
                 ags[gd.char_code] = uv_rect;
                 //LOG(Info, "Added glyph '", char(gd.char_code), "' to atlas@", uv_rect.position, " ", uv_rect.size, "  ", atlas_texture->usageRate() * 100.0f, "%");
             }
@@ -1025,7 +1123,7 @@ void RenderTarget::drawText(sp::Rect rect, const sp::Font::PreparedFontString& p
             {
                 uv_rect = it->second;
             }
-            float size_scale = gd.size / 32.0f;
+            float size_scale = gd.size / float(getFontPixelSize());
 
             float u0 = uv_rect.position.x;
             float v0 = uv_rect.position.y;
@@ -1035,7 +1133,7 @@ void RenderTarget::drawText(sp::Rect rect, const sp::Font::PreparedFontString& p
             float left = gd.position.x + glyph.bounds.position.x * size_scale;
             float right = left + glyph.bounds.size.x * size_scale;
             // Adjust font baseline if set.
-            float top = gd.position.y - glyph.bounds.position.y * size_scale + (prepared.getFont()->getBaselineOffset() * gd.size / 32.0f);
+            float top = gd.position.y - glyph.bounds.position.y * size_scale + (prepared.getFont()->getBaselineOffset() * gd.size / float(getFontPixelSize()));
             float bottom = top + glyph.bounds.size.y * size_scale;
 
             if (flags & Font::FlagClip)
@@ -1115,18 +1213,18 @@ void RenderTarget::drawRotatedText(glm::vec2 center, float rotation, std::string
 {
     if (!font)
         font = default_font;
-    auto prepared = font->prepare(text, 32, font_size, color, {0.0f, 0.0f}, sp::Alignment::Center, 0);
+    auto prepared = font->prepare(text, getFontPixelSize(), font_size, color, {0.0f, 0.0f}, sp::Alignment::Center, 0);
 
     auto sin = std::sin(-glm::radians(rotation));
     auto cos = std::cos(-glm::radians(rotation));
     glm::mat2 mat{cos, -sin, sin, cos};
 
     auto& ags = atlas_glyphs[prepared.getFont()];
-    float size_scale = font_size / 32.0f;
+    float size_scale = font_size / float(getFontPixelSize());
     for(auto gd : prepared.data)
     {
         Font::GlyphInfo glyph;
-        if (gd.char_code == 0 || !prepared.getFont()->getGlyphInfo(gd.char_code, 32, glyph))
+        if (gd.char_code == 0 || !prepared.getFont()->getGlyphInfo(gd.char_code, getFontPixelSize(), glyph))
         {
             glyph.advance = 0.0f;
             glyph.bounds.size.x = 0.0f;
@@ -1138,7 +1236,7 @@ void RenderTarget::drawRotatedText(glm::vec2 center, float rotation, std::string
             auto it = ags.find(gd.char_code);
             if (it == ags.end())
             {
-                uv_rect = atlas_texture->add(prepared.getFont()->drawGlyph(gd.char_code, 32), 1);
+                uv_rect = atlas_texture->add(prepared.getFont()->drawGlyph(gd.char_code, getFontPixelSize()), 1);
                 ags[gd.char_code] = uv_rect;
                 LOG(Info, "Added glyph '", char(gd.char_code), "' to atlas@", uv_rect.position, " ", uv_rect.size, "  ", atlas_texture->usageRate() * 100.0f, "%");
             }
@@ -1155,7 +1253,7 @@ void RenderTarget::drawRotatedText(glm::vec2 center, float rotation, std::string
             float left = gd.position.x + glyph.bounds.position.x * size_scale;
             float right = left + glyph.bounds.size.x * size_scale;
             // Adjust font baseline if set.
-            float top = gd.position.y - glyph.bounds.position.y * size_scale + (prepared.getFont()->getBaselineOffset() * gd.size / 32.0f);
+            float top = gd.position.y - glyph.bounds.position.y * size_scale + (prepared.getFont()->getBaselineOffset() * gd.size / float(getFontPixelSize()));
             float bottom = top + glyph.bounds.size.y * size_scale;
 
             glm::vec2 p0 = mat * glm::vec2{left, top} + center;
