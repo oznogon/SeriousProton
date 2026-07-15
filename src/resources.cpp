@@ -86,12 +86,12 @@ public:
         if (io)
             io->close(io);
     }
-    
+
     bool isOpen()
     {
         return io != nullptr;
     }
-    
+
     virtual size_t read(void* data, size_t size) override
     {
         return io->read(io, data, 1, size);
@@ -139,9 +139,9 @@ std::vector<string> DirectoryResourceProvider::findResources(string searchPatter
 {
     std::vector<string> found_files;
 #if defined(ANDROID)
-    //Limitation : 
+    //Limitation :
     //As far as I know, Android NDK won't provide a way to list subdirectories
-    //So we will only list files in the first level directory 
+    //So we will only list files in the first level directory
     static jobject asset_manager_jobject;
     static AAssetManager* asset_manager = nullptr;
     if (!asset_manager)

@@ -45,7 +45,7 @@ void CollisionSystem::update(float delta)
 {
     if (!world) world = new b2World(b2Vec2(0, 0));
     if (delta <= 0.0f) return;
-    
+
     // Go over each entity with physics, and create/update bodies if needed.
     for (auto [entity, transform, physics] : sp::ecs::Query<Transform, Physics>())
     {
@@ -120,7 +120,7 @@ void CollisionSystem::update(float delta)
     }
 
     world->Step(delta, 4, 8);
-    
+
     // Go over each body in the physics world and update the entity, or delete
     // the body if the entity is gone.
     auto now = engine->getElapsedTime();
@@ -182,7 +182,7 @@ void CollisionSystem::update(float delta)
 
             auto a = (sp::ecs::Entity*)contact->GetFixtureA()->GetBody()->GetUserData().pointer;
             auto b = (sp::ecs::Entity*)contact->GetFixtureB()->GetBody()->GetUserData().pointer;
-            
+
             for (auto handler : handlers)
             {
                 if (!*a || !*b) break;

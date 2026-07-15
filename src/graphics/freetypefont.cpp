@@ -39,7 +39,7 @@ FreetypeFont::FreetypeFont(const string& name, P<ResourceStream> stream)
 
     font_resource_stream = stream;
     LOG(Info, "Loading font: ", name);
-    
+
     FT_Library library;
     if (FT_Init_FreeType(&library) != 0)
     {
@@ -131,7 +131,7 @@ bool FreetypeFont::getGlyphInfo(int char_code, int pixel_size, Font::GlyphInfo& 
     if (known_glyphs.find(char_code) == known_glyphs.end())
     {
         FT_Face face = static_cast<FT_Face>(ft_face);
-        
+
         info.bounds = Rect({0, 0}, {0, 0});
         info.advance = 0;
 
@@ -153,11 +153,11 @@ bool FreetypeFont::getGlyphInfo(int char_code, int pixel_size, Font::GlyphInfo& 
                 info.bounds.position.y = float(face->glyph->metrics.horiBearingY) / float(1 << 6);
                 info.bounds.size.x = float(face->glyph->metrics.width) / float(1 << 6);
                 info.bounds.size.y = float(face->glyph->metrics.height) / float(1 << 6);
-                
+
                 FT_Done_Glyph(glyph);
             }
         }
-        
+
         known_glyphs[char_code] = info;
     }
     info = known_glyphs[char_code];
@@ -179,7 +179,7 @@ Image FreetypeFont::drawGlyph(int char_code, int pixel_size)
         {
             FT_Glyph_To_Bitmap(&glyph, FT_RENDER_MODE_NORMAL, 0, 1);
             FT_Bitmap& bitmap = FT_BitmapGlyph(glyph)->bitmap;
-            
+
             const uint8_t* src_pixels = bitmap.buffer;
             //We make a full white image, and then copy the alpha from the freetype render
             std::vector<glm::u8vec4> image_pixels;

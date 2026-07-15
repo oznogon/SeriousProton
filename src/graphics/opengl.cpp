@@ -55,7 +55,7 @@ namespace {
         {
             case GL_DEBUG_SOURCE_API:
                 return "[API] ";
-            case GL_DEBUG_SOURCE_WINDOW_SYSTEM:  
+            case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
                 return "[WindowSystem] ";
             case GL_DEBUG_SOURCE_SHADER_COMPILER:
                 return "[ShaderCompiler] ";
@@ -109,7 +109,7 @@ void initOpenGL()
     SDL_GL_GetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, &minor);
     SDL_GL_GetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, &profile_mask);
     LOG(Info, "OpenGL context version: ", major, ".", minor, "(profile:", profile_mask, ")");
-    
+
     gl::contextIsES = profile_mask == SDL_GL_CONTEXT_PROFILE_ES;
     if (gl::contextIsES)
     {
@@ -138,7 +138,7 @@ void initOpenGL()
     std::vector<GLint> formats(count);
     glGetIntegerv(GL_COMPRESSED_TEXTURE_FORMATS, formats.data());
     SP_texture_compression_etc2 = std::find(std::begin(formats), std::end(formats), GL_COMPRESSED_RGBA8_ETC2_EAC) != std::end(formats);
-    
+
     // Setup VAO functions.
     if (GLAD_GL_ARB_vertex_array_object)
     {

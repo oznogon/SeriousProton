@@ -9,7 +9,7 @@
         // their own destruction.
         SDL_assert(abs(diff) > 10000);//"Object on stack! Not allowed!"
         DEBUG_PobjCount ++;
-        
+
         DEBUG_PobjListNext = DEBUG_PobjListStart;
         DEBUG_PobjListStart = this;
 #endif

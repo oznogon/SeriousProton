@@ -159,7 +159,7 @@ P<MultiplayerObject> GameServer::getObjectById(int32_t id)
 void GameServer::update(float /*gameDelta*/)
 {
     sp::SystemStopwatch update_run_time_clock;    //Clock used to measure how much time this update cycle is costing us.
-    
+
     if (last_update_time.get() < 1.0f / 60.0f) {
         return; // Only update 60 times per second even if the game runs at higher FPS.
     }
@@ -505,7 +505,7 @@ void GameServer::update(float /*gameDelta*/)
         }
     }
 
-    
+
     if (keep_alive_send_timer.isExpired())
     {
         keepAliveAll();
@@ -799,9 +799,9 @@ void GameServer::runMasterServerUpdateThread()
         hostname = hostname.substr(0, port_start);
     }
     else hostname = hostname.substr(0, path_start);
-    
+
     LOG(Info, "Registering this game server to the registry at ", master_server_url);
-    
+
     master_server_state = MasterServerState::Registering;
     sp::io::http::Request http(hostname, port);
     master_server_http_socket = &http.getSocket();
@@ -822,7 +822,7 @@ void GameServer::runMasterServerUpdateThread()
             master_server_state = MasterServerState::FailedPortForwarding;
         }
         else master_server_state = MasterServerState::Success;
-        
+
         for (int n = 0; n < 60 && !isDestroyed() && master_server_url != ""; n++)
             std::this_thread::sleep_for(std::chrono::duration<float>(1.0f));
     }

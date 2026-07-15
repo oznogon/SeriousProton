@@ -46,7 +46,7 @@ BasicTexture::BasicTexture(const glm::uvec2& size, uint32_t native_format, const
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, size.x, size.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
     else
         glCompressedTexImage2D(GL_TEXTURE_2D, 0, native_format, static_cast<GLsizei>(size.x), static_cast<GLsizei>(size.y), 0, static_cast<GLsizei>(byte_count), pixels);
-    
+
     setRepeatedBindless(false);
     setSmoothBindless(false);
     glBindTexture(GL_TEXTURE_2D, GL_NONE);

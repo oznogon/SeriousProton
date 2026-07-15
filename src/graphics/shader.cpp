@@ -139,7 +139,7 @@ int Shader::getUniformLocation(const string& name)
     auto it = uniform_mapping.find(name);
     if (it != uniform_mapping.end())
         return it->second;
-        
+
     int location = glGetUniformLocation(program, name.c_str());
     if (location == -1)
         LOG(Debug, "Failed to find uniform:", name, " in ", this->name);
@@ -153,7 +153,7 @@ int Shader::getAttributeLocation(const string& name)
     auto it = attribute_mapping.find(name);
     if (it != attribute_mapping.end())
         return it->second;
-        
+
     int location = glGetAttribLocation(program, name.c_str());
     if (location == -1)
         LOG(Debug, "Failed to find attribute:", name, " in ", this->name);

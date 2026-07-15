@@ -66,7 +66,7 @@ bool Address::operator==(const Address& other) const
 {
     if (addr_info.size() != other.addr_info.size())
         return false;
-    
+
     for(auto my_info : addr_info)
     {
         bool found = false;

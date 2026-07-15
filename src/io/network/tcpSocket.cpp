@@ -57,7 +57,7 @@ extern "C" {
     static int (*SSL_read)(SSL *ssl, void *buf, int num);
     static int (*SSL_write)(SSL *ssl, const void *buf, int num);
     static void (*SSL_free)(SSL *ssl);
-    
+
     static SSL_CTX* ssl_context;
 }
 
@@ -160,7 +160,7 @@ bool TcpSocket::connect(const Address& host, int port)
 {
     if (handle != INVALID_SOCKET)
         close();
-    
+
     for(const auto& addr_info : host.addr_info)
     {
         handle = ::socket(addr_info.family, SOCK_STREAM, 0);
@@ -211,7 +211,7 @@ bool TcpSocket::connectSSL(const Address& host, int port)
         close();
         return false;
     }
-    
+
     ssl_handle = SSL_new(ssl_context);
     SSL_set_fd(static_cast<SSL*>(ssl_handle), static_cast<int>(handle));
     if (!SSL_connect(static_cast<SSL*>(ssl_handle)))

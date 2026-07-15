@@ -80,7 +80,7 @@ void Entity::destroy()
     }
 
     ComponentStorageBase::destroyAll(index);
-    
+
     // By increasing the version number, everything else will know this entity
     // no longer exists.
     entity_version[index] = (entity_version[index] + 1) | destroyed_flag;

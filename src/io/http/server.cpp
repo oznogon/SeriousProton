@@ -87,12 +87,12 @@ namespace websocket {
     static constexpr int fin_mask = 0x80;
     static constexpr int rsv_mask = 0x70;
     static constexpr int opcode_mask = 0x0f;
-    
+
     static constexpr int mask_mask = 0x80;
     static constexpr int payload_length_mask = 0x7f;
     static constexpr int payload_length_16bit = 126;
     static constexpr int payload_length_64bit = 127;
-    
+
     static constexpr int opcode_continuation = 0x00;
     static constexpr int opcode_text = 0x01;
     static constexpr int opcode_binary = 0x02;
@@ -125,7 +125,7 @@ Server::~Server()
 void Server::setStaticFilePath(const string& static_file_path)
 {
     std::lock_guard<std::recursive_mutex> lock(mutex);
-    
+
     this->static_file_path = static_file_path;
     if (!this->static_file_path.endswith("/"))
         this->static_file_path += "/";
@@ -139,28 +139,28 @@ void Server::addURLHandler(const string& url, std::function<string(const Request
 void Server::addURLHandler(const string& url, std::function<string(const Request&)> func, const string& content_type)
 {
     std::lock_guard<std::recursive_mutex> lock(mutex);
-    
+
     http_handlers[url] = {func, content_type};
 }
 
 void Server::addSimpleWebsocketHandler(const string& url, std::function<void(const string& data)> func)
 {
     std::lock_guard<std::recursive_mutex> lock(mutex);
-    
+
     simple_websocket_handlers[url] = func;
 }
 
 void Server::addAdvancedWebsocketHandler(const string& url, std::function<P<WebsocketHandler>()> func)
 {
     std::lock_guard<std::recursive_mutex> lock(mutex);
-    
+
     advanced_websocket_handlers[url] = func;
 }
 
 void Server::broadcastToWebsockets(const string& url, const string& data)
 {
     std::lock_guard<std::recursive_mutex> lock(mutex);
-    
+
     for(Connection& connection : connections)
     {
         if (connection.remove)
@@ -205,7 +205,7 @@ void Server::handlerThread()
                 if (std::chrono::steady_clock::now() - connection.last_received_data_time > std::chrono::seconds(5))
                     connection.remove = !connection.handleTimeout();
             }
-            
+
             if (connection.remove)
                 selector.remove(connection.socket);
             it++;
@@ -231,7 +231,7 @@ void Server::update(float delta)
             it = connections.erase(it);
             continue;
         }
-        
+
         if (connection.request_pending)
         {
             auto& [handler, content_type] = http_handlers[connection.request.path];
@@ -262,7 +262,7 @@ void Server::update(float delta)
                 connection.websocket_handler->onMessage(message);
         }
         connection.websocket_received_pending.clear();
-        
+
         it++;
     }
 }
@@ -284,7 +284,7 @@ bool Server::Connection::processIncommingData()
         return false;
     buffer.resize(buffer.size() + received_size);
     memcpy(&buffer[buffer.size()] - received_size, receive_buffer, received_size);
-    
+
     switch(state)
     {
     case State::HTTPRequest:{
@@ -292,7 +292,7 @@ bool Server::Connection::processIncommingData()
         if (headers_end)
         {
             std::vector<string> header_data = buffer.substr(0, headers_end).split("\r\n");
-            
+
             std::vector<string> parts = header_data[0].split();
             if (parts.size() != 3)
                 return false;
@@ -321,7 +321,7 @@ bool Server::Connection::processIncommingData()
                     break; //Not enough data yet, continue receiving.
                 request.post_data = buffer.substr(headers_end + 4, headers_end + 4 + post_length);
             }
-            
+
             buffer = buffer.substr(headers_end + 4 + post_length);
             handleRequest(request);
         }
@@ -375,7 +375,7 @@ bool Server::Connection::processIncommingData()
             }
             if (buffer.size() < index + payload_length)
                 return true;
-            
+
             string message = buffer.substr(index, index + payload_length);
             buffer = buffer.substr(index + payload_length);
 
@@ -417,7 +417,7 @@ bool Server::Connection::processIncommingData()
         }
         break;
     }
-    
+
     return true;
 }
 
@@ -471,9 +471,9 @@ void Server::Connection::handleRequest(const Request& request)
                 reply += "Cache-Control: max-age=0, no-cache, must-revalidate, proxy-revalidate\r\n";
                 reply += "\r\n";
                 socket.send(reply.c_str(), reply.size());
-                
+
                 websocket_connected = true;
-                
+
                 state = State::Websocket;
             }
             else
@@ -488,14 +488,14 @@ void Server::Connection::handleRequest(const Request& request)
     }
 
     string full_path;
-    
+
     if (request.path.find("..") == -1)
     {
         full_path = server.static_file_path + request.path;
         if (request.path.endswith("/"))
             full_path = full_path + "index.html";
     }
-    
+
     FILE* f = fopen(full_path.c_str(), "rb");
     if (f)
     {
@@ -582,7 +582,7 @@ void Server::Connection::sendWebsocketTextPacket(const string& data)
         };
         socket.send(header, sizeof(header));
     }
-    
+
     socket.send(data.data(), data.size());
 }
 

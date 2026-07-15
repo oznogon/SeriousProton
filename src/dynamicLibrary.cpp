@@ -8,7 +8,7 @@
 
 #if defined(_WIN32)
 static constexpr std::string_view native_extension{ ".dll" };
-#elif defined(__APPLE__) 
+#elif defined(__APPLE__)
 static constexpr std::string_view native_extension{ ".dylib" };
 #else // assume posix
 static constexpr std::string_view native_extension{ ".so" };
@@ -43,7 +43,7 @@ std::unique_ptr<DynamicLibrary> DynamicLibrary::open(const std::filesystem::path
 
     if (handle)
         library.reset(new DynamicLibrary(std::make_unique<Impl>(handle)));
-    
+
     return library;
 }
 
@@ -59,7 +59,7 @@ void* DynamicLibrary::getFunction<void*>(std::string_view name)
 {
     if (!impl->handle)
         return nullptr;
-    
+
     return SDL_LoadFunction(impl->handle, name.data());
 }
 

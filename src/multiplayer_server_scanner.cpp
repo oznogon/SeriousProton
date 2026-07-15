@@ -104,7 +104,7 @@ void ServerScanner::updateServerEntry(const ServerInfo& info)
     ServerInfo si = info;
     si.timeout.start(ServerTimeout);
     server_list.push_back(si);
-    
+
     if (newServerCallback)
         newServerCallback(si);
 }
@@ -116,7 +116,7 @@ void ServerScanner::addCallbacks(std::function<void(const ServerInfo&)> newServe
 }
 
 std::vector<ServerScanner::ServerInfo> ServerScanner::getServerList()
-{   
+{
     return server_list;
 }
 
@@ -168,7 +168,7 @@ void ServerScanner::masterServerScanThread()
                 int part_port = parts[1].toInt();
                 int version = parts[2].toInt();
                 string name = parts[3];
-                
+
                 if (version == version_number || version == 0 || version_number == 0)
                 {
                     master_server_list_mutex.lock();

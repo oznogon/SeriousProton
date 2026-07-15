@@ -98,7 +98,7 @@ Sound::Sound(const string& resource_name)
     auto stream = getResourceStream(resource_name);
     if (!stream)
         return;
-    
+
     if (resource_name.endswith(".ogg"))
     {
         std::vector<uint8_t> data;
@@ -118,7 +118,7 @@ Sound::Sound(const string& resource_name)
         }
         return;
     }
-    
+
     char chunk_id[4];
     uint32_t chunk_size;
 
@@ -135,7 +135,7 @@ Sound::Sound(const string& resource_name)
         if (strncmp(chunk_id, "fmt ", 4) == 0)
         {
             if (chunk_size < 16) return;
-            
+
             uint16_t fmt_format;
             uint16_t fmt_channels;
             uint32_t fmt_samplerate;

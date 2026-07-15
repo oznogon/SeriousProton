@@ -82,7 +82,7 @@ SHA1::SHA1(string input)
                 f = b ^ c ^ d;
                 k = 0xca62c1d6;
             }
-            
+
             uint32_t temp = rotate_left(a, 5) + f + e + k + w[i];
             e = d;
             d = c;

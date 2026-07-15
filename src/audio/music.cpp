@@ -43,7 +43,7 @@ bool Music::open(const string& resource_name, bool loop)
         LOG(Error, "Failed to read music file ", resource_name, " error: ", error);
         return false;
     }
-    
+
     auto info = stb_vorbis_get_info(reinterpret_cast<stb_vorbis*>(vorbis));
     sample_rate = info.sample_rate;
     length = stb_vorbis_stream_length_in_samples(reinterpret_cast<stb_vorbis*>(vorbis));

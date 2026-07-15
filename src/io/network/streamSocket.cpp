@@ -42,10 +42,10 @@ void StreamSocket::queue(const void* data, size_t size)
 size_t StreamSocket::receive(void* data, size_t size)
 {
     sendSendQueue();
-    
+
     if (getState() != State::Connected)
         return 0;
-    
+
     return _receive(data, size);
 }
 
@@ -67,7 +67,7 @@ bool StreamSocket::receive(io::DataBuffer& buffer)
 {
     if (getState() != State::Connected)
         return 0;
-    
+
     if (!receive_packet_size_done)
     {
         uint8_t size_buffer[1];
@@ -99,7 +99,7 @@ bool StreamSocket::receive(io::DataBuffer& buffer)
         if (result < 1)
             break;
     }
-    
+
     return false;
 }
 
@@ -107,7 +107,7 @@ bool StreamSocket::sendSendQueue()
 {
     if (send_queue.size() < 1)
         return false;
-    
+
     size_t result;
     do
     {
@@ -115,7 +115,7 @@ bool StreamSocket::sendSendQueue()
         if (result > 0)
             send_queue = send_queue.substr(result);
     } while(result > 0 && send_queue.size() > 0);
-    
+
     return send_queue.size() > 0;
 }
 

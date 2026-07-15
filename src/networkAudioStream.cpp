@@ -8,10 +8,10 @@
 NetworkAudioStream::NetworkAudioStream()
 {
     sample_rate = 44100;
-    
+
     //Reserve 10 seconds of playback in our buffers.
     samples.reserve(sample_rate * 10);
-    
+
     int error = 0;
     decoder = opus_decoder_create(48000, 1, &error);
 }
@@ -28,7 +28,7 @@ void NetworkAudioStream::onMixSamples(int16_t* stream, int sample_count)
         mix(stream[index*2+1], sample);
     }
     samples.erase(samples.begin(), samples.begin() + mix_count);
-    
+
     //Stop playback if the buffer is empty.
     if (samples.empty())
         stop();

@@ -163,7 +163,7 @@ void NetworkAudioRecorder::finishSending()
         while(sample_buffer.size() < frame_size)
             sample_buffer.push_back(0);
     }
-    
+
     sendAudioPacket();
     opus_encoder_destroy(encoder);
     encoder = nullptr;

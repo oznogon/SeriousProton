@@ -27,12 +27,12 @@ namespace websocket {
     static constexpr int fin_mask = 0x80;
     static constexpr int rsv_mask = 0x70;
     static constexpr int opcode_mask = 0x0f;
-    
+
     static constexpr int mask_mask = 0x80;
     static constexpr int payload_length_mask = 0x7f;
     static constexpr int payload_length_16bit = 126;
     static constexpr int payload_length_64bit = 127;
-    
+
     static constexpr int opcode_continuation = 0x00;
     static constexpr int opcode_text = 0x01;
     static constexpr int opcode_binary = 0x02;

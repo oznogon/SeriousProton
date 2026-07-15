@@ -127,7 +127,7 @@ Engine::Engine()
             LOG(Info, "Crash reporter ON");
         }
         else exchndl.reset();
-    } 
+    }
 #endif // WIN32
 
     SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0");

@@ -219,7 +219,7 @@ void SoundManager::startMusic(const string& name, bool loop)
 {
     if (name.empty())
         return;
-    
+
     if (music_channel.music.isPlaying())
     {
         music_channel.next_stream = name;
@@ -239,7 +239,7 @@ void SoundManager::updateTick()
 {
     float delta = clock.restart();
     updateChannel(music_channel, delta);
-    
+
     if (music_set.size() > 0)
     {
         if (music_channel.mode == None && music_channel.next_stream.empty())

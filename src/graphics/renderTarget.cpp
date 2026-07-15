@@ -177,7 +177,7 @@ static ImageInfo getTextureInfo(std::string_view texture)
             stream = getResourceStream(string(texture) + ".png");
         image.loadFromStream(stream);
     }
-    
+
     auto size = image.getSize();
     if (size.x > atlas_threshold.x || size.y > atlas_threshold.y)
     {
@@ -499,7 +499,7 @@ void RenderTarget::drawRotatedSprite(std::string_view texture, glm::vec2 center,
     vertex_data.push_back({
         center + offset0,
         color, {uv_rect.position.x + uv_rect.size.x, uv_rect.position.y + uv_rect.size.y}});
-    
+
     if (info.texture)
         finish(info.texture);
 }
@@ -918,7 +918,7 @@ void RenderTarget::drawTiled(const sp::Rect& rect, std::string_view texture, glm
                 {uv1.x, uv1.y}});
         }
     }
-    
+
     if (info.texture)
         finish(info.texture);
 }
@@ -1301,7 +1301,7 @@ void RenderTarget::drawStretchedH(sp::Rect rect, std::string_view texture, glm::
     float w = rect.size.y / 2.0f;
     if (w * 2 > rect.size.x)
         w = rect.size.x / 2.0f;
-    
+
     auto n = vertex_data.size();
     index_data.insert(index_data.end(), {
         uint16_t(n + 0), uint16_t(n + 1), uint16_t(n + 2),
@@ -1350,7 +1350,7 @@ void RenderTarget::drawStretchedV(sp::Rect rect, std::string_view texture, glm::
     float h = rect.size.x / 2.0f;
     if (h * 2 > rect.size.y)
         h = rect.size.y / 2.0f;
-    
+
     auto n = vertex_data.size();
     index_data.insert(index_data.end(), {
         uint16_t(n + 0), uint16_t(n + 1), uint16_t(n + 2),

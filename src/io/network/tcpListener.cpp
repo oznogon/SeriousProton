@@ -34,7 +34,7 @@ bool TcpListener::listen(int port)
     initSocketLib();
     if (isListening())
         close();
-    
+
     handle = ::socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
     if (handle != INVALID_SOCKET)
     {
@@ -107,7 +107,7 @@ bool TcpListener::accept(TcpSocket& socket)
 {
     if (!isListening())
         return false;
-    
+
     auto result = ::accept(handle, nullptr, nullptr);
     if (result == INVALID_SOCKET)
     {

@@ -18,7 +18,7 @@ void __stringTest()
     checkequal(string("hel"), string("hello").substr(0, 3));
     checkequal(string("he"), string("hello").substr(0, -3));
     checkequal(string("llo"), string("hello").substr(-3));
-    
+
     //test_capitalize
     checkequal(string(" hello "), string(" hello ").capitalize());
     checkequal(string("Hello "), string("Hello ").capitalize());
@@ -39,7 +39,7 @@ void __stringTest()
 
     checkequal(0, string("").count("xx"));
 
-    //test_find    
+    //test_find
     checkequal(0, string("abcdefghiabc").find("abc"));
     checkequal(9, string("abcdefghiabc").find("abc", 1));
     checkequal(-1, string("abcdefghiabc").find("def", 4));
@@ -50,7 +50,7 @@ void __stringTest()
 
     checkequal(0, string("").find(""));
     checkequal(-1, string("").find("xx"));
-    
+
     checkequal(1, string("123").find("2"));
     checkequal(1, string("123").find('2'));
     checkequal(-1, string("123").find('2', 2));

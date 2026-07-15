@@ -83,7 +83,7 @@ sp::Texture* TextureManager::loadTexture(const string& name)
 
         texture = std::make_unique<sp::BasicTexture>(image);
     }
-    
+
     texture->setRepeated(defaultRepeated);
     texture->setSmooth(defaultSmooth);
 

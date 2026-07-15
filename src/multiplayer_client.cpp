@@ -386,6 +386,6 @@ void GameClient::sendPassword(string password)
     sp::io::DataBuffer reply;
     reply << CMD_CLIENT_SEND_AUTH << int32_t(version_number) << password;
     socket->send(reply);
-    
+
     status = Authenticating;
 }

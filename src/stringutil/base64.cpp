@@ -43,7 +43,7 @@ string encode(const string& data)
             d[2] = data[n+2];
         else
             d[2] = 0;
-        
+
         result += encode_table[d[0] >> 2];
         result += encode_table[((d[0] & 0x03) << 4) | (d[1] >> 4)];
         if (n + 1 < data.length())
@@ -55,7 +55,7 @@ string encode(const string& data)
         else
             result += '=';
     }
-    
+
     return result;
 }
 
@@ -80,14 +80,14 @@ string decode(const string& data)
             c[3] = decode_table[uint8_t(data[n + 3])];
         else
             c[3] = 0;
-        
+
         result += (c[0] << 2) | (c[1] >> 4);
         if (n + 2 < data.length() && data[n + 2] != '=')
             result += (c[1] << 4) | (c[2] >> 2);
         if (n + 3 < data.length() && data[n + 3] != '=')
             result += (c[2] << 6) | (c[3]);
     }
-    
+
     return result;
 }
 

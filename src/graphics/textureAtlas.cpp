@@ -30,7 +30,7 @@ void AtlasTexture::bind()
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, smooth ? GL_LINEAR : GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, smooth ? GL_LINEAR : GL_NEAREST);
-        
+
         std::vector<glm::u8vec4> initial_data;
         initial_data.resize(texture_size.x * texture_size.y, {0, 0, 0, 0});
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texture_size.x, texture_size.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, initial_data.data());
@@ -47,7 +47,7 @@ void AtlasTexture::bind()
     {
         for(auto& add_item : add_list)
             glTexSubImage2D(GL_TEXTURE_2D, 0, add_item.position.x, add_item.position.y, add_item.image.getSize().x, add_item.image.getSize().y, GL_RGBA, GL_UNSIGNED_BYTE, add_item.image.getPtr());
-        
+
         add_list.clear();
     }
 }
@@ -73,7 +73,7 @@ Rect AtlasTexture::add(Image&& image, int margin)
             //Suitable area found, grab it, cut it, and put it in a stew.
             RectInt full_area = available_areas[n];
             available_areas.erase(available_areas.begin() + n);
-            
+
             if (full_area.size.x <= full_area.size.y)
             {
                 //Split horizontal
@@ -86,7 +86,7 @@ Rect AtlasTexture::add(Image&& image, int margin)
                 addArea({{full_area.position.x + size.x, full_area.position.y}, {full_area.size.x - size.x, full_area.size.y}});
                 addArea({{full_area.position.x, full_area.position.y + size.y}, {size.x, full_area.size.y - size.y}});
             }
-            
+
             if (image.getSize().x > 0 && image.getSize().y > 0)
             {
                 add_list.emplace_back();
