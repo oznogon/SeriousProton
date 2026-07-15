@@ -525,6 +525,8 @@ void Window::handleEvent(const SDL_Event& event)
         case SDLK_RETURN:
             if (event.key.keysym.mod & KMOD_ALT)
                 setMode(getMode() == Mode::Window ? Mode::Fullscreen : Mode::Window);
+            else if (event.key.keysym.mod & KMOD_SHIFT)
+                render_chain->onTextInput(sp::TextInputEvent::ReturnWithNewline);
             else
                 render_chain->onTextInput(sp::TextInputEvent::Return);
             break;

@@ -34,6 +34,7 @@ enum class TextInputEvent
     Indent,
     Unindent,
     Return,
+    ReturnWithNewline,
 
     Copy,
     Paste,
