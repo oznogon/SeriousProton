@@ -1746,8 +1746,8 @@ void RenderTarget::pushClipRegion(sp::Rect virtual_rect)
     glm::ivec2 px_max = virtualToPixelPosition(virtual_rect.position + virtual_rect.size);
     GLint px = px_min.x;
     GLint py = px_min.y;
-    GLint pw = px_max.x - px_min.x;
-    GLint ph = px_max.y - px_min.y;
+    GLint pw = std::max(0, px_max.x - px_min.x);
+    GLint ph = std::max(0, px_max.y - px_min.y);
 
     // Convert coordinates to OpenGL bottom-left origin.
     GLint py_gl = physical_size.y - (py + ph);
