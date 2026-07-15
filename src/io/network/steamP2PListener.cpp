@@ -13,11 +13,12 @@ static std::vector<uint32_t> new_connections;
 static void OnSteamNetConnectionStatusChanged( SteamNetConnectionStatusChangedCallback_t *pInfo )
 {
     switch(pInfo->m_info.m_eState)
-	{
+    {
     case k_ESteamNetworkingConnectionState_Connecting:
-        if (pInfo->m_info.m_hListenSocket) {
+        if (pInfo->m_info.m_hListenSocket)
+        {
             new_connections.push_back(pInfo->m_hConn);
-			SteamNetworkingSockets()->AcceptConnection( pInfo->m_hConn );
+            SteamNetworkingSockets()->AcceptConnection( pInfo->m_hConn );
         }
         break;
     default:
@@ -27,7 +28,7 @@ static void OnSteamNetConnectionStatusChanged( SteamNetConnectionStatusChangedCa
 
 SteamP2PListener::SteamP2PListener()
 {
-	SteamNetworkingUtils()->SetGlobalCallback_SteamNetConnectionStatusChanged(OnSteamNetConnectionStatusChanged);
+    SteamNetworkingUtils()->SetGlobalCallback_SteamNetConnectionStatusChanged(OnSteamNetConnectionStatusChanged);
 }
 
 SteamP2PListener::~SteamP2PListener()
@@ -37,8 +38,8 @@ SteamP2PListener::~SteamP2PListener()
 
 bool SteamP2PListener::listen()
 {
-    if (handle)
-        return true;
+    if (handle) return true;
+
     handle = SteamNetworkingSockets()->CreateListenSocketP2P(0, 0, nullptr);
     return handle != 0;
 }
@@ -59,8 +60,8 @@ bool SteamP2PListener::isListening()
 
 std::unique_ptr<SteamP2PSocket> SteamP2PListener::accept()
 {
-    if (new_connections.empty())
-        return nullptr;
+    if (new_connections.empty()) return nullptr;
+
     auto result = std::make_unique<SteamP2PSocket>();
     result->handle = new_connections.back();
     new_connections.pop_back();

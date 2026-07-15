@@ -8,10 +8,10 @@
 #include "stringImproved.h"
 
 namespace sp {
-	namespace gl {
-		bool contextIsES = false;
-		int max_texture_size = 0;
-	}
+    namespace gl {
+        bool contextIsES = false;
+        int max_texture_size = 0;
+    }
 }
 
 extern "C" {
@@ -100,8 +100,7 @@ namespace sp {
 void initOpenGL()
 {
     static bool init_done = false;
-    if (init_done)
-        return;
+    if (init_done) return;
     init_done = true;
 
     int major = 0, minor = 0;
@@ -114,14 +113,16 @@ void initOpenGL()
     gl::contextIsES = profile_mask == SDL_GL_CONTEXT_PROFILE_ES;
     if (gl::contextIsES)
     {
-        if (!gladLoadGLES2Loader(&SDL_GL_GetProcAddress)) {
+        if (!gladLoadGLES2Loader(&SDL_GL_GetProcAddress))
+        {
             LOG(Error, "Failed to initialize OpenGL functions...");
             exit(1);
         }
     }
     else
     {
-        if (!gladLoadGLLoader(&SDL_GL_GetProcAddress)) {
+        if (!gladLoadGLLoader(&SDL_GL_GetProcAddress))
+        {
             LOG(Error, "Failed to initialize OpenGL functions...");
             exit(1);
         }
@@ -165,7 +166,6 @@ void initOpenGL()
     {
         SP_ANY_vertex_array_object = 1;
     }
-        
 
     SDL_assert_always(glGetError() == GL_NO_ERROR);
 }
@@ -177,8 +177,8 @@ namespace gl {
         {
             glDebugMessageCallback(debugCallback, nullptr);
             glDebugMessageControl(
-                GL_DONT_CARE /* any source */,
-                GL_DONT_CARE /* any type */,
+                GL_DONT_CARE, // any source
+                GL_DONT_CARE, // any type
                 GL_DEBUG_SEVERITY_HIGH, 0, nullptr, GL_TRUE);
             glEnable(synchronous ? GL_DEBUG_OUTPUT_SYNCHRONOUS : GL_DEBUG_OUTPUT);
             return true;
@@ -197,23 +197,17 @@ namespace gl {
     #ifdef FULL_LOG
     #if defined(ANDROID) || defined(__EMSCRIPTEN__)
             LOG(Debug, "GL_TRACE", source_file, source_line_number, source_function, function_name, parameters);
-            if (error)
-                LOG(Error, "GL_TRACE ERROR", error);
+            if (error) LOG(Error, "GL_TRACE ERROR", error);
     #else
             static FILE* f = nullptr;
-            if (!f)
-                f = fopen("opengl.trace.txt", "wt");
+            if (!f) f = fopen("opengl.trace.txt", "wt");
             fprintf(f, "%80s:%4d %60s %s %s\n", source_file, source_line_number, source_function, function_name, parameters.c_str());
-            if (error)
-                fprintf(f, "ERROR: %d\n", error);
+            if (error) fprintf(f, "ERROR: %d\n", error);
     #endif
     #else
             SDL_assert_always(error == GL_NO_ERROR);
             if (error != GL_NO_ERROR)
-            {
                 LOG(Error, "glGetError:", error, "@", source_file, ":", source_line_number, ":", source_function, ":", function_name, ":", parameters);
-            }
-
     #endif
         }
     }

@@ -7,7 +7,6 @@
 #include <glm/trigonometric.hpp>
 #include <glm/geometric.hpp>
 
-
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wsuggest-override"
@@ -16,7 +15,6 @@
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic pop
 #endif//__GNUC__
-
 
 #define BOX2D_SCALE 20.0f
 static inline glm::vec2 b2v(b2Vec2 v)
@@ -28,9 +26,7 @@ static inline b2Vec2 v2b(glm::vec2 v)
     return b2Vec2(v.x / BOX2D_SCALE, v.y / BOX2D_SCALE);
 }
 
-
 static b2World* world;
-
 
 namespace sp {
 
@@ -47,21 +43,24 @@ struct Collision
 
 void CollisionSystem::update(float delta)
 {
-    if (!world)
-        world = new b2World(b2Vec2(0, 0));
-    if (delta <= 0.0f)
-        return;
+    if (!world) world = new b2World(b2Vec2(0, 0));
+    if (delta <= 0.0f) return;
     
     // Go over each entity with physics, and create/update bodies if needed.
-    for(auto [entity, transform, physics] : sp::ecs::Query<Transform, Physics>()) {
+    for (auto [entity, transform, physics] : sp::ecs::Query<Transform, Physics>())
+    {
         if (physics.physics_dirty)
         {
             physics.physics_dirty = false;
             sp::ecs::Entity* ptr;
-            if (physics.body) {
+
+            if (physics.body)
+            {
                 ptr = (sp::ecs::Entity*)physics.body->GetUserData().pointer;
                 world->DestroyBody(physics.body);
-            } else {
+            }
+            else
+            {
                 ptr = new sp::ecs::Entity();
                 *ptr = entity;
             }
@@ -79,31 +78,42 @@ void CollisionSystem::update(float delta)
             shapeDef.friction = 0.f;
             shapeDef.isSensor = physics.type == Physics::Type::Sensor;
 
-            if (physics.shape == Physics::Shape::Circle) {
+            if (physics.shape == Physics::Shape::Circle)
+            {
                 b2CircleShape shape;
                 shape.m_radius = physics.size.x / BOX2D_SCALE;
                 shapeDef.shape = &shape;
                 physics.body->CreateFixture(&shapeDef);
-            } else {
+            }
+            else
+            {
                 b2PolygonShape shape;
-                shape.SetAsBox(physics.size.x / 2.f / BOX2D_SCALE, physics.size.y / 2.f / BOX2D_SCALE, {0, 0}, 0);
+                shape.SetAsBox(physics.size.x / 2.0f / BOX2D_SCALE, physics.size.y / 2.0f / BOX2D_SCALE, {0, 0}, 0);
                 shapeDef.shape = &shape;
                 physics.body->CreateFixture(&shapeDef);
             }
         }
-        if (transform.position_user_set && physics.body) {
+
+        if (transform.position_user_set && physics.body)
+        {
             physics.body->SetTransform(v2b(transform.position), physics.body->GetAngle());
             transform.position_user_set = false;
         }
-        if (transform.rotation_user_set && physics.body) {
+
+        if (transform.rotation_user_set && physics.body)
+        {
             physics.body->SetTransform(physics.body->GetPosition(), glm::radians(transform.rotation));
             transform.rotation_user_set = false;
         }
-        if (physics.linear_velocity_user_set && physics.body) {
+
+        if (physics.linear_velocity_user_set && physics.body)
+        {
             physics.body->SetLinearVelocity(v2b(physics.linear_velocity));
             physics.linear_velocity_user_set = false;
         }
-        if (physics.angular_velocity_user_set && physics.body) {
+
+        if (physics.angular_velocity_user_set && physics.body)
+        {
             physics.body->SetAngularVelocity(glm::radians(physics.angular_velocity));
             physics.angular_velocity_user_set = false;
         }
@@ -111,23 +121,35 @@ void CollisionSystem::update(float delta)
 
     world->Step(delta, 4, 8);
     
-    // Go over each body in the physics world, and update the entity, or delete the body if the entity is gone.
+    // Go over each body in the physics world and update the entity, or delete
+    // the body if the entity is gone.
     auto now = engine->getElapsedTime();
     std::vector<b2Body*> remove_list;
-    for(b2Body* body = world->GetBodyList(); body; body = body->GetNext()) {
+    for (b2Body* body = world->GetBodyList(); body; body = body->GetNext())
+    {
         sp::ecs::Entity* entity_ptr = (sp::ecs::Entity*)body->GetUserData().pointer;
         Transform* transform;
         Physics* physics = nullptr;
-        if (!*entity_ptr || !(physics = entity_ptr->getComponent<Physics>()) || !(transform = entity_ptr->getComponent<Transform>())) {
+
+        if (!*entity_ptr
+            || !(physics = entity_ptr->getComponent<Physics>())
+            || !(transform = entity_ptr->getComponent<Transform>())
+        )
+        {
             delete entity_ptr;
             remove_list.push_back(body);
-            if (physics) {
-                // if we have a physics component (thus only missing transform), set it so
-                // that we'll recreate the body if the entity gets a transform again later
+
+            // If we have a physics component (thus only missing Transform),
+            // set it so that we'll recreate the body if the entity gets a
+            // Transform again later.
+            if (physics)
+            {
                 physics->physics_dirty = true;
                 physics->body = nullptr;
             }
-        } else {
+        }
+        else
+        {
             transform->position = b2v(body->GetPosition());
             transform->rotation = glm::degrees(body->GetAngle());
             physics->linear_velocity = b2v(body->GetLinearVelocity());
@@ -135,11 +157,11 @@ void CollisionSystem::update(float delta)
 
             auto position_delta = glm::length(transform->position - transform->last_send_position);
             auto rotation_delta = std::abs(transform->rotation - transform->last_send_rotation);
-            if (position_delta < 0.5f && rotation_delta < 0.5f)
-                continue;
+            if (position_delta < 0.5f && rotation_delta < 0.5f) continue;
+
             auto time_between_updates = 1.0f - position_delta / 200.0f - rotation_delta / 100.0f;
-            if (time_between_updates < 0.05f)
-                time_between_updates = 0.05f;
+            if (time_between_updates < 0.05f) time_between_updates = 0.05f;
+
             if (transform->last_send_time + time_between_updates < now)
                 transform->multiplayer_dirty = true;
         }
@@ -156,19 +178,16 @@ void CollisionSystem::update(float delta)
         {
             float force = 0.0f;
             for (int n = 0; n < contact->GetManifold()->pointCount; n++)
-            {
                 force += contact->GetManifold()->points[n].normalImpulse * BOX2D_SCALE;
-            }
+
             auto a = (sp::ecs::Entity*)contact->GetFixtureA()->GetBody()->GetUserData().pointer;
             auto b = (sp::ecs::Entity*)contact->GetFixtureB()->GetBody()->GetUserData().pointer;
             
-            for(auto handler : handlers)
+            for (auto handler : handlers)
             {
-                if (!*a || !*b)
-                    break;
+                if (!*a || !*b) break;
                 handler->collision(*a, *b, force);
-                if (!*a || !*b)
-                    break;
+                if (!*a || !*b) break;
                 handler->collision(*b, *a, force);
             }
         }
@@ -180,15 +199,14 @@ class QueryCallback : public b2QueryCallback
 public:
     std::vector<sp::ecs::Entity> list;
 
-	/// Called for each fixture found in the query AABB.
-	/// @return false to terminate the query.
-	virtual bool ReportFixture(b2Fixture* fixture) override
-	{
+    /// Called for each fixture found in the query AABB.
+    /// @return false to terminate the query.
+    virtual bool ReportFixture(b2Fixture* fixture) override
+    {
         auto ptr = (sp::ecs::Entity*)fixture->GetBody()->GetUserData().pointer;
-        if (*ptr)
-            list.push_back(*ptr);
+        if (*ptr) list.push_back(*ptr);
         return true;
-	}
+    }
 };
 
 std::vector<sp::ecs::Entity> CollisionSystem::queryArea(glm::vec2 lowerBound, glm::vec2 upperBound)

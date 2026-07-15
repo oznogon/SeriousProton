@@ -45,10 +45,10 @@ StreamSocket::State SteamP2PSocket::getState()
     }
     switch(status.m_eState)
     {
-	case k_ESteamNetworkingConnectionState_Connecting:
+    case k_ESteamNetworkingConnectionState_Connecting:
     case k_ESteamNetworkingConnectionState_FindingRoute:
         return StreamSocket::State::Connecting;
-	case k_ESteamNetworkingConnectionState_Connected:
+    case k_ESteamNetworkingConnectionState_Connected:
         return StreamSocket::State::Connected;
     case k_ESteamNetworkingConnectionState_None:
     case k_ESteamNetworkingConnectionState_ClosedByPeer:
@@ -62,8 +62,7 @@ StreamSocket::State SteamP2PSocket::getState()
 
 size_t SteamP2PSocket::_send(const void* data, size_t size)
 {
-    if (!handle)
-        return 0;
+    if (!handle) return 0;
     if (SteamNetworkingSockets()->SendMessageToConnection(handle, data, size, 0, nullptr) == k_EResultOK)
         return size;
     return 0;
@@ -75,25 +74,24 @@ size_t SteamP2PSocket::_receive(void* data, size_t size)
         return 0;
     if (!recv_buffer.empty())
     {
-        if (size > recv_buffer.size())
-            size = recv_buffer.size();
+        if (size > recv_buffer.size()) size = recv_buffer.size();
         memcpy(data, recv_buffer.data(), size);
         memmove(recv_buffer.data(), recv_buffer.data() + size, recv_buffer.size() - size);
         recv_buffer.resize(recv_buffer.size() - size);
         return size;
     }
     SteamNetworkingMessage_t* message;
+
     auto result = SteamNetworkingSockets()->ReceiveMessagesOnConnection(handle, &message, 1);
     if (result < 0)
     {
         close();
         return 0;
     }
-    if (result == 0)
-        return 0;
 
-    if (size > message->GetSize())
-        size = message->GetSize();
+    if (result == 0) return 0;
+
+    if (size > message->GetSize()) size = message->GetSize();
     memcpy(data, message->GetData(), size);
     if (size < message->GetSize())
     {
