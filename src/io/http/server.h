@@ -41,7 +41,7 @@ public:
 
     Server(int port_nr=80);
     ~Server();
-    
+
     //Set the path on the filesystem where statics files are read from.
     //  Note: This does not use the ResourceProvider system.
     void setStaticFilePath(const string& static_file_path);
@@ -73,19 +73,19 @@ private:
     std::map<string, std::function<P<WebsocketHandler>()>> advanced_websocket_handlers;
 
     sp::io::network::TcpListener listen_socket;
-    
+
     class Connection : sp::NonCopyable
     {
     public:
         Connection(Server& server);
-        
+
         bool remove;
 
         sp::io::network::TcpSocket socket;
         std::chrono::steady_clock::time_point last_received_data_time;
         string buffer;
         Server& server;
-        
+
         Request request;
         bool request_pending = false;
         bool websocket_connected = false;
@@ -99,16 +99,16 @@ private:
         void startHttpReply(int reply_code, const string& mimetype="");
         void httpChunk(const string& data);
         void sendWebsocketTextPacket(const string& data);
-        
+
         enum class State
         {
             HTTPRequest,
             Websocket
         } state;
     };
-    
+
     std::list<Connection> connections;
-    
+
     friend class WebsocketHandler;
 };
 
@@ -118,11 +118,11 @@ public:
     virtual void onConnect() = 0;
     virtual void onMessage(const string& message) = 0;
     virtual void onDisconnect() = 0;
-    
+
     void send(const string& message);
 private:
     Server::Connection* connection = nullptr;
-    
+
     friend class Server;
 };
 

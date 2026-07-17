@@ -12,23 +12,23 @@ public:
     Rect() : position{0, 0}, size{0, 0} {}
     Rect(glm::vec2 position, glm::vec2 size) : position(position), size(size) {}
     Rect(float x, float y, float w, float h) : position(x, y), size(w, h) {}
-    
+
     glm::vec2 center() const
     {
         return position + size * 0.5f;
     }
-    
+
     bool contains(glm::vec2 p) const
     {
         return p.x >= position.x && p.x <= position.x + size.x && p.y >= position.y && p.y <= position.y + size.y;
     }
-    
+
     bool overlaps(const Rect& other) const
     {
         return position.x + size.x >= other.position.x && other.position.x + other.size.x >= position.x &&
             position.y + size.y >= other.position.y && other.position.y + other.size.y >= position.y;
     }
-    
+
     void growToInclude(glm::vec2 p)
     {
         if (p.x < position.x)
@@ -46,7 +46,7 @@ public:
         if (p.y > position.y + size.y)
             size.y = p.y - position.y;
     }
-    
+
     void shrinkToFitWithin(const Rect& other)
     {
         if (position.x < other.position.x)
@@ -74,7 +74,7 @@ public:
             size.y = 0;
         }
     }
-    
+
     bool operator==(const Rect& other)
     {
         return position == other.position && size == other.size;

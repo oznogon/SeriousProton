@@ -12,24 +12,24 @@
 # - LUA_LIB:
 #       Path to the Lua library.
 # - LUA_INCLUDE_DIR:
-#		Directory containing the header files for Lua.
+#       Directory containing the header files for Lua.
 
 
 find_library(LUA_LIB
-	NAMES lua liblua
+    NAMES lua liblua
 )
 
 find_path(LUA_INCLUDE_DIR
-	NAMES lua.h
-	PATH_SUFFIXES lua
+    NAMES lua.h
+    PATH_SUFFIXES lua
 )
 
 string(FIND ${LUA_LIB} "-NOTFOUND" LIBRARY_FOUND)
 string(FIND ${LUA_INCLUDE_DIR} "-NOTFOUND" HEADERS_FOUND)
 if(${LIBRARY_FOUND} LESS 0 AND ${HEADERS_FOUND} LESS 0)
-	set(LUA_FOUND TRUE)
-	message(STATUS "Found lua!")
+    set(LUA_FOUND TRUE)
+    message(STATUS "Found lua!")
 else()
-	set(LUA_FOUND FALSE)
-	message(WARNING "Could NOT find lua!")
+    set(LUA_FOUND FALSE)
+    message(WARNING "Could NOT find lua!")
 endif()

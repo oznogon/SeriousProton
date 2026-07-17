@@ -20,7 +20,7 @@ public:
 
     bool listen();
     void close();
-    
+
     bool isListening();
 
     std::unique_ptr<SteamP2PSocket> accept();

@@ -16,7 +16,7 @@ public:
 private:
     KeyValueTreePtr result;
     P<ResourceStream> stream;
-    
+
     KeyValueTreeLoader(const string& resource_name);
     void parseNode(KeyValueTreeNode* node);
 };

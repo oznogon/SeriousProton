@@ -17,17 +17,17 @@ class AtlasTexture : public Texture
 public:
     AtlasTexture(glm::ivec2 size);
     virtual ~AtlasTexture();
-    
+
     virtual void bind() override;
 
     //Only check if we can add this image, while this does the same work as add(), it does not claim ownership of the image
     //And thus the image can be placed somewhere else if this check fails.
     bool canAdd(const Image& image, int margin=0);
-    
+
     //Add an image to the atlas and return the area where the image is located in normalized coordinates.
     //Returns a negative size if the image cannot be added.
     Rect add(Image&& image, int margin=0);
-    
+
     //Return between 0.0 and 1.0 to indicate how much area of this texture is already used.
     // Where 0.0 is fully empty and 1.0 is fully used (never really happens due to overhead)
     float usageRate();
@@ -44,7 +44,7 @@ private:
 
     glm::ivec2 texture_size;
     std::vector<RectInt> available_areas;
-    
+
     class ToAdd
     {
     public:

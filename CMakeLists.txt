@@ -59,16 +59,16 @@ else()
     #    * 'auto', if we failed to find a suitable system package,
     #    * 'bundled'
     message(STATUS "GLM version used: BUNDLED")
-    
+
     set(GLM_VERSION "1.0.1")
     set(GLM_URL "https://github.com/g-truc/glm")
-	include(FetchContent)
-	FetchContent_Declare(
-		glm
-		GIT_REPOSITORY "${GLM_URL}"
-		GIT_TAG "${GLM_VERSION}"
-	)
-	FetchContent_GetProperties(glm)
+    include(FetchContent)
+    FetchContent_Declare(
+        glm
+        GIT_REPOSITORY "${GLM_URL}"
+        GIT_TAG "${GLM_VERSION}"
+    )
+    FetchContent_GetProperties(glm)
 
     if(NOT glm_POPULATED)
         if(COMMAND FetchContent_Populate)
@@ -224,7 +224,7 @@ set(source_files #All SeriousProton's objects to compile
     src/graphics/opengl.h
     src/i18n.h
     src/keyValueTree.h
-    
+
     src/io/dataBuffer.h
     src/io/json.h
     src/io/keybinding.h
@@ -368,7 +368,7 @@ target_compile_options(seriousproton_deps
 
 include("cmake/SteamSDK.cmake")
 target_link_libraries(seriousproton_deps
-    INTERFACE 
+    INTERFACE
         box2d glad lua ${SDL2_LIBRARIES} glm::glm Threads::Threads ${FREETYPE_LIBRARIES} basisu-transcoder $<BUILD_INTERFACE:steamsdk>
         $<$<BOOL:${WIN32}>:wsock32 ws2_32 crypt32 iphlpapi>
         # LTO flag must be on the linker's list as well.
@@ -388,9 +388,9 @@ endif()
 
 ## Object list
 if (SHARED_SP)
-	add_library(seriousproton_objects SHARED ${source_files})
+    add_library(seriousproton_objects SHARED ${source_files})
 else()
-	add_library(seriousproton_objects OBJECT ${source_files})
+    add_library(seriousproton_objects OBJECT ${source_files})
 endif()
 target_compile_options(seriousproton_objects
     PRIVATE
@@ -426,7 +426,7 @@ install(
     DIRECTORY ${seriousproton_include_dir}
     DESTINATION include/seriousproton
     FILES_MATCHING PATTERN "*.h"
-    
+
 )
 install(
     DIRECTORY ${seriousproton_include_dir}
@@ -459,7 +459,7 @@ if(WIN32)
         macro(get_mingw_dll dll location)
             execute_process(COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=${dll} OUTPUT_VARIABLE ${location} OUTPUT_STRIP_TRAILING_WHITESPACE)
         endmacro()
-        
+
         # In the wild, MinGW come in different flavor
         # (Nuwen is fully statically linked, exception handlers varies sjlj / seh / dw2, threading model can be posix or windows, ...)
         # Grab anything possible, the correct ones will stick for the given installation.

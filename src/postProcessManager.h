@@ -13,7 +13,7 @@ class PostProcessor : public RenderChain
 private:
     sp::Shader* shader;
     sp::RenderTexture render_texture;
-    
+
     RenderChain* chain;
     std::unordered_map<string, float> uniforms;
 
@@ -21,10 +21,10 @@ private:
     unsigned int indices_vbo = 0;
 public:
     bool enabled;
-    
+
     PostProcessor(string shadername, RenderChain* chain);
     virtual ~PostProcessor() {}
-    
+
     virtual void render(sp::RenderTarget& target) override;
 
     virtual bool onPointerMove(glm::vec2 position, sp::io::Pointer::ID id) override;

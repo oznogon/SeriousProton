@@ -32,7 +32,7 @@ public:
             auto [index, primary] = *iterator;
             return {Entity::fromIndex(index), primary, getComponent<T>(index)...};
         }
-    
+
     private:
         template<typename T2> typename optional_info<T2>::ref_type getComponent(uint32_t index)
         {

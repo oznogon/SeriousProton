@@ -466,7 +466,7 @@ public:
     {
         if (old.length() < 1)
             return *this;
-        
+
         string result;
         result.reserve(length());
         int start = 0;

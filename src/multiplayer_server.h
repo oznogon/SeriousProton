@@ -45,7 +45,7 @@ private:
     sp::SystemStopwatch last_update_time;
     sp::SystemTimer keep_alive_send_timer;
     sp::io::network::UdpSocket broadcast_listen_socket;
-    
+
     sp::io::network::TcpListener listen_socket;
     std::unique_ptr<sp::io::network::TcpSocket> new_socket;
 #ifdef STEAMSDK
@@ -61,7 +61,7 @@ private:
     float sendDataRate;
     float sendDataRatePerClient;
     float update_run_time;
-    
+
     float lastGameSpeed;
     float broadcast_server_delay;
 
@@ -131,7 +131,7 @@ public:
 
     string getServerName() { return server_name; }
     void setServerName(string name) { server_name = name; }
-    
+
     void registerOnMasterServer(string master_server_url);
     void registerOnProxyRegistry(string registry_url, string password);
     MasterServerState getMasterServerState() { return master_server_state; }
@@ -151,11 +151,11 @@ private:
 
     void generateCreatePacketFor(P<MultiplayerObject> obj, sp::io::DataBuffer& packet);
     void generateDeletePacketFor(int32_t id, sp::io::DataBuffer& packet);
-    
+
     void replicateInitialData(std::function<void(sp::io::DataBuffer&)> send_packet);
     void handleNewClient(ClientInfo& info);
     void handleNewProxy(ClientInfo& info, int32_t temp_id);
-    
+
     void runMasterServerUpdateThread();
     void sendProxyRegistryHeartbeat();
     void sendProxyRegistryDeregister();

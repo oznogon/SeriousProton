@@ -35,7 +35,7 @@ public:
 
     virtual void update(float delta) override;
     void addCallbacks(std::function<void(const ServerInfo&)> newServerCallback, std::function<void(const ServerInfo&)> removedServerCallback);
-    
+
     void scanLocalNetwork();
     void scanMasterServer(string url);
 
@@ -43,7 +43,7 @@ public:
 
 private:
     void masterServerScanThread();
-    
+
     void updateServerEntry(const ServerInfo& info);
 
     int server_port;

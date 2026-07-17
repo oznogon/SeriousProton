@@ -34,7 +34,7 @@ public:
 
     RenderLayer();
     RenderLayer(RenderChain* link);
-    
+
     virtual void render(sp::RenderTarget& target) override;
 
     virtual bool onPointerMove(glm::vec2 position, sp::io::Pointer::ID id) override;

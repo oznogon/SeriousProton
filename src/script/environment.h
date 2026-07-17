@@ -62,7 +62,7 @@ public:
             lua_pop(L, 3);
             return Result<T>::makeError("Not a function");
         }
-        
+
         int arg_count = (Convert<ARGS>::toLua(Environment::L, args) + ... + 0);
         auto result = lua_pcall(L, arg_count, 1, -arg_count - 3);
         if (result)
@@ -97,7 +97,7 @@ private:
         lua_rawgetp(L, LUA_REGISTRYINDEX, this);
         //set the environment table it as 1st upvalue
         lua_setupvalue(L, -2, 1);
-        
+
         int result_count = 1;
         if constexpr (std::is_same_v<T, CaptureAllResults>) {
             result_count = LUA_MULTRET;

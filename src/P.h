@@ -45,9 +45,9 @@ public:
     {
         _destroyed_flag = true;
     }
-    
+
     int getRefCount() const
-    { 
+    {
         return refCount;
     }
     bool isDestroyed() const
@@ -112,7 +112,7 @@ public:
         check_release();
         return ptr;
     }
-    
+
     T* operator*() const
     {
         return ptr;
@@ -218,7 +218,7 @@ public:
             }
         }
     }
-    
+
     void update()
     {
         for(unsigned int n=0; n<std::vector<P<T> >::size(); n++)
@@ -293,7 +293,7 @@ template<class T1, class T2> bool operator != (const P<T1>& p1, const P<T2>& p2)
 
 namespace std
 {
-    //Make a specialization of std::hash 
+    //Make a specialization of std::hash
     template <class T> struct hash<P<T>>
     {
         size_t operator()(const P<T>& k) const noexcept

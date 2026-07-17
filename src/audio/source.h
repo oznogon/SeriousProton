@@ -35,12 +35,12 @@ private:
     bool active = false;
     Source* next;
     Source* previous;
-    
+
 private:
     static void startAudioSystem();
     static void stopAudioSystem();
     static void onAudioCallback(int16_t* stream, int sample_count);
-    
+
     friend class ::Engine;
     friend class MySDLAudioInterface;
 };

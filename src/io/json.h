@@ -15,7 +15,7 @@ namespace sp
 
         template<typename IteratorType>
         std::optional<nlohmann::json> parse(IteratorType first, IteratorType last, std::string& error, const bool ignore_comments = false);
-        
+
         namespace details
         {
             class JsonParser : public nlohmann::detail::json_sax_dom_parser<nlohmann::json>
@@ -48,7 +48,7 @@ std::optional<nlohmann::json> sp::json::parse(InputType&& i, std::string& error,
     constexpr auto strict_mode = true;
     constexpr auto input_format = nlohmann::json::input_format_t::json;
     auto success = nlohmann::json::sax_parse(std::forward<InputType>(i), &parser, input_format, strict_mode, ignore_comments);
-    
+
     return success
         ? std::make_optional(result)
         : std::optional<nlohmann::json>{};
@@ -62,9 +62,9 @@ std::optional<nlohmann::json> sp::json::parse(IteratorType first, IteratorType l
 
     constexpr auto strict_mode = true;
     constexpr auto input_format = nlohmann::json::input_format_t::json;
-    
+
     auto success = nlohmann::json::sax_parse(first, last, &parser, input_format, strict_mode, ignore_comments);
-    
+
     return success
         ? std::make_optional(result)
         : std::optional<nlohmann::json>{};

@@ -16,10 +16,10 @@ public:
 
     const KeyValueTreeNode* findId(const string& id) const;
     KeyValueTreeNode* findId(const string& id);
-    
+
     string id;
     std::map<string, string> items;
-    
+
     std::vector<KeyValueTreeNode> child_nodes;
 };
 
@@ -27,7 +27,7 @@ class KeyValueTree : public NonCopyable
 {
 public:
     std::vector<KeyValueTreeNode> root_nodes;
-    
+
     KeyValueTreeNode* findId(const string& id);
     std::map<string, std::map<string, string>> getFlattenNodesByIds();
 private:

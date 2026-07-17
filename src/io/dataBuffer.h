@@ -16,18 +16,18 @@ public:
     : read_index(0)
     {
     }
-    
+
     DataBuffer(DataBuffer&& b) noexcept
     : buffer(std::move(b.buffer)), read_index(b.read_index)
     {
     }
-    
+
     template<typename... ARGS> explicit DataBuffer(ARGS&&... args)
     : DataBuffer()
     {
         write(std::forward<ARGS>(args)...);
     }
-    
+
     void operator=(std::vector<uint8_t>&& data)
     {
          buffer = std::move(data);
@@ -39,12 +39,12 @@ public:
         buffer.clear();
         read_index = 0;
     }
-    
+
     const void* getData() const
     {
         return buffer.data();
     }
-    
+
     unsigned int getDataSize() const
     {
         return static_cast<unsigned int>(buffer.size());
@@ -59,7 +59,7 @@ public:
             memcpy(buffer.data() + offset, ptr, size);
         }
     }
-    
+
     template<typename T, typename... ARGS> void write(const T& value, ARGS&&... args)
     {
         write(value);
@@ -67,12 +67,12 @@ public:
     }
 
     void write() {}
-    
+
     void write(bool b)
     {
         buffer.push_back(b ? 1 : 0);
     }
-    
+
     void write(uint8_t i)
     {
         buffer.push_back(i);
@@ -97,7 +97,7 @@ public:
     {
         writeVLQu(i);
     }
-    
+
     void write(uint32_t i)
     {
         writeVLQu(i);
@@ -150,7 +150,7 @@ public:
         if (read_index >= buffer.size()) { b = false; return; }
         b = buffer[read_index++];
     }
-    
+
     void read(uint8_t& i)
     {
         if (read_index >= buffer.size()) { i = 0; return; }
@@ -171,12 +171,12 @@ public:
     {
         i = readVLQs();
     }
-    
+
     void read(uint16_t& i)
     {
         i = readVLQu();
     }
-    
+
     void read(uint32_t& i)
     {
         i = readVLQu();

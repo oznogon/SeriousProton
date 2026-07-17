@@ -90,7 +90,7 @@ GameServer requests a proxyregistry reverse proxy.
 | `name` | yes | Server display name |
 | `version` | yes | Integer version number |
 
-**Success (200):** `ASSIGNED <host> <port> <password>`  
+**Success (200):** `ASSIGNED <host> <port> <password>`
 **Errors:** 400 (bad request), 403 (auth), 503 (no free ports), 500 (start failed)
 
 ### `POST /deregister`
@@ -115,7 +115,7 @@ Keep a proxy slot alive. Must be called at least every 120 seconds.
 | `name` | no  | Updated server name |
 | `version` | no  | Updated version |
 
-**Success (200):** `OK`  
+**Success (200):** `OK`
 **Error (404):** `NOT_ASSIGNED`
 
 ### `GET /list`

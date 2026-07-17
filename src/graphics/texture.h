@@ -35,7 +35,7 @@ private:
     BasicTexture(const glm::uvec2& size, uint32_t native_format, const void* pixels, size_t byte_count);
     void setSmoothBindless(bool);
     void setRepeatedBindless(bool);
-    uint32_t handle = 0;  
+    uint32_t handle = 0;
 };
 
 }

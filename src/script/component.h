@@ -65,7 +65,7 @@ public:
         lua_pushstring(L, "sandboxed");
         lua_setfield(L, -2, "__metatable");
         lua_pop(L, 1);
-        
+
         array_metatable_name = name + string("_array");
         luaL_newmetatable(L, array_metatable_name.c_str());
         lua_pushcfunction(L, [](lua_State* L) {

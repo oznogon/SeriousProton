@@ -8,7 +8,7 @@ class DynamicLibrary final
 {
 public:
     /*! Load a dynamic library.
-    * 
+    *
     The system does not try to auto-deduce extension.
 
     \param filepath path to the library to load.
@@ -18,14 +18,14 @@ public:
     static std::unique_ptr<DynamicLibrary> open(const std::filesystem::path& filepath);
 
     /*! Adds the native platform suffix to the basepath.
-    
+
     \param basepath extension-less library path.
     \return filepath with native extension.
     */
     static std::filesystem::path add_native_suffix(const std::filesystem::path& basepath);
-    
+
     /*! Retrieve a function pointer into the library.
-    
+
     \param name Name of the function to load.
     \return function pointer. nullptr if not found.
 

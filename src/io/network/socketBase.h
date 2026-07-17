@@ -26,7 +26,7 @@ protected:
     intptr_t handle = -1;
 #endif
     bool blocking = true;
-    
+
     static void initSocketLib();
     friend class Address;
     friend class Selector;

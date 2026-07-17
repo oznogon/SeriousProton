@@ -40,11 +40,11 @@ public:
         ((*this << args), ...);
     }
     ~Logging();
-    
+
     static void setLogLevel(ELogLevel level);
     static void setLogFile(std::string_view filename);
     static void setLogStdout();
-    
+
     friend const Logging& operator<<(const Logging& log, const char* str);
 
 private:

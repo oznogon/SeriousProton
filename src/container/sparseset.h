@@ -9,8 +9,8 @@
 namespace sp {
 
 // A sparseset is a more optimized version of a map<> with an important constrain:
-//	The key has to be an integer type with a limited range, the smaller the better.
-//	This gives optimized cache performance when iterating over all entities, but still allows quick lookup of individual entries.
+// The key has to be an integer type with a limited range, the smaller the better.
+// This gives optimized cache performance when iterating over all entities, but still allows quick lookup of individual entries.
 template<typename T> class SparseSet final
 {
 public:
@@ -20,7 +20,7 @@ public:
             return false;
         return sparse[index] < dense.size();
     }
-    
+
     T& get(uint32_t index)
     {
         return data[sparse[index]];
@@ -84,14 +84,14 @@ public:
         free_dense = new_free;
         return true;
     }
-    
+
     class Iterator
     {
     public:
         Iterator(SparseSet& _set, size_t _dense_index) : set(_set), dense_index(_dense_index) {
             if (_dense_index == 0) skipFree();
         }
-        
+
         bool operator!=(const Iterator& other) const { return dense_index != other.dense_index; }
         void operator++() { dense_index++; skipFree(); }
         std::pair<uint32_t, T&> operator*() { return {set.dense[dense_index], set.data[dense_index]}; }
@@ -107,7 +107,7 @@ public:
         SparseSet& set;
         size_t dense_index;
     };
-    
+
     Iterator begin() { return Iterator(*this, 0); }
     Iterator end() { return Iterator(*this, dense.size()); }
 

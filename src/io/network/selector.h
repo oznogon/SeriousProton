@@ -16,7 +16,7 @@ public:
     ~Selector();
 
     Selector& operator =(const Selector& other);
-    
+
     void add(SocketBase& socket);
     void remove(SocketBase& socket);
     void wait(int timeout_ms);
@@ -24,7 +24,7 @@ public:
 
 private:
     class SelectorData;
-    
+
     SelectorData* data;
 };
 

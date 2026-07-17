@@ -277,12 +277,12 @@ private:
     void setValue(float new_value, int key_type, Interaction bind_interaction, float prev_bind_value);
     void setValue(float new_value, int key_type = 0);
     void postUpdate();
-    
+
     static void allPostUpdate();
-    
+
     static void handleEvent(const SDL_Event& event);
     static void updateKeys(int key_number, float value);
-    
+
     static Keybinding* keybindings;
     Keybinding* next=nullptr;
     static Keybinding* rebinding_key;
@@ -297,7 +297,7 @@ private:
     static Interaction rebinding_preview_interaction;
 
     static string keyNameForRaw(int key, bool inverted);
-    
+
     static constexpr int type_mask = 0xfff << 16;
     static constexpr int keyboard_mask = static_cast<int>(Type::Keyboard) << 16;
     static constexpr int pointer_mask = static_cast<int>(Type::Pointer) << 16;

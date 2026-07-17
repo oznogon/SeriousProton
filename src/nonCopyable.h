@@ -8,7 +8,7 @@ namespace sp {
     By default, C++ classes can be copied implicitly.
     Any class that holds a unique resource or is a unique resource cannot be copied by nature.
     To ensure copying is properly disable, use this as a base class.
-    
+
     Usage example:
     \code
     class UniqueResource : sp::NonCopyable

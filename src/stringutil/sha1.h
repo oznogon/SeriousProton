@@ -10,7 +10,7 @@ class SHA1
 {
 public:
     SHA1(string input);
-    
+
     string base64();
 private:
     string result;

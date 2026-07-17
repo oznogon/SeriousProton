@@ -28,16 +28,16 @@ private:
     public:
         AddrInfo(int family, const string& human_readable, const void* addr, size_t addrlen);
         ~AddrInfo();
-    
+
         int family; //One of the AF_* macros, currently only AF_INET or AF_INET6
         string human_readable;
         std::vector<uint8_t> addr;
     };
 
     Address(std::list<AddrInfo>&& addr_info);
-    
+
     std::list<AddrInfo> addr_info;
-    
+
     friend class TcpSocket;
     friend class UdpSocket;
     friend class TcpListener;

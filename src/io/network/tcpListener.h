@@ -19,7 +19,7 @@ public:
 
     bool listen(int port);
     void close();
-    
+
     bool isListening();
 
     bool accept(TcpSocket& socket);
