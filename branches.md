@@ -31,3 +31,5 @@ extra-crew-screens 20260516 -- rotatable drawStretchedHV
 master 20260531 -- fix-strict-compilation
 
 master 20260606 -- reverse-proxy-registry
+
+sdl3 20260719 --- breaking-change migration to SDL3
