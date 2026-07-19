@@ -45,7 +45,7 @@ static string demangle(const char* mangled_name)
 #include "steam/steam_api_flat.h"
 #endif
 
-#ifdef SDL_PLATFORM_APPLE
+#ifdef __APPLE__
 #include <CoreFoundation/CoreFoundation.h>
 #include <mach-o/dyld.h>
 #include <libgen.h>
@@ -62,7 +62,7 @@ Engine::Engine()
 {
     engine = this;
 
-#ifdef SDL_PLATFORM_APPLE
+#ifdef __APPLE__
     // TODO: Find a proper solution.
     // Seems to be non-NULL even outside of a proper bundle.
     CFBundleRef bundle = CFBundleGetMainBundle();

@@ -8,7 +8,7 @@
 
 #if defined(_WIN32)
 static constexpr std::string_view native_extension{ ".dll" };
-#elif defined(SDL_PLATFORM_APPLE)
+#elif defined(__APPLE__)
 static constexpr std::string_view native_extension{ ".dylib" };
 #else // assume posix
 static constexpr std::string_view native_extension{ ".so" };

@@ -23,7 +23,7 @@ static inline int sendto(SOCKET s, const void* msg, size_t len, int flags, const
 #include <arpa/inet.h>
 #include <string.h>
 #include <netdb.h>
-#if defined(SDL_PLATFORM_APPLE)
+#if defined(__APPLE__)
 static constexpr int flags = 0;
 #else
 static constexpr int flags = MSG_NOSIGNAL;

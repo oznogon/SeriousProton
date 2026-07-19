@@ -108,7 +108,7 @@ public:
         writeVLQu64(i);
     }
 
-#ifdef SDL_PLATFORM_APPLE
+#ifdef __APPLE__
     void write(size_t i)
     {
         writeVLQu64(i);
@@ -187,10 +187,10 @@ public:
         i = readVLQu64();
     }
 
-#ifdef SDL_PLATFORM_APPLE
+#ifdef __APPLE__
     void read(size_t& i)
     {
-        i = readVLQu64();
+        i = static_cast<size_t>(readVLQu64());
     }
 #endif
 
@@ -250,7 +250,7 @@ public:
     DataBuffer& operator >>(double& data) { read(data); return *this; }
     DataBuffer& operator >>(string& data) { read(data); return *this; }
 
-#ifdef SDL_PLATFORM_APPLE
+#ifdef __APPLE__
     DataBuffer& operator <<(size_t data) { write(uint64_t(data)); return *this; }
     DataBuffer& operator >>(size_t& data) { read(data); return *this; }
 #endif
