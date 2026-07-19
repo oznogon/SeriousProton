@@ -1,5 +1,5 @@
 #include "graphics/image.h"
-#include <SDL_assert.h>
+#include <SDL3/SDL.h>
 
 #define STBI_ASSERT(x) SDL_assert(x)
 #define STB_IMAGE_IMPLEMENTATION

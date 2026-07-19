@@ -3,7 +3,7 @@
 #include "P.h"
 #include "Renderable.h"
 
-union SDL_Event;
+#include <SDL3/SDL.h>
 class Window : public virtual PObject
 {
 public:
@@ -37,11 +37,11 @@ public:
     friend class Engine;
 private:
     static PVector<Window> all_windows;
-    static void* gl_context;
+    static SDL_GLContext gl_context;
 
     glm::vec2 minimal_virtual_size;
     glm::vec2 current_virtual_size;
-    void* window = nullptr;
+    SDL_Window* window = nullptr;
     RenderChain* render_chain;
     int mouse_button_down_mask = 0;
     Mode mode;

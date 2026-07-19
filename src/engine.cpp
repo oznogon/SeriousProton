@@ -12,7 +12,7 @@
 #include <thread>
 #include <typeinfo>
 #include <unordered_map>
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #if defined(__GNUG__) || defined(__clang__)
 #include <cxxabi.h>
@@ -45,7 +45,7 @@ static string demangle(const char* mangled_name)
 #include "steam/steam_api_flat.h"
 #endif
 
-#ifdef __APPLE__
+#ifdef SDL_PLATFORM_APPLE
 #include <CoreFoundation/CoreFoundation.h>
 #include <mach-o/dyld.h>
 #include <libgen.h>
@@ -62,7 +62,7 @@ Engine::Engine()
 {
     engine = this;
 
-#ifdef __APPLE__
+#ifdef SDL_PLATFORM_APPLE
     // TODO: Find a proper solution.
     // Seems to be non-NULL even outside of a proper bundle.
     CFBundleRef bundle = CFBundleGetMainBundle();
@@ -131,23 +131,16 @@ Engine::Engine()
 #endif // WIN32
 
     SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0");
-    SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
     // Enable mouse events on focus-grabbing clicks for multimonitor mode.
     SDL_SetHint(SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1");
-#ifdef SDL_HINT_ANDROID_SEPARATE_MOUSE_AND_TOUCH
-    SDL_SetHint(SDL_HINT_ANDROID_SEPARATE_MOUSE_AND_TOUCH, "1");
-#elif defined(SDL_HINT_MOUSE_TOUCH_EVENTS)
     SDL_SetHint(SDL_HINT_MOUSE_TOUCH_EVENTS, "0");
     SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
-#endif
-    if (SDL_Init(SDL_INIT_EVERYTHING) < 0)
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_JOYSTICK | SDL_INIT_GAMEPAD | SDL_INIT_HAPTIC))
     {
         const char* sdl_error{SDL_GetError()};
         LOG(Error, "SDL error in Engine initialization: ", sdl_error);
-        SDL_ClearError();
     }
-    SDL_ShowCursor(false);
-    SDL_StopTextInput();
+    SDL_HideCursor();
 
     atexit(SDL_Quit);
 
@@ -187,10 +180,10 @@ void Engine::runMainLoop()
 
         while (running)
         {
-            // Handle SDL_QUIT event
+            // Handle SDL_EVENT_QUIT event
             SDL_Event event;
             while (SDL_PollEvent(&event))
-                if (event.type == SDL_QUIT) running = false;
+                if (event.type == SDL_EVENT_QUIT) running = false;
 #ifdef DEBUG
             if (debug_output_timer.isExpired())
                 LOG(DEBUG) << "Object count: " << DEBUG_PobjCount << " " << updatableList.size();
@@ -335,15 +328,16 @@ void Engine::runMainLoop()
 
 void Engine::handleEvent(SDL_Event& event)
 {
-    // Stop running if SDL_QUIT fires.
-    if (event.type == SDL_QUIT) running = false;
+    // Stop running if SDL_EVENT_QUIT fires.
+    if (event.type == SDL_EVENT_QUIT) running = false;
 #ifdef DEBUG
     // Stop running if Escape is pressed anywhere in Debug builds.
-    if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)
+    if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_ESCAPE)
         running = false;
 
     // Dump list of objects if L key is pressed outside of text input.
-    if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_l && !SDL_IsTextInputActive())
+    if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_L
+        && (!event.key.windowID || !SDL_TextInputActive(SDL_GetWindowFromID(event.key.windowID))))
     {
         int n = 0;
         printf("------------------------\n");
@@ -376,7 +370,7 @@ void Engine::handleEvent(SDL_Event& event)
     unsigned int window_id = 0;
     switch (event.type)
     {
-    case SDL_KEYDOWN:
+    case SDL_EVENT_KEY_DOWN:
 #ifdef __EMSCRIPTEN__
         if (!audio_started)
         {
@@ -384,13 +378,13 @@ void Engine::handleEvent(SDL_Event& event)
             audio_started = true;
         }
 #endif
-    case SDL_KEYUP:
+    case SDL_EVENT_KEY_UP:
         window_id = event.key.windowID;
         break;
-    case SDL_MOUSEMOTION:
+    case SDL_EVENT_MOUSE_MOTION:
         window_id = event.motion.windowID;
         break;
-    case SDL_MOUSEBUTTONDOWN:
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
 #ifdef __EMSCRIPTEN__
         if (!audio_started)
         {
@@ -398,28 +392,39 @@ void Engine::handleEvent(SDL_Event& event)
             audio_started = true;
         }
 #endif
-    case SDL_MOUSEBUTTONUP:
+    case SDL_EVENT_MOUSE_BUTTON_UP:
         window_id = event.button.windowID;
         break;
-    case SDL_MOUSEWHEEL:
+    case SDL_EVENT_MOUSE_WHEEL:
         window_id = event.wheel.windowID;
         break;
-    case SDL_WINDOWEVENT:
+    case SDL_EVENT_WINDOW_RESIZED:
+    case SDL_EVENT_WINDOW_MOVED:
+    case SDL_EVENT_WINDOW_MINIMIZED:
+    case SDL_EVENT_WINDOW_RESTORED:
+    case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
+    case SDL_EVENT_WINDOW_EXPOSED:
+    case SDL_EVENT_WINDOW_FOCUS_GAINED:
+    case SDL_EVENT_WINDOW_FOCUS_LOST:
+    case SDL_EVENT_WINDOW_MOUSE_ENTER:
+    case SDL_EVENT_WINDOW_MOUSE_LEAVE:
+    case SDL_EVENT_WINDOW_HIDDEN:
+    case SDL_EVENT_WINDOW_SHOWN:
+    case SDL_EVENT_WINDOW_MAXIMIZED:
+    case SDL_EVENT_WINDOW_HIT_TEST:
+    case SDL_EVENT_WINDOW_ICCPROF_CHANGED:
+    case SDL_EVENT_WINDOW_DISPLAY_CHANGED:
         window_id = event.window.windowID;
         break;
-    case SDL_FINGERDOWN:
-    case SDL_FINGERUP:
-    case SDL_FINGERMOTION:
-#if SDL_VERSION_ATLEAST(2, 0, 12)
+    case SDL_EVENT_FINGER_DOWN:
+    case SDL_EVENT_FINGER_UP:
+    case SDL_EVENT_FINGER_MOTION:
         window_id = event.tfinger.windowID;
-#else
-        window_id = SDL_GetWindowID(SDL_GetMouseFocus());
-#endif
         break;
-    case SDL_TEXTEDITING:
+    case SDL_EVENT_TEXT_EDITING:
         window_id = event.edit.windowID;
         break;
-    case SDL_TEXTINPUT:
+    case SDL_EVENT_TEXT_INPUT:
         window_id = event.text.windowID;
         break;
     }

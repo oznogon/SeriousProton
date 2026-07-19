@@ -19,7 +19,7 @@
 #include <cmath>
 #include <filesystem>
 #include <thread>
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <stdlib.h>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -36,7 +36,7 @@ static string getFromEnvironment(const char* key, string default_value) {
 }
 
 PVector<Window> Window::all_windows;
-void* Window::gl_context = nullptr;
+SDL_GLContext Window::gl_context = nullptr;
 
 Window::Window(glm::vec2 virtual_size, Mode mode, RenderChain* render_chain, int fsaa)
 : minimal_virtual_size(virtual_size), current_virtual_size(virtual_size), render_chain(render_chain), mode(mode), fsaa(fsaa)
@@ -79,9 +79,9 @@ Window::Window(glm::vec2 virtual_size, Mode mode, RenderChain* render_chain, int
 Window::~Window()
 {
     if (gl_context && all_windows.size() <= 1)
-        SDL_GL_DeleteContext(gl_context);
+        SDL_GL_DestroyContext(gl_context);
     if (window)
-        SDL_DestroyWindow(static_cast<SDL_Window*>(window));
+        SDL_DestroyWindow(window);
 }
 
 void Window::render()
@@ -89,10 +89,10 @@ void Window::render()
     if (fullscreen_key.getDown())
         setMode(getMode() == Mode::Window ? Mode::Fullscreen : Mode::Window);
 
-    SDL_GL_MakeCurrent(static_cast<SDL_Window*>(window), gl_context);
+    SDL_GL_MakeCurrent(window, gl_context);
 
     int w, h;
-    SDL_GL_GetDrawableSize(static_cast<SDL_Window*>(window), &w, &h);
+    SDL_GetWindowSizeInPixels(window, &w, &h);
     glViewport(0, 0, w, h);
 
     // Clear the window
@@ -111,8 +111,8 @@ void Window::render()
 
 void Window::swapBuffers()
 {
-    SDL_GL_MakeCurrent(static_cast<SDL_Window*>(window), gl_context);
-    SDL_GL_SwapWindow(static_cast<SDL_Window*>(window));
+    SDL_GL_MakeCurrent(window, gl_context);
+    SDL_GL_SwapWindow(window);
 }
 
 void Window::saveAllScreenshotsToFile()
@@ -133,11 +133,11 @@ void Window::saveAllScreenshotsToFile()
     for (auto w : all_windows)
     {
         // Make this window's GL context current to read its back buffer.
-        SDL_GL_MakeCurrent(static_cast<SDL_Window*>(w->window), gl_context);
+        SDL_GL_MakeCurrent(w->window, gl_context);
 
         // Capture this window's width and height.
         int width, height;
-        SDL_GL_GetDrawableSize(static_cast<SDL_Window*>(w->window), &width, &height);
+        SDL_GetWindowSizeInPixels(w->window, &width, &height);
 
         auto pixels = std::make_shared<std::vector<unsigned char>>(width * height * 3);
         glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels->data());
@@ -176,18 +176,27 @@ void Window::setMode(Mode new_mode)
         return;
     mode = new_mode;
     auto size = calculateWindowSize();
-    SDL_SetWindowSize(static_cast<SDL_Window*>(window), size.x, size.y);
+    SDL_SetWindowSize(window, size.x, size.y);
     switch(mode)
     {
     case Mode::Window:
-        SDL_SetWindowFullscreen(static_cast<SDL_Window*>(window), 0);
-        SDL_SetWindowPosition(static_cast<SDL_Window*>(window), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+        SDL_SetWindowFullscreen(window, false);
+        SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
         break;
     case Mode::Fullscreen:
-        SDL_SetWindowFullscreen(static_cast<SDL_Window*>(window), SDL_WINDOW_FULLSCREEN_DESKTOP);
+        SDL_SetWindowFullscreenMode(window, nullptr);
+        SDL_SetWindowFullscreen(window, true);
         break;
     case Mode::ExclusiveFullscreen:
-        SDL_SetWindowFullscreen(static_cast<SDL_Window*>(window), SDL_WINDOW_FULLSCREEN);
+        {
+            int num_display_modes = 0;
+            SDL_DisplayID display = SDL_GetDisplayForWindow(window);
+            SDL_DisplayMode** modes = SDL_GetFullscreenDisplayModes(display, &num_display_modes);
+            if (num_display_modes > 0)
+                SDL_SetWindowFullscreenMode(window, modes[0]);
+            SDL_free(modes);
+            SDL_SetWindowFullscreen(window, true);
+        }
         break;
     }
     setupView();
@@ -218,7 +227,7 @@ void Window::setFSAA(int new_fsaa)
 
 void Window::setTitle(string title)
 {
-    SDL_SetWindowTitle(static_cast<SDL_Window*>(window), title.c_str());
+    SDL_SetWindowTitle(window, title.c_str());
 }
 
 void Window::setIcon(string icon_name)
@@ -231,12 +240,11 @@ void Window::setIcon(string icon_name)
     }
 
     auto size = image.getSize();
-    SDL_Surface* icon_surface = SDL_CreateRGBSurfaceWithFormatFrom(
-        image.getPtr(),
+    SDL_Surface* icon_surface = SDL_CreateSurfaceFrom(
         size.x, size.y,
-        32,
-        size.x * 4,
-        SDL_PIXELFORMAT_RGBA32
+        SDL_PIXELFORMAT_RGBA32,
+        image.getPtr(),
+        size.x * 4
     );
 
     if (!icon_surface)
@@ -246,14 +254,14 @@ void Window::setIcon(string icon_name)
     }
 
     // Set the window icon, then free the surface.
-    SDL_SetWindowIcon(static_cast<SDL_Window*>(window), icon_surface);
-    SDL_FreeSurface(icon_surface);
+    SDL_SetWindowIcon(window, icon_surface);
+    SDL_DestroySurface(icon_surface);
 }
 
 glm::vec2 Window::mapPixelToCoords(const glm::ivec2 point) const
 {
     int w, h;
-    SDL_GetWindowSize(static_cast<SDL_Window*>(window), &w, &h);
+    SDL_GetWindowSize(window, &w, &h);
     float x = float(point.x) / float(w) * float(current_virtual_size.x);
     float y = float(point.y) / float(h) * float(current_virtual_size.y);
     return glm::vec2(x, y);
@@ -262,7 +270,7 @@ glm::vec2 Window::mapPixelToCoords(const glm::ivec2 point) const
 glm::ivec2 Window::mapCoordsToPixel(const glm::vec2 point) const
 {
     int w, h;
-    SDL_GetWindowSize(static_cast<SDL_Window*>(window), &w, &h);
+    SDL_GetWindowSize(window, &w, &h);
     float x = float(point.x) * float(w) / float(current_virtual_size.x);
     float y = float(point.y) * float(h) / float(current_virtual_size.y);
     return glm::ivec2(x, y);
@@ -286,7 +294,7 @@ void Window::create()
 #if defined(ANDROID)
     auto context_profile_mask = SDL_GL_CONTEXT_PROFILE_ES;
     auto context_profile_minor_version = getFromEnvironment("SP_GL_MINOR", "0").toInt();
-#elif defined(__APPLE__)
+#elif defined(SDL_PLATFORM_APPLE)
     auto context_profile_mask = SDL_GL_CONTEXT_PROFILE_COMPATIBILITY;
     auto context_profile_minor_version = getFromEnvironment("SP_GL_MINOR", "1").toInt();
 #else
@@ -331,43 +339,73 @@ void Window::create()
         SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
     }
 
-    int flags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
-    switch(mode)
+    int num_displays = 0;
+    SDL_DisplayID* display_ids = SDL_GetDisplays(&num_displays);
+    SDL_DisplayID target_display = num_displays > display_nr ? display_ids[display_nr] : 0;
+    SDL_free(display_ids);
+
+    int flags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+    SDL_PropertiesID props = SDL_CreateProperties();
+    SDL_SetStringProperty(props, SDL_PROP_WINDOW_CREATE_TITLE_STRING, "");
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_X_NUMBER, SDL_WINDOWPOS_CENTERED_DISPLAY(target_display));
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_Y_NUMBER, SDL_WINDOWPOS_CENTERED_DISPLAY(target_display));
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, size.x);
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, size.y);
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_FLAGS_NUMBER, flags);
+    window = SDL_CreateWindowWithProperties(props);
+    SDL_DestroyProperties(props);
+
+    if (!window)
     {
-    case Mode::Window:
-        break;
-    case Mode::Fullscreen:
-        flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
-        break;
-    case Mode::ExclusiveFullscreen:
-        flags |= SDL_WINDOW_FULLSCREEN;
-        break;
-    }
-    window = SDL_CreateWindow("", SDL_WINDOWPOS_CENTERED_DISPLAY(display_nr), SDL_WINDOWPOS_CENTERED_DISPLAY(display_nr), size.x, size.y, flags);
-    if (!window) {
-        LOG(Error, "Failed to create SDL2 window:", SDL_GetError());
+        LOG(Error, "Failed to create SDL window: ", SDL_GetError());
         exit(1);
     }
-    if (!gl_context) {
-        gl_context = SDL_GL_CreateContext(static_cast<SDL_Window*>(window));
-        if (!gl_context) {
-            SDL_DestroyWindow(static_cast<SDL_Window*>(window));
-            LOG(Warning, "Failed to create OpenGL context:", SDL_GetError());
+
+    if (mode != Mode::Window)
+    {
+        if (mode == Mode::ExclusiveFullscreen)
+        {
+            int num_display_modes = 0;
+            SDL_DisplayMode** modes = SDL_GetFullscreenDisplayModes(target_display, &num_display_modes);
+            if (num_display_modes > 0)
+                SDL_SetWindowFullscreenMode(window, modes[0]);
+            SDL_free(modes);
+        }
+        SDL_SetWindowFullscreen(window, true);
+    }
+
+    if (!gl_context)
+    {
+        gl_context = SDL_GL_CreateContext(window);
+        if (!gl_context)
+        {
+            SDL_DestroyWindow(window);
+            LOG(Warning, "Failed to create OpenGL context: ", SDL_GetError());
             LOG(Info, "retrying with GLES2.0 context");
             SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
             SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
             SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-            window = SDL_CreateWindow("", SDL_WINDOWPOS_CENTERED_DISPLAY(display_nr), SDL_WINDOWPOS_CENTERED_DISPLAY(display_nr), size.x, size.y, flags);
-            gl_context = SDL_GL_CreateContext(static_cast<SDL_Window*>(window));
+            SDL_PropertiesID retry_props = SDL_CreateProperties();
+            SDL_SetStringProperty(retry_props, SDL_PROP_WINDOW_CREATE_TITLE_STRING, "");
+            SDL_SetNumberProperty(retry_props, SDL_PROP_WINDOW_CREATE_X_NUMBER, SDL_WINDOWPOS_CENTERED_DISPLAY(target_display));
+            SDL_SetNumberProperty(retry_props, SDL_PROP_WINDOW_CREATE_Y_NUMBER, SDL_WINDOWPOS_CENTERED_DISPLAY(target_display));
+            SDL_SetNumberProperty(retry_props, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, size.x);
+            SDL_SetNumberProperty(retry_props, SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, size.y);
+            SDL_SetNumberProperty(retry_props, SDL_PROP_WINDOW_CREATE_FLAGS_NUMBER, flags);
+            window = SDL_CreateWindowWithProperties(retry_props);
+            SDL_DestroyProperties(retry_props);
+            gl_context = SDL_GL_CreateContext(window);
         }
-        if (!gl_context) {
+
+        if (!gl_context)
+        {
             LOG(Error, "Failed to create OpenGL context:", SDL_GetError());
             exit(1);
         }
     }
-    SDL_GL_MakeCurrent(static_cast<SDL_Window*>(window), gl_context);
-    if (SDL_GL_SetSwapInterval(-1))
-        SDL_GL_SetSwapInterval(1);
+
+    SDL_GL_MakeCurrent(window, gl_context);
+    if (!SDL_GL_SetSwapInterval(-1)) SDL_GL_SetSwapInterval(1);
 
     // Log FSAA status.
     if (fsaa > 0)
@@ -389,12 +427,12 @@ void Window::create()
 
 void Window::handleEvent(const SDL_Event& event)
 {
-    switch(event.type)
+    switch (event.type)
     {
-    case SDL_MOUSEBUTTONDOWN:
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
         {
             sp::io::Pointer::Button button = sp::io::Pointer::Button::Unknown;
-            switch(event.button.button)
+            switch (event.button.button)
             {
             case SDL_BUTTON_LEFT: button = sp::io::Pointer::Button::Left; break;
             case SDL_BUTTON_MIDDLE: button = sp::io::Pointer::Button::Middle; break;
@@ -405,114 +443,114 @@ void Window::handleEvent(const SDL_Event& event)
             render_chain->onPointerDown(button, mapPixelToCoords({event.button.x, event.button.y}), sp::io::Pointer::mouse);
         }
         break;
-    case SDL_MOUSEMOTION:
+    case SDL_EVENT_MOUSE_MOTION:
         if (mouse_button_down_mask)
             render_chain->onPointerDrag(mapPixelToCoords({event.motion.x, event.motion.y}), sp::io::Pointer::mouse);
         else
             render_chain->onPointerMove(mapPixelToCoords({event.motion.x, event.motion.y}), sp::io::Pointer::mouse);
         break;
-    case SDL_MOUSEBUTTONUP:
+    case SDL_EVENT_MOUSE_BUTTON_UP:
         mouse_button_down_mask &=~(1 << int(event.button.button));
         render_chain->onPointerUp(mapPixelToCoords({event.button.x, event.button.y}), sp::io::Pointer::mouse);
         if (!mouse_button_down_mask)
             render_chain->onPointerMove(mapPixelToCoords({event.button.x, event.button.y}), sp::io::Pointer::mouse);
         break;
-    case SDL_MOUSEWHEEL:
-        render_chain->onMouseWheelScroll(mapPixelToCoords({event.wheel.mouseX, event.wheel.mouseY}), event.wheel.preciseY);
+    case SDL_EVENT_MOUSE_WHEEL:
+        render_chain->onMouseWheelScroll(mapPixelToCoords({static_cast<int>(event.wheel.mouse_x), static_cast<int>(event.wheel.mouse_y)}), event.wheel.y);
         break;
-    case SDL_FINGERDOWN:
-        render_chain->onPointerDown(sp::io::Pointer::Button::Touch, {event.tfinger.x * current_virtual_size.x, event.tfinger.y * current_virtual_size.y}, event.tfinger.fingerId);
+    case SDL_EVENT_FINGER_DOWN:
+        render_chain->onPointerDown(sp::io::Pointer::Button::Touch, {event.tfinger.x * current_virtual_size.x, event.tfinger.y * current_virtual_size.y}, event.tfinger.fingerID);
         break;
-    case SDL_FINGERMOTION:
-        render_chain->onPointerDrag({event.tfinger.x * current_virtual_size.x, event.tfinger.y * current_virtual_size.y}, event.tfinger.fingerId);
+    case SDL_EVENT_FINGER_MOTION:
+        render_chain->onPointerDrag({event.tfinger.x * current_virtual_size.x, event.tfinger.y * current_virtual_size.y}, event.tfinger.fingerID);
         break;
-    case SDL_FINGERUP:
-        render_chain->onPointerUp({event.tfinger.x * current_virtual_size.x, event.tfinger.y * current_virtual_size.y}, event.tfinger.fingerId);
+    case SDL_EVENT_FINGER_UP:
+        render_chain->onPointerUp({event.tfinger.x * current_virtual_size.x, event.tfinger.y * current_virtual_size.y}, event.tfinger.fingerID);
         break;
-    case SDL_TEXTINPUT:
+    case SDL_EVENT_TEXT_INPUT:
         render_chain->onTextInput(event.text.text);
         break;
-    case SDL_KEYDOWN:
-        switch(event.key.keysym.sym)
+    case SDL_EVENT_KEY_DOWN:
+        switch(event.key.key)
         {
         case SDLK_KP_4:
-            if (event.key.keysym.mod & KMOD_NUM)
+            if (event.key.mod & SDL_KMOD_NUM)
                 break;
             //fallthrough
         case SDLK_LEFT:
-            if (event.key.keysym.mod & KMOD_SHIFT && event.key.keysym.mod & KMOD_CTRL)
+            if (event.key.mod & SDL_KMOD_SHIFT && event.key.mod & SDL_KMOD_CTRL)
                 render_chain->onTextInput(sp::TextInputEvent::WordLeftWithSelection);
-            else if (event.key.keysym.mod & KMOD_CTRL)
+            else if (event.key.mod & SDL_KMOD_CTRL)
                 render_chain->onTextInput(sp::TextInputEvent::WordLeft);
-            else if (event.key.keysym.mod & KMOD_SHIFT)
+            else if (event.key.mod & SDL_KMOD_SHIFT)
                 render_chain->onTextInput(sp::TextInputEvent::LeftWithSelection);
             else
                 render_chain->onTextInput(sp::TextInputEvent::Left);
             break;
         case SDLK_KP_6:
-            if (event.key.keysym.mod & KMOD_NUM)
+            if (event.key.mod & SDL_KMOD_NUM)
                 break;
             //fallthrough
         case SDLK_RIGHT:
-            if (event.key.keysym.mod & KMOD_SHIFT && event.key.keysym.mod & KMOD_CTRL)
+            if (event.key.mod & SDL_KMOD_SHIFT && event.key.mod & SDL_KMOD_CTRL)
                 render_chain->onTextInput(sp::TextInputEvent::WordRightWithSelection);
-            else if (event.key.keysym.mod & KMOD_CTRL)
+            else if (event.key.mod & SDL_KMOD_CTRL)
                 render_chain->onTextInput(sp::TextInputEvent::WordRight);
-            else if (event.key.keysym.mod & KMOD_SHIFT)
+            else if (event.key.mod & SDL_KMOD_SHIFT)
                 render_chain->onTextInput(sp::TextInputEvent::RightWithSelection);
             else
                 render_chain->onTextInput(sp::TextInputEvent::Right);
             break;
         case SDLK_KP_8:
-            if (event.key.keysym.mod & KMOD_NUM)
+            if (event.key.mod & SDL_KMOD_NUM)
                 break;
             //fallthrough
         case SDLK_UP:
-            if (event.key.keysym.mod & KMOD_SHIFT)
+            if (event.key.mod & SDL_KMOD_SHIFT)
                 render_chain->onTextInput(sp::TextInputEvent::UpWithSelection);
             else
                 render_chain->onTextInput(sp::TextInputEvent::Up);
             break;
         case SDLK_KP_2:
-            if (event.key.keysym.mod & KMOD_NUM)
+            if (event.key.mod & SDL_KMOD_NUM)
                 break;
             //fallthrough
         case SDLK_DOWN:
-            if (event.key.keysym.mod & KMOD_SHIFT)
+            if (event.key.mod & SDL_KMOD_SHIFT)
                 render_chain->onTextInput(sp::TextInputEvent::DownWithSelection);
             else
                 render_chain->onTextInput(sp::TextInputEvent::Down);
             break;
         case SDLK_KP_7:
-            if (event.key.keysym.mod & KMOD_NUM)
+            if (event.key.mod & SDL_KMOD_NUM)
                 break;
             //fallthrough
         case SDLK_HOME:
-            if (event.key.keysym.mod & KMOD_SHIFT && event.key.keysym.mod & KMOD_CTRL)
+            if (event.key.mod & SDL_KMOD_SHIFT && event.key.mod & SDL_KMOD_CTRL)
                 render_chain->onTextInput(sp::TextInputEvent::TextStartWithSelection);
-            else if (event.key.keysym.mod & KMOD_CTRL)
+            else if (event.key.mod & SDL_KMOD_CTRL)
                 render_chain->onTextInput(sp::TextInputEvent::TextStart);
-            else if (event.key.keysym.mod & KMOD_SHIFT)
+            else if (event.key.mod & SDL_KMOD_SHIFT)
                 render_chain->onTextInput(sp::TextInputEvent::LineStartWithSelection);
             else
                 render_chain->onTextInput(sp::TextInputEvent::LineStart);
             break;
         case SDLK_KP_1:
-            if (event.key.keysym.mod & KMOD_NUM)
+            if (event.key.mod & SDL_KMOD_NUM)
                 break;
             //fallthrough
         case SDLK_END:
-            if (event.key.keysym.mod & KMOD_SHIFT && event.key.keysym.mod & KMOD_CTRL)
+            if (event.key.mod & SDL_KMOD_SHIFT && event.key.mod & SDL_KMOD_CTRL)
                 render_chain->onTextInput(sp::TextInputEvent::TextEndWithSelection);
-            else if (event.key.keysym.mod & KMOD_CTRL)
+            else if (event.key.mod & SDL_KMOD_CTRL)
                 render_chain->onTextInput(sp::TextInputEvent::TextEnd);
-            else if (event.key.keysym.mod & KMOD_SHIFT)
+            else if (event.key.mod & SDL_KMOD_SHIFT)
                 render_chain->onTextInput(sp::TextInputEvent::LineEndWithSelection);
             else
                 render_chain->onTextInput(sp::TextInputEvent::LineEnd);
             break;
         case SDLK_KP_PERIOD:
-            if (event.key.keysym.mod & KMOD_NUM)
+            if (event.key.mod & SDL_KMOD_NUM)
                 break;
             //fallthrough
         case SDLK_DELETE:
@@ -523,65 +561,61 @@ void Window::handleEvent(const SDL_Event& event)
             break;
         case SDLK_KP_ENTER:
         case SDLK_RETURN:
-            if (event.key.keysym.mod & KMOD_ALT)
+            if (event.key.mod & SDL_KMOD_ALT)
                 setMode(getMode() == Mode::Window ? Mode::Fullscreen : Mode::Window);
-            else if (event.key.keysym.mod & KMOD_SHIFT)
+            else if (event.key.mod & SDL_KMOD_SHIFT)
                 render_chain->onTextInput(sp::TextInputEvent::ReturnWithNewline);
             else
                 render_chain->onTextInput(sp::TextInputEvent::Return);
             break;
         case SDLK_TAB:
         case SDLK_KP_TAB:
-            if (event.key.keysym.mod & KMOD_SHIFT)
+            if (event.key.mod & SDL_KMOD_SHIFT)
                 render_chain->onTextInput(sp::TextInputEvent::Unindent);
             else
                 render_chain->onTextInput(sp::TextInputEvent::Indent);
             break;
-        case SDLK_a:
-            if (event.key.keysym.mod & KMOD_CTRL)
+        case SDLK_A:
+            if (event.key.mod & SDL_KMOD_CTRL)
                 render_chain->onTextInput(sp::TextInputEvent::SelectAll);
             break;
-        case SDLK_c:
-            if (event.key.keysym.mod & KMOD_CTRL)
+        case SDLK_C:
+            if (event.key.mod & SDL_KMOD_CTRL)
                 render_chain->onTextInput(sp::TextInputEvent::Copy);
             break;
-        case SDLK_v:
-            if (event.key.keysym.mod & KMOD_CTRL)
+        case SDLK_V:
+            if (event.key.mod & SDL_KMOD_CTRL)
                 render_chain->onTextInput(sp::TextInputEvent::Paste);
             break;
-        case SDLK_x:
-            if (event.key.keysym.mod & KMOD_CTRL)
+        case SDLK_X:
+            if (event.key.mod & SDL_KMOD_CTRL)
                 render_chain->onTextInput(sp::TextInputEvent::Cut);
             break;
         }
         break;
-    case SDL_WINDOWEVENT:
-        switch(event.window.event)
+    case SDL_EVENT_WINDOW_MOUSE_LEAVE:
+        if (!SDL_GetMouseState(nullptr, nullptr))
         {
-        case SDL_WINDOWEVENT_LEAVE:
-            if (!SDL_GetMouseState(nullptr, nullptr))
-            {
-                render_chain->onPointerLeave(-1);
-            }
-            break;
-        case SDL_WINDOWEVENT_FOCUS_LOST:
-            if (mouse_button_down_mask)
-            {
-                mouse_button_down_mask = 0;
-                int mx, my;
-                SDL_GetMouseState(&mx, &my);
-                render_chain->onPointerUp(mapPixelToCoords({mx, my}), sp::io::Pointer::mouse);
-            }
-            break;
-        case SDL_WINDOWEVENT_CLOSE:
-            //close();
-            break;
-        case SDL_WINDOWEVENT_RESIZED:
-            setupView();
-            break;
+            render_chain->onPointerLeave(-1);
         }
         break;
-    case SDL_QUIT:
+    case SDL_EVENT_WINDOW_FOCUS_LOST:
+        if (mouse_button_down_mask)
+        {
+            mouse_button_down_mask = 0;
+                float mx_f, my_f;
+                SDL_GetMouseState(&mx_f, &my_f);
+                int mx = static_cast<int>(mx_f), my = static_cast<int>(my_f);
+            render_chain->onPointerUp(mapPixelToCoords({mx, my}), sp::io::Pointer::mouse);
+        }
+        break;
+    case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
+        //close();
+        break;
+    case SDL_EVENT_WINDOW_RESIZED:
+        setupView();
+        break;
+    case SDL_EVENT_QUIT:
         //close();
         break;
     default:
@@ -592,17 +626,15 @@ void Window::handleEvent(const SDL_Event& event)
 void Window::setupView()
 {
     int w, h;
-    SDL_GetWindowSize(static_cast<SDL_Window*>(window), &w, &h);
+    SDL_GetWindowSize(window, &w, &h);
     glm::vec2 window_size{w, h};
 
     current_virtual_size = minimal_virtual_size;
 
     if (window_size.x / window_size.y > current_virtual_size.x / current_virtual_size.y)
-    {
         current_virtual_size.x = current_virtual_size.y / window_size.y * window_size.x;
-    }else{
+    else
         current_virtual_size.y = current_virtual_size.x / window_size.x * window_size.y;
-    }
 }
 
 glm::ivec2 Window::calculateWindowSize() const
@@ -615,6 +647,13 @@ glm::ivec2 Window::calculateWindowSize() const
         display_nr++;
     }
 
+    int num_displays = 0;
+    SDL_DisplayID* display_ids = SDL_GetDisplays(&num_displays);
+    SDL_DisplayID target_display = num_displays > display_nr
+        ? display_ids[display_nr]
+        : 0;
+    SDL_free(display_ids);
+
     // Create the window of the application
     auto windowWidth = static_cast<int>(minimal_virtual_size.x);
     auto windowHeight = static_cast<int>(minimal_virtual_size.y);
@@ -622,18 +661,18 @@ glm::ivec2 Window::calculateWindowSize() const
     SDL_Rect rect{0, 0, 0, 0};
     const glm::ivec2 fallback_dimensions{640, 480};
     const int fallback_size = 240;
-    const int display_bounds = SDL_GetDisplayBounds(display_nr, &rect);
+    const bool display_bounds = SDL_GetDisplayBounds(target_display, &rect);
 
-    // Return SDL_Error if SDL_GetDisplayBounds fails
-    if (display_bounds >= 0)
+    // Return SDL_Error if SDL_GetDisplayBounds fails.
+    if (display_bounds)
     {
         if (rect.w == 0 || rect.h == 0)
-            LOG(Debug, "SDL_GetDisplayBounds(display_nr, &rect) succeeded, but at least one rect dimension is still 0. display_nr: ", display_nr, ", rect.w,h: ", rect.w, ",", rect.h);
+            LOG(Debug, "SDL_GetDisplayBounds(target_display, &rect) succeeded, but at least one rect dimension is still 0. target_display: ", target_display, ", rect.w,h: ", rect.w, ",", rect.h);
 
-        display_nr = 0;
-        const int display_zero_bounds = SDL_GetDisplayBounds(display_nr, &rect);
+        target_display = 0;
+        const bool display_zero_bounds = SDL_GetDisplayBounds(target_display, &rect);
 
-        if (display_zero_bounds >= 0)
+        if (display_zero_bounds)
         {
             if (rect.w == 0 || rect.h == 0)
                 LOG(Debug, "SDL_GetDisplayBounds(0, &rect) succeeded, but at least one rect dimension is still 0. rect.w,h: ", rect.w, ",", rect.h);
@@ -647,9 +686,9 @@ glm::ivec2 Window::calculateWindowSize() const
     }
     else
     {
-        LOG(Debug, "SDL_GetDisplayBounds(display_nr, &rect) returned ", display_bounds, ". display_nr: ", display_nr);
+        LOG(Debug, "SDL_GetDisplayBounds(target_display, &rect) returned false. target_display: ", target_display);
         const char* sdl_error{SDL_GetError()};
-        LOG(Error, "SDL error in Window::calculateWindowSize() at SDL_GetDisplayBounds(display_nr, &rect): ", sdl_error);
+        LOG(Error, "SDL error in Window::calculateWindowSize() at SDL_GetDisplayBounds(target_display, &rect): ", sdl_error);
         SDL_ClearError();
     }
 
@@ -670,12 +709,16 @@ glm::ivec2 Window::calculateWindowSize() const
     int scale = 2;
     int count = 0;
     int max_attempts = 128;
-    while ((windowWidth * scale < int(rect.w) && windowHeight * scale < int(rect.h)) && count < max_attempts)
+    while ((windowWidth * scale < static_cast<int>(rect.w)
+        && windowHeight * scale < static_cast<int>(rect.h))
+        && count < max_attempts)
     {
         count++;
         scale++;
     }
-    if (count >= max_attempts) LOG(Warning, "Window::calculateWindowSize() couldn't solve scale in ", max_attempts, "attempts: ", scale);
+
+    if (count >= max_attempts)
+        LOG(Warning, "Window::calculateWindowSize() couldn't solve scale in ", max_attempts, "attempts: ", scale);
 
     windowWidth *= scale - 1;
     windowHeight *= scale - 1;
@@ -683,13 +726,15 @@ glm::ivec2 Window::calculateWindowSize() const
 
     count = 0;
     max_attempts = 16;
-    while ((windowWidth >= int(rect.w) || windowHeight >= int(rect.h) - 100) && count < max_attempts)
+    while ((windowWidth >= static_cast<int>(rect.w) || windowHeight >= static_cast<int>(rect.h) - 100) && count < max_attempts)
     {
         count++;
         windowWidth = static_cast<int>(std::floor(windowWidth * 0.9f));
         windowHeight = static_cast<int>(std::floor(windowHeight * 0.9f));
     }
-    if (count >= max_attempts) LOG(Warning, "Window::calculateWindowSize() couldn't solve windowWidth and windowHeight in ", max_attempts, " attempts: ", windowWidth, ",", windowHeight);
+
+    if (count >= max_attempts)
+        LOG(Warning, "Window::calculateWindowSize() couldn't solve windowWidth and windowHeight in ", max_attempts, " attempts: ", windowWidth, ",", windowHeight);
 
     if (windowWidth < fallback_size || windowHeight < fallback_size)
     {

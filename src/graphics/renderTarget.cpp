@@ -12,7 +12,7 @@
 #include <variant>
 #include <array>
 
-#include <SDL_assert.h>
+#include <SDL3/SDL.h>
 
 
 namespace sp {

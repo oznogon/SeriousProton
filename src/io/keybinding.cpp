@@ -1,14 +1,12 @@
 #include <io/keybinding.h>
 #include <i18n.h>
 #include <logging.h>
-#include <SDL_assert.h>
+#include <SDL3/SDL.h>
 #include <engine.h>
 #include <io/json.h>
 #include <fstream>
 #include <unordered_set>
 #include <algorithm>
-#include <SDL_events.h>
-#include <SDL_timer.h>
 
 
 namespace sp {
@@ -120,7 +118,7 @@ void Keybinding::addKey(const string& key, bool inverted)
             int controller_id = parts[1].toInt();
             if (parts[2] == "axis")
             {
-                int axis = SDL_GameControllerGetAxisFromString(parts[3].c_str());
+                int axis = SDL_GetGamepadAxisFromString(parts[3].c_str());
                 if (axis < 0)
                 {
                     LOG(Warning, "Unknown axis in game controller binding:", key);
@@ -130,7 +128,7 @@ void Keybinding::addKey(const string& key, bool inverted)
             }
             else if (parts[2] == "button")
             {
-                int button = SDL_GameControllerGetButtonFromString(parts[3].c_str());
+                int button = SDL_GetGamepadButtonFromString(parts[3].c_str());
                 if (button < 0)
                 {
                     LOG(Warning, "Unknown button in game controller binding:", key);
@@ -258,9 +256,9 @@ string Keybinding::getKeyInternal(int index) const
             }
             break;
         case game_controller_button_mask:
-            return "gamecontroller:" + string((key >> 8) & 0xff) + ":button:" + string(SDL_GameControllerGetStringForButton(SDL_GameControllerButton(key & 0xff)));
+            return "gamecontroller:" + string((key >> 8) & 0xff) + ":button:" + string(SDL_GetGamepadStringForButton(SDL_GamepadButton(key & 0xff)));
         case game_controller_axis_mask:
-            return "gamecontroller:" + string((key >> 8) & 0xff) + ":axis:" + string(SDL_GameControllerGetStringForAxis(SDL_GameControllerAxis(key & 0xff)));
+            return "gamecontroller:" + string((key >> 8) & 0xff) + ":axis:" + string(SDL_GetGamepadStringForAxis(SDL_GamepadAxis(key & 0xff)));
         case virtual_mask:
             return "virtual:" + string(key & 0xff);
         }
@@ -335,32 +333,32 @@ string Keybinding::keyNameForRaw(int key, bool inverted)
     case game_controller_button_mask:
         switch(data & 0xff)
         {
-        case SDL_CONTROLLER_BUTTON_A: return "A";
-        case SDL_CONTROLLER_BUTTON_B: return "B";
-        case SDL_CONTROLLER_BUTTON_X: return "X";
-        case SDL_CONTROLLER_BUTTON_Y: return "Y";
-        case SDL_CONTROLLER_BUTTON_BACK: return tr("controller_input", "Back");
-        case SDL_CONTROLLER_BUTTON_GUIDE: return tr("controller_input", "Guide");
-        case SDL_CONTROLLER_BUTTON_START: return tr("controller_input", "Start");
-        case SDL_CONTROLLER_BUTTON_LEFTSTICK: return tr("controller_input_left", "L stick button");
-        case SDL_CONTROLLER_BUTTON_RIGHTSTICK: return tr("controller_input_right", "R stick button");
-        case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: return tr("controller_input_left", "L shoulder");
-        case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: return tr("controller_input_right", "R shoulder");
-        case SDL_CONTROLLER_BUTTON_DPAD_UP: return tr("controller_input_dpad", "Pad up");
-        case SDL_CONTROLLER_BUTTON_DPAD_DOWN: return tr("controller_input_dpad", "Pad down");
-        case SDL_CONTROLLER_BUTTON_DPAD_LEFT: return tr("controller_input_dpad", "Pad left");
-        case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: return tr("controller_input_dpad", "Pad right");
+        case SDL_GAMEPAD_BUTTON_SOUTH: return "A";
+        case SDL_GAMEPAD_BUTTON_EAST: return "B";
+        case SDL_GAMEPAD_BUTTON_WEST: return "X";
+        case SDL_GAMEPAD_BUTTON_NORTH: return "Y";
+        case SDL_GAMEPAD_BUTTON_BACK: return tr("controller_input", "Back");
+        case SDL_GAMEPAD_BUTTON_GUIDE: return tr("controller_input", "Guide");
+        case SDL_GAMEPAD_BUTTON_START: return tr("controller_input", "Start");
+        case SDL_GAMEPAD_BUTTON_LEFT_STICK: return tr("controller_input_left", "L stick button");
+        case SDL_GAMEPAD_BUTTON_RIGHT_STICK: return tr("controller_input_right", "R stick button");
+        case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER: return tr("controller_input_left", "L shoulder");
+        case SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER: return tr("controller_input_right", "R shoulder");
+        case SDL_GAMEPAD_BUTTON_DPAD_UP: return tr("controller_input_dpad", "Pad up");
+        case SDL_GAMEPAD_BUTTON_DPAD_DOWN: return tr("controller_input_dpad", "Pad down");
+        case SDL_GAMEPAD_BUTTON_DPAD_LEFT: return tr("controller_input_dpad", "Pad left");
+        case SDL_GAMEPAD_BUTTON_DPAD_RIGHT: return tr("controller_input_dpad", "Pad right");
         }
         break;
     case game_controller_axis_mask:
         switch(data & 0xff)
         {
-        case SDL_CONTROLLER_AXIS_LEFTX: return tr("controller_input_left", "L stick X axis{sign}").format({{"sign", sign}});
-        case SDL_CONTROLLER_AXIS_LEFTY: return tr("controller_input_left", "L stick Y axis{sign}").format({{"sign", sign}});
-        case SDL_CONTROLLER_AXIS_RIGHTX: return tr("controller_input_right", "R stick X axis{sign}").format({{"sign", sign}});
-        case SDL_CONTROLLER_AXIS_RIGHTY: return tr("controller_input_right", "R stick Y axis{sign}").format({{"sign", sign}});
-        case SDL_CONTROLLER_AXIS_TRIGGERLEFT: return tr("controller_input_left", "L trigger{sign}").format({{"sign", sign}});
-        case SDL_CONTROLLER_AXIS_TRIGGERRIGHT: return tr("controller_input_right", "R trigger{sign}").format({{"sign", sign}});
+        case SDL_GAMEPAD_AXIS_LEFTX: return tr("controller_input_left", "L stick X axis{sign}").format({{"sign", sign}});
+        case SDL_GAMEPAD_AXIS_LEFTY: return tr("controller_input_left", "L stick Y axis{sign}").format({{"sign", sign}});
+        case SDL_GAMEPAD_AXIS_RIGHTX: return tr("controller_input_right", "R stick X axis{sign}").format({{"sign", sign}});
+        case SDL_GAMEPAD_AXIS_RIGHTY: return tr("controller_input_right", "R stick Y axis{sign}").format({{"sign", sign}});
+        case SDL_GAMEPAD_AXIS_LEFT_TRIGGER: return tr("controller_input_left", "L trigger{sign}").format({{"sign", sign}});
+        case SDL_GAMEPAD_AXIS_RIGHT_TRIGGER: return tr("controller_input_right", "R trigger{sign}").format({{"sign", sign}});
         }
         break;
     case virtual_mask:
@@ -424,14 +422,33 @@ bool Keybinding::isUserRebinding() const
 
 int Keybinding::joystickCount()
 {
-    return SDL_NumJoysticks() - gamepadCount();
+    int num_joysticks = 0;
+    SDL_JoystickID* joysticks = SDL_GetJoysticks(&num_joysticks);
+    int count = 0;
+
+    if (joysticks)
+    {
+        for (int n = 0; n < num_joysticks; n++)
+            if (!SDL_IsGamepad(joysticks[n])) count += 1;
+        SDL_free(joysticks);
+    }
+
+    return count;
 }
 
 int Keybinding::gamepadCount()
 {
+    int num_joysticks = 0;
+    SDL_JoystickID* joysticks = SDL_GetJoysticks(&num_joysticks);
     int count = 0;
-    for (int n = 0; n < SDL_NumJoysticks(); n++)
-        if (SDL_IsGameController(n)) count += 1;
+
+    if (joysticks)
+    {
+        for (int n = 0; n < num_joysticks; n++)
+            if (SDL_IsGamepad(joysticks[n])) count += 1;
+        SDL_free(joysticks);
+    }
+
     return count;
 }
 
@@ -446,7 +463,7 @@ void Keybinding::loadKeybindings(const string& filename)
     auto parsed_json = sp::json::parse(data.str(), err);
     if (!parsed_json.has_value())
     {
-        LOG(Warning, "Failed to load keybindings from", filename, ": ", err);
+        LOG(Warning, "Failed to load keybindings from ", filename, ": ", err);
         return;
     }
 
@@ -769,22 +786,22 @@ void Keybinding::handleEvent(const SDL_Event& event)
 {
     switch(event.type)
     {
-    case SDL_KEYDOWN:
+    case SDL_EVENT_KEY_DOWN:
         // Ignore function keys (F1-F24) if SDL text input is active
-        if (!SDL_IsTextInputActive()
-            || (event.key.keysym.sym >= SDLK_F1 && event.key.keysym.sym <= SDLK_F12)
-            || (event.key.keysym.sym >= SDLK_F13 && event.key.keysym.sym <= SDLK_F24)
+        if (!SDL_TextInputActive(SDL_GetKeyboardFocus())
+            || (event.key.key >= SDLK_F1 && event.key.key <= SDLK_F12)
+            || (event.key.key >= SDLK_F13 && event.key.key <= SDLK_F24)
         )
-            updateKeys(event.key.keysym.sym | keyboard_mask, 1.0f);
+            updateKeys(event.key.key | keyboard_mask, 1.0f);
         break;
-    case SDL_KEYUP:
-        if (!SDL_IsTextInputActive()
-            || (event.key.keysym.sym >= SDLK_F1 && event.key.keysym.sym <= SDLK_F12)
-            || (event.key.keysym.sym >= SDLK_F13 && event.key.keysym.sym <= SDLK_F24)
+    case SDL_EVENT_KEY_UP:
+        if (!SDL_TextInputActive(SDL_GetKeyboardFocus())
+            || (event.key.key >= SDLK_F1 && event.key.key <= SDLK_F12)
+            || (event.key.key >= SDLK_F13 && event.key.key <= SDLK_F24)
         )
-            updateKeys(event.key.keysym.sym | keyboard_mask, 0.0f);
+            updateKeys(event.key.key | keyboard_mask, 0.0f);
         break;
-    case SDL_MOUSEBUTTONDOWN:
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
         {
             io::Pointer::Button button = io::Pointer::Button::Unknown;
             switch(event.button.button)
@@ -800,7 +817,7 @@ void Keybinding::handleEvent(const SDL_Event& event)
                 updateKeys(static_cast<int>(button) | pointer_mask, 1.0f);
         }
         break;
-    case SDL_MOUSEBUTTONUP:
+    case SDL_EVENT_MOUSE_BUTTON_UP:
         {
             io::Pointer::Button button = io::Pointer::Button::Unknown;
             switch(event.button.button)
@@ -816,7 +833,7 @@ void Keybinding::handleEvent(const SDL_Event& event)
                 updateKeys(static_cast<int>(button) | pointer_mask, 0.0f);
         }
         break;
-    case SDL_MOUSEMOTION:
+    case SDL_EVENT_MOUSE_MOTION:
         {
             int w, h;
             SDL_GetWindowSize(SDL_GetWindowFromID(event.motion.windowID), &w, &h);
@@ -834,7 +851,7 @@ void Keybinding::handleEvent(const SDL_Event& event)
             }
         }
         break;
-    case SDL_MOUSEWHEEL:
+    case SDL_EVENT_MOUSE_WHEEL:
         if (event.wheel.x > 0)
         {
             updateKeys(0 | mouse_wheel_mask, 1.0);
@@ -859,11 +876,11 @@ void Keybinding::handleEvent(const SDL_Event& event)
             release_mouse |= 1 << 1;
         }
         break;
-    case SDL_FINGERDOWN:
+    case SDL_EVENT_FINGER_DOWN:
         //event.tfinger.x, event.tfinger.x
         updateKeys(static_cast<int>(io::Pointer::Button::Touch) | pointer_mask, 1.0f);
         break;
-    case SDL_FINGERUP:
+    case SDL_EVENT_FINGER_UP:
         //event.tfinger.x, event.tfinger.x
         updateKeys(static_cast<int>(io::Pointer::Button::Touch) | pointer_mask, 0.0f);
         break;
@@ -872,71 +889,68 @@ void Keybinding::handleEvent(const SDL_Event& event)
     // skip joystick events for devices that also open as game controllers.
     // Especially can't treat GC axes like joysticks because GCs report 0 at
     // rest and joysticks report -1.
-    case SDL_JOYBUTTONDOWN:
-        if (!SDL_GameControllerFromInstanceID(event.jbutton.which))
+    case SDL_EVENT_JOYSTICK_BUTTON_DOWN:
+        if (!SDL_GetGamepadFromID(event.jbutton.which))
             updateKeys(static_cast<int>(event.jbutton.button) | static_cast<int>(event.jbutton.which) << 8 | joystick_button_mask, 1.0f);
         break;
-    case SDL_JOYBUTTONUP:
-        if (!SDL_GameControllerFromInstanceID(event.jbutton.which))
+    case SDL_EVENT_JOYSTICK_BUTTON_UP:
+        if (!SDL_GetGamepadFromID(event.jbutton.which))
             updateKeys(static_cast<int>(event.jbutton.button) | static_cast<int>(event.jbutton.which) << 8 | joystick_button_mask, 0.0f);
         break;
-    case SDL_JOYAXISMOTION:
-        if (!SDL_GameControllerFromInstanceID(event.jaxis.which))
+    case SDL_EVENT_JOYSTICK_AXIS_MOTION:
+        if (!SDL_GetGamepadFromID(event.jaxis.which))
             updateKeys(static_cast<int>(event.jaxis.axis) | static_cast<int>(event.jaxis.which) << 8 | joystick_axis_mask, static_cast<float>(event.jaxis.value) / 32768.0f);
         break;
-    case SDL_JOYDEVICEADDED:
-        if (!SDL_IsGameController(event.jdevice.which))
+    case SDL_EVENT_JOYSTICK_ADDED:
+        if (!SDL_IsGamepad(event.jdevice.which))
         {
-            SDL_Joystick* joystick = SDL_JoystickOpen(event.jdevice.which);
+            SDL_Joystick* joystick = SDL_OpenJoystick(event.jdevice.which);
             if (joystick)
-                LOG(Info, "Found joystick:", SDL_JoystickName(joystick));
+                LOG(Info, "Found joystick:", SDL_GetJoystickName(joystick));
             else LOG(Warning, "Failed to open joystick...");
         }
         break;
 
-    case SDL_JOYDEVICEREMOVED:
+    case SDL_EVENT_JOYSTICK_REMOVED:
         for (int button = 0; button < 32; button++)
             updateKeys(button | static_cast<int>(event.jdevice.which) << 8 | joystick_button_mask, 0.0f);
         for (int axis = 0; axis < 32; axis++)
             updateKeys(axis | static_cast<int>(event.jdevice.which) << 8 | joystick_axis_mask, 0.0f);
 
-        SDL_JoystickClose(SDL_JoystickFromInstanceID(event.jdevice.which));
+        SDL_CloseJoystick(SDL_GetJoystickFromID(event.jdevice.which));
         break;
-    case SDL_CONTROLLERAXISMOTION:
-        updateKeys(static_cast<int>(event.caxis.axis) | static_cast<int>(event.caxis.which) << 8 | game_controller_axis_mask, static_cast<float>(event.caxis.value) / 32768.0f);
+    case SDL_EVENT_GAMEPAD_AXIS_MOTION:
+        updateKeys(static_cast<int>(event.gaxis.axis) | static_cast<int>(event.gaxis.which) << 8 | game_controller_axis_mask, static_cast<float>(event.gaxis.value) / 32768.0f);
         break;
-    case SDL_CONTROLLERBUTTONDOWN:
-        updateKeys(static_cast<int>(event.cbutton.button) | static_cast<int>(event.cbutton.which) << 8 | game_controller_button_mask, 1.0f);
+    case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+        updateKeys(static_cast<int>(event.gbutton.button) | static_cast<int>(event.gbutton.which) << 8 | game_controller_button_mask, 1.0f);
         break;
-    case SDL_CONTROLLERBUTTONUP:
-        updateKeys(static_cast<int>(event.cbutton.button) | static_cast<int>(event.cbutton.which) << 8 | game_controller_button_mask, 0.0f);
+    case SDL_EVENT_GAMEPAD_BUTTON_UP:
+        updateKeys(static_cast<int>(event.gbutton.button) | static_cast<int>(event.gbutton.which) << 8 | game_controller_button_mask, 0.0f);
         break;
-    case SDL_CONTROLLERDEVICEADDED:
+    case SDL_EVENT_GAMEPAD_ADDED:
         {
-            SDL_GameController* gc = SDL_GameControllerOpen(event.cdevice.which);
-            if (gc) LOG(Info, "Found game controller:", SDL_GameControllerName(gc));
+            SDL_Gamepad* gc = SDL_OpenGamepad(event.gdevice.which);
+            if (gc) LOG(Info, "Found game controller:", SDL_GetGamepadName(gc));
             else LOG(Warning, "Failed to open game controller...");
         }
         break;
-    case SDL_CONTROLLERDEVICEREMOVED:
-        for (int button = 0; button < SDL_CONTROLLER_BUTTON_MAX; button++)
-            updateKeys(button | static_cast<int>(event.cdevice.which) << 8 | game_controller_button_mask, 0.0f);
-        for (int axis = 0; axis < SDL_CONTROLLER_AXIS_MAX; axis++)
+    case SDL_EVENT_GAMEPAD_REMOVED:
+        for (int button = 0; button < SDL_GAMEPAD_BUTTON_COUNT; button++)
+            updateKeys(button | static_cast<int>(event.gdevice.which) << 8 | game_controller_button_mask, 0.0f);
+        for (int axis = 0; axis < SDL_GAMEPAD_AXIS_COUNT; axis++)
         {
-            updateKeys(axis | static_cast<int>(event.cdevice.which) << 8 | game_controller_axis_mask, 0.0f);
+            updateKeys(axis | static_cast<int>(event.gdevice.which) << 8 | game_controller_axis_mask, 0.0f);
         }
 
-        SDL_GameControllerClose(SDL_GameControllerFromInstanceID(event.cdevice.which));
+        SDL_CloseGamepad(SDL_GetGamepadFromID(event.gdevice.which));
         break;
-    case SDL_CONTROLLERDEVICEREMAPPED:
+    case SDL_EVENT_GAMEPAD_REMAPPED:
         break;
-    case SDL_WINDOWEVENT:
-        if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
-        {
-            // Focus lost, release all keys.
-            for (Keybinding* keybinding = keybindings; keybinding; keybinding = keybinding->next)
-                if (keybinding->bindings.size() > 0) keybinding->setValue(0.0f);
-        }
+    case SDL_EVENT_WINDOW_FOCUS_LOST:
+        // Focus lost, release all keys.
+        for (Keybinding* keybinding = keybindings; keybinding; keybinding = keybinding->next)
+            if (keybinding->bindings.size() > 0) keybinding->setValue(0.0f);
         break;
     default:
         break;

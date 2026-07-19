@@ -29,10 +29,7 @@ set(CMAKE_CXX_EXTENSIONS ON)
 include("cmake/DrMingw.cmake")
 
 #--------------------------------Dependencies----------------------------------
-find_package(SDL2 REQUIRED)
-if(NOT DEFINED SDL2_LIBRARIES)
-    set(SDL2_LIBRARIES SDL2::SDL2 SDL2::SDL2main)
-endif()
+find_package(SDL3 CONFIG REQUIRED COMPONENTS SDL3)
 
 # GLM - OpenGL Mathematic library
 SET(WITH_GLM "auto" CACHE STRING "Which GLM to use (possible values are 'bundled', 'system' or 'auto')")
@@ -341,7 +338,7 @@ add_library(seriousproton_deps INTERFACE)
 
 target_include_directories(seriousproton_deps
     INTERFACE
-        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src;${CMAKE_CURRENT_BINARY_DIR}/include;${SDL2_INCLUDE_DIRS};${FREETYPE_INCLUDE_DIRS}>"
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src;${CMAKE_CURRENT_BINARY_DIR}/include;${FREETYPE_INCLUDE_DIRS}>"
 )
 target_compile_features(seriousproton_deps INTERFACE cxx_std_17)
 
@@ -350,6 +347,7 @@ find_package(Threads REQUIRED)
 target_compile_definitions(seriousproton_deps
     INTERFACE
         GLM_ENABLE_EXPERIMENTAL=1
+        SDL_FUNCTION_POINTER_IS_VOID_POINTER=1
         $<$<BOOL:${MSVC}>:NOMINMAX;_CRT_SECURE_NO_WARNINGS>
         $<$<CONFIG:Debug>:DEBUG>
         # Windows: Backwards compatibility with Win7 SP1: https://docs.microsoft.com/en-us/cpp/porting/modifying-winver-and-win32-winnt
@@ -369,7 +367,7 @@ target_compile_options(seriousproton_deps
 include("cmake/SteamSDK.cmake")
 target_link_libraries(seriousproton_deps
     INTERFACE
-        box2d glad lua ${SDL2_LIBRARIES} glm::glm Threads::Threads ${FREETYPE_LIBRARIES} basisu-transcoder $<BUILD_INTERFACE:steamsdk>
+        box2d glad lua SDL3::SDL3 glm::glm Threads::Threads ${FREETYPE_LIBRARIES} basisu-transcoder $<BUILD_INTERFACE:steamsdk>
         $<$<BOOL:${WIN32}>:wsock32 ws2_32 crypt32 iphlpapi>
         # LTO flag must be on the linker's list as well.
         "$<$<AND:$<BOOL:${CMAKE_COMPILER_IS_GNUCC}>,$<OR:$<CONFIG:RelWithDebInfo>,$<CONFIG:Release>>>:-flto=auto>"
@@ -443,9 +441,9 @@ if(WIN32)
         # For the MinGW library, the 'imported location' looks at the dll in the wrong folder (lib instead of bin)
         # So we have to get it by hand.
         # Also covers backwards compatibility with SDL version < 2.0.12.
-        install(FILES "${SDL2_PREFIX}/bin/SDL2.dll" DESTINATION . COMPONENT runtime)
+        install(FILES "${SDL3_PREFIX}/bin/SDL3.dll" DESTINATION . COMPONENT runtime)
     else()
-        install(PROGRAMS "$<TARGET_PROPERTY:SDL2::SDL2,IMPORTED_LOCATION>" DESTINATION . COMPONENT runtime)
+        install(PROGRAMS "$<TARGET_PROPERTY:SDL3::SDL3,IMPORTED_LOCATION>" DESTINATION . COMPONENT runtime)
     endif()
     if(STEAMSDK)
         if(${CMAKE_SIZEOF_VOID_P} EQUAL 4)

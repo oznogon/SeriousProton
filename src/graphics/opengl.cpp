@@ -1,9 +1,7 @@
 #include "graphics/opengl.h"
 
 #include <logging.h>
-#include <SDL_log.h>
-#include <SDL_video.h>
-#include <SDL_assert.h>
+#include <SDL3/SDL.h>
 
 #include "stringImproved.h"
 

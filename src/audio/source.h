@@ -36,13 +36,13 @@ private:
     Source* next;
     Source* previous;
 
-private:
+    friend class ::Engine;
+
+public:
     static void startAudioSystem();
     static void stopAudioSystem();
     static void onAudioCallback(int16_t* stream, int sample_count);
 
-    friend class ::Engine;
-    friend class MySDLAudioInterface;
 };
 
 }//namespace audio

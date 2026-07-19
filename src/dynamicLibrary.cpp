@@ -1,6 +1,6 @@
 #include "dynamicLibrary.h"
 
-#include <SDL_loadso.h>
+#include <SDL3/SDL.h>
 
 #include "logging.h"
 
@@ -8,7 +8,7 @@
 
 #if defined(_WIN32)
 static constexpr std::string_view native_extension{ ".dll" };
-#elif defined(__APPLE__)
+#elif defined(SDL_PLATFORM_APPLE)
 static constexpr std::string_view native_extension{ ".dylib" };
 #else // assume posix
 static constexpr std::string_view native_extension{ ".so" };
@@ -16,7 +16,7 @@ static constexpr std::string_view native_extension{ ".so" };
 
 struct DynamicLibrary::Impl final
 {
-    explicit Impl(void* handle)
+    explicit Impl(SDL_SharedObject* handle)
         :handle{ handle }
     {}
 
@@ -26,7 +26,7 @@ struct DynamicLibrary::Impl final
     Impl& operator=(Impl&&) = delete;
     ~Impl();
 
-    void* handle{};
+    SDL_SharedObject* handle{};
 };
 
 DynamicLibrary::Impl::~Impl()
@@ -67,7 +67,7 @@ DynamicLibrary::~DynamicLibrary() = default;
 
 void* DynamicLibrary::nativeHandle() const
 {
-    return impl->handle;
+    return reinterpret_cast<void*>(impl->handle);
 }
 
 DynamicLibrary::DynamicLibrary(std::unique_ptr<Impl>&& impl)

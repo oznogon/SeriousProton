@@ -1,6 +1,6 @@
 #include "logging.h"
 
-#include <SDL_log.h>
+#include <SDL3/SDL.h>
 #include <array>
 #include <string>
 
@@ -17,12 +17,12 @@
 #endif
 
 #include <cstdio>
-#include <SDL_rwops.h>
+
 
 
 namespace
 {
-    const std::array<std::string, SDL_NUM_LOG_PRIORITIES> priority_labels{
+    const std::array<std::string, SDL_LOG_PRIORITY_COUNT> priority_labels{
         "[UNKNOWN ]: ",
         "[VERBOSE ]: ",
         "[DEBUG   ]: ",
@@ -48,10 +48,10 @@ namespace
 
     void sdlCallback(void* userdata, int /*category*/, SDL_LogPriority priority, const char* message)
     {
-        auto stream = static_cast<SDL_RWops*>(userdata);
+        auto stream = static_cast<SDL_IOStream*>(userdata);
         auto write = [stream](const void* buffer, size_t size, size_t num)
         {
-            return SDL_RWwrite(stream, buffer, size, num);
+            return SDL_WriteIO(stream, buffer, size * num);
         };
         const auto& label = priority_labels[priority];
         write(label.data(), label.size(), 1);
@@ -124,7 +124,7 @@ const Logging& operator<<(const Logging& log, const char* str)
 void Logging::setLogLevel(ELogLevel level)
 {
     global_level = level;
-    SDL_LogSetPriority(SDL_LOG_CATEGORY_APPLICATION, asSDLPriority(global_level));
+    SDL_SetLogPriority(SDL_LOG_CATEGORY_APPLICATION, asSDLPriority(global_level));
 }
 
 void Logging::setLogFile(std::string_view filename)
@@ -133,31 +133,31 @@ void Logging::setLogFile(std::string_view filename)
 
 #if SP_LOGGING_FALLBACK_STDIO
     auto handle = fopen(filename.data(), "wt");
-    SDL_LogSetOutputFunction(&stdioCallback, handle);
+    SDL_SetLogOutputFunction(&stdioCallback, handle);
 #else
-    auto handle = SDL_RWFromFile(filename.data(), "wt");
-    SDL_LogSetOutputFunction(&sdlCallback, handle);
+    auto handle = SDL_IOFromFile(filename.data(), "wt");
+    SDL_SetLogOutputFunction(&sdlCallback, handle);
 #endif
 }
 
 void Logging::setLogStdout()
 {
     closeCurrentLogStream();
-    SDL_LogSetOutputFunction(&stdioCallback, stdout);
+    SDL_SetLogOutputFunction(&stdioCallback, stdout);
 }
 
 void Logging::closeCurrentLogStream()
 {
     SDL_LogOutputFunction current = nullptr;
     void* current_data = nullptr;
-    SDL_LogGetOutputFunction(&current, &current_data);
+    SDL_GetLogOutputFunction(&current, &current_data);
     if (current == &stdioCallback) {
         auto stream = static_cast<FILE*>(current_data);
         if (stream != stdout)
             fclose(stream);
     }
     if (current == &sdlCallback) {
-        auto stream = static_cast<SDL_RWops*>(current_data);
-        SDL_RWclose(stream);
+        auto stream = static_cast<SDL_IOStream*>(current_data);
+        SDL_CloseIO(stream);
     }
 }

@@ -41,7 +41,7 @@ namespace sp {
 #include <type_traits>
 #include <functional>
 
-#include <SDL_assert.h>
+#include <SDL3/SDL.h>
 #include <stringImproved.h>
 
 namespace sp {

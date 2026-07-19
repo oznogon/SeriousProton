@@ -1,5 +1,5 @@
 #include "clipboard.h"
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 
 string Clipboard::readClipboard()

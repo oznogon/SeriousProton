@@ -7,9 +7,10 @@
 #include "multiplayer_internal.h"
 #include "logging.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <opus.h>
 
+static SDL_AudioStream* record_stream;
 static SDL_AudioDeviceID record_device_id;
 static NetworkAudioRecorder* active_recorder;
 
@@ -17,21 +18,18 @@ NetworkAudioRecorder::NetworkAudioRecorder()
 {
     if (record_device_id == 0)
     {
-        SDL_AudioSpec want, obtained;
-        memset(&want, 0, sizeof(want));
-        want.freq = 44100;
-        want.format = AUDIO_S16SYS;
-        want.samples = 4410;
-        want.channels = 2;
-        want.callback = &NetworkAudioRecorder::SDLCallback;
-        record_device_id = SDL_OpenAudioDevice(nullptr, true, &want, &obtained, false);
+        SDL_AudioSpec spec = { SDL_AUDIO_S16, 2, 44100 };
+        record_stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_RECORDING, &spec, nullptr, nullptr);
+        if (record_stream)
+            record_device_id = SDL_GetAudioStreamDevice(record_stream);
     }
     active_recorder = this;
 }
 
 NetworkAudioRecorder::~NetworkAudioRecorder()
 {
-    SDL_PauseAudioDevice(record_device_id, 1);
+    if (record_device_id)
+        SDL_PauseAudioDevice(record_device_id);
 
     if (encoder)
     {
@@ -43,12 +41,6 @@ NetworkAudioRecorder::~NetworkAudioRecorder()
 void NetworkAudioRecorder::addKeyActivation(sp::io::Keybinding* key, int target_identifier)
 {
     keys.push_back({key, target_identifier});
-}
-
-/// Called from a seperate thread, be sure to watch for thread safety!
-void NetworkAudioRecorder::SDLCallback(void* userdata, uint8_t* stream, int len)
-{
-    active_recorder->onProcessSamples(reinterpret_cast<int16_t*>(stream), len / 2);
 }
 
 void NetworkAudioRecorder::onProcessSamples(const int16_t* samples, std::size_t sample_count)
@@ -63,6 +55,19 @@ void NetworkAudioRecorder::onProcessSamples(const int16_t* samples, std::size_t 
 
 void NetworkAudioRecorder::update(float /*delta*/)
 {
+    // Read available audio data from the recording stream
+    if (record_stream)
+    {
+        int available = SDL_GetAudioStreamAvailable(record_stream);
+        if (available > 0)
+        {
+            int sample_count = available / sizeof(int16_t);
+            std::vector<int16_t> buf(sample_count);
+            SDL_GetAudioStreamData(record_stream, buf.data(), available);
+            onProcessSamples(buf.data(), sample_count);
+        }
+    }
+
     for(size_t idx=0; idx<keys.size(); idx++)
     {
         if (keys[idx].key->getDown() && active_key_index == -1)
@@ -71,7 +76,8 @@ void NetworkAudioRecorder::update(float /*delta*/)
             {
                 samples_till_stop = -1;
                 active_key_index = static_cast<int>(idx);
-                SDL_PauseAudioDevice(record_device_id, 0);
+                if (record_device_id)
+                    SDL_ResumeAudioDevice(record_device_id);
                 startSending();
             } else if (idx == size_t(active_key_index))
             {
@@ -91,7 +97,8 @@ void NetworkAudioRecorder::update(float /*delta*/)
     }
     if (samples_till_stop == 0)
     {
-        SDL_PauseAudioDevice(record_device_id, 1);
+        if (record_device_id)
+            SDL_PauseAudioDevice(record_device_id);
         finishSending();
         active_key_index = -1;
         samples_till_stop = -1;

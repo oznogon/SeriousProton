@@ -25,7 +25,7 @@ static inline int recv(SOCKET s, void* buf, size_t len, int flags)
 #include <arpa/inet.h>
 #include <string.h>
 #include <poll.h>
-#if defined(__APPLE__)
+#if defined(SDL_PLATFORM_APPLE)
 static constexpr int flags = 0;
 #else
 static constexpr int flags = MSG_NOSIGNAL;

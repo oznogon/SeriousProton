@@ -1,7 +1,7 @@
 #include "graphics/shader.h"
 #include "graphics/opengl.h"
 #include <limits>
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 namespace sp {
 

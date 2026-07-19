@@ -1,7 +1,7 @@
 #include "audio/source.h"
 #include "logging.h"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <mutex>
 #include <array>
 #include <string.h>
@@ -13,15 +13,22 @@ namespace audio {
 static std::recursive_mutex source_list_mutex;
 static Source* source_list_start = nullptr;
 
-static SDL_AudioDeviceID audio_device;
+static SDL_AudioStream* audio_stream;
 
-class MySDLAudioInterface {
-public:
-    static void Callback(void* userdata, uint8_t* stream, int len)
-    {
-        Source::onAudioCallback(reinterpret_cast<int16_t*>(stream), len/2);
-    }
-};
+static void SDLCALL AudioCallback(void* userdata, SDL_AudioStream* stream, int additional_amount, int total_amount)
+{
+    if (additional_amount <= 0)
+        return;
+
+    uint8_t* data = (uint8_t*)SDL_malloc(additional_amount);
+    if (!data)
+        return;
+
+    memset(data, 0, additional_amount);
+    Source::onAudioCallback(reinterpret_cast<int16_t*>(data), additional_amount / 2);
+    SDL_PutAudioStreamData(stream, data, additional_amount);
+    SDL_free(data);
+}
 
 Source::~Source()
 {
@@ -70,25 +77,24 @@ void Source::stop()
 
 void Source::startAudioSystem()
 {
-    SDL_AudioSpec want, have;
-    memset(&want, 0, sizeof(want));
-    want.freq = 44100;
-    want.format = AUDIO_S16SYS;
-    want.channels = 2;
-    want.samples = 2048;
-    want.callback = &MySDLAudioInterface::Callback;
-    audio_device = SDL_OpenAudioDevice(nullptr, 0, &want, &have, 0);
-    if (audio_device == 0)
+    SDL_AudioSpec spec = { SDL_AUDIO_S16, 2, 44100 };
+    audio_stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, AudioCallback, nullptr);
+    if (!audio_stream)
     {
         LOG(Error, "Failed to open audio device: ", SDL_GetError());
     } else {
-        SDL_PauseAudioDevice(audio_device, 0);
+        SDL_ResumeAudioDevice(SDL_GetAudioStreamDevice(audio_stream));
     }
 }
 
 void Source::stopAudioSystem()
 {
-    SDL_PauseAudioDevice(audio_device, 1);
+    if (audio_stream)
+    {
+        SDL_AudioDeviceID dev = SDL_GetAudioStreamDevice(audio_stream);
+        if (dev)
+            SDL_PauseAudioDevice(dev);
+    }
 }
 
 void Source::onAudioCallback(int16_t* stream, int sample_count)

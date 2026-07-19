@@ -2,7 +2,7 @@
 
 #include <cstdio>
 #include <filesystem>
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #ifdef ANDROID
 #include <jni.h>
@@ -60,7 +60,7 @@ string ResourceStream::readAll()
 
 class FileResourceStream : public ResourceStream
 {
-    SDL_RWops *io;
+    SDL_IOStream *io;
     size_t size = 0;
 public:
     FileResourceStream(string filename)
@@ -74,17 +74,17 @@ public:
             io = nullptr;
         }
         else
-            io = SDL_RWFromFile(filename.c_str(), "rb");
+            io = SDL_IOFromFile(filename.c_str(), "rb");
 #else
        //Android reads from the assets bundle, so we cannot check if the file exists and is a regular file
-       io = SDL_RWFromFile(filename.c_str(), "rb");
+       io = SDL_IOFromFile(filename.c_str(), "rb");
 #endif
     }
 
     virtual ~FileResourceStream()
     {
         if (io)
-            io->close(io);
+            SDL_CloseIO(io);
     }
 
     bool isOpen()
@@ -94,17 +94,17 @@ public:
 
     virtual size_t read(void* data, size_t size) override
     {
-        return io->read(io, data, 1, size);
+        return SDL_ReadIO(io, data, size);
     }
     virtual size_t seek(size_t position) override
     {
-        auto offset = io->seek(io, position, RW_SEEK_SET);
+        auto offset = SDL_SeekIO(io, position, SDL_IO_SEEK_SET);
         SDL_assert(offset != -1);
         return static_cast<size_t>(offset);
     }
     virtual size_t tell() override
     {
-        auto offset = io->seek(io, 0, RW_SEEK_CUR);
+        auto offset = SDL_SeekIO(io, 0, SDL_IO_SEEK_CUR);
         SDL_assert(offset != -1);
         return static_cast<size_t>(offset);
     }
@@ -112,7 +112,7 @@ public:
     {
         if (size == 0) {
             size_t cur = tell();
-            auto end_offset = io->seek(io, 0, RW_SEEK_END);
+            auto end_offset = SDL_SeekIO(io, 0, SDL_IO_SEEK_END);
             SDL_assert(end_offset != -1);
             size = static_cast<size_t>(end_offset);
             seek(cur);
@@ -146,8 +146,8 @@ std::vector<string> DirectoryResourceProvider::findResources(string searchPatter
     static AAssetManager* asset_manager = nullptr;
     if (!asset_manager)
     {
-        JNIEnv* env = (JNIEnv*)SDL_AndroidGetJNIEnv();
-        jobject activity = (jobject)SDL_AndroidGetActivity();
+        JNIEnv* env = (JNIEnv*)SDL_GetAndroidJNIEnv();
+        jobject activity = (jobject)SDL_GetAndroidActivity();
         jclass clazz(env->GetObjectClass(activity));
         jmethodID method_id = env->GetMethodID(clazz, "getAssets", "()Landroid/content/res/AssetManager;");
         asset_manager_jobject = env->CallObjectMethod(activity, method_id);

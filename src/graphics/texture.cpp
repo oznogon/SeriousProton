@@ -1,7 +1,7 @@
 #include "graphics/texture.h"
 #include "graphics/opengl.h"
 
-#include <SDL_assert.h>
+#include <SDL3/SDL.h>
 
 namespace sp {
 

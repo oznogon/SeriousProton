@@ -2,7 +2,7 @@
 #define PEE_POINTER_H
 
 #include <vector>
-#include <SDL_assert.h>
+#include <SDL3/SDL.h>
 
 #include "nonCopyable.h"
 #include "logging.h"
