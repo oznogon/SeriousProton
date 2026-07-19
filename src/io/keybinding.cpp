@@ -8,7 +8,6 @@
 #include <unordered_set>
 #include <algorithm>
 
-
 namespace sp {
 namespace io {
 
@@ -653,8 +652,8 @@ void Keybinding::setValue(float new_value, int key_type, Interaction bind_intera
     setValue(new_value, key_type);
 
     // Per-interaction state update.
-    float threshold_value = fabs(new_value) < deadzone ? 0.0f : new_value;
-    float prev_threshold = fabs(prev_bind_value) < deadzone ? 0.0f : prev_bind_value;
+    float threshold_value = std::abs(new_value) < deadzone ? 0.0f : new_value;
+    float prev_threshold = std::abs(prev_bind_value) < deadzone ? 0.0f : prev_bind_value;
 
     Interaction effective = getDefaultInteraction(static_cast<Type>((key_type & type_mask) >> 16));
     if (bind_interaction != Interaction::None)
@@ -1001,7 +1000,7 @@ void Keybinding::updateKeys(int key_number, float value)
             {
                 float v = bind.inverted ? -value : value;
                 keybinding->setValue(v, key_number, bind.interaction, bind.last_value);
-                bind.last_value = (fabs(v) < deadzone) ? 0.0f : v;
+                bind.last_value = (std::abs(v) < deadzone) ? 0.0f : v;
             }
         }
     }
