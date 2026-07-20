@@ -652,6 +652,7 @@ glm::ivec2 Window::calculateWindowSize() const
     SDL_DisplayID target_display = num_displays > display_nr
         ? display_ids[display_nr]
         : 0;
+    SDL_DisplayID first_display = num_displays > 0 ? display_ids[0] : 0;
     SDL_free(display_ids);
 
     // Create the window of the application
@@ -663,33 +664,32 @@ glm::ivec2 Window::calculateWindowSize() const
     const int fallback_size = 240;
     const bool display_bounds = SDL_GetDisplayBounds(target_display, &rect);
 
-    // Return SDL_Error if SDL_GetDisplayBounds fails.
-    if (display_bounds)
+    // On failure or 0-sized rect, try the first display as fallback.
+    if (!display_bounds || rect.w == 0 || rect.h == 0)
     {
-        if (rect.w == 0 || rect.h == 0)
-            LOG(Debug, "SDL_GetDisplayBounds(target_display, &rect) succeeded, but at least one rect dimension is still 0. target_display: ", target_display, ", rect.w,h: ", rect.w, ",", rect.h);
-
-        target_display = 0;
-        const bool display_zero_bounds = SDL_GetDisplayBounds(target_display, &rect);
-
-        if (display_zero_bounds)
+        if (!display_bounds)
         {
-            if (rect.w == 0 || rect.h == 0)
-                LOG(Debug, "SDL_GetDisplayBounds(0, &rect) succeeded, but at least one rect dimension is still 0. rect.w,h: ", rect.w, ",", rect.h);
+            LOG(Debug, "SDL_GetDisplayBounds(target_display, &rect) returned false. target_display: ", target_display);
+            const char* sdl_error{SDL_GetError()};
+            LOG(Error, "SDL error in Window::calculateWindowSize() at SDL_GetDisplayBounds(target_display, &rect): ", sdl_error);
+            SDL_ClearError();
         }
         else
         {
+            LOG(Debug, "SDL_GetDisplayBounds(target_display, &rect) succeeded, but at least one rect dimension is still 0. target_display: ", target_display, ", rect.w,h: ", rect.w, ",", rect.h);
+        }
+
+        if (first_display != 0 && SDL_GetDisplayBounds(first_display, &rect))
+        {
+            if (rect.w == 0 || rect.h == 0)
+                LOG(Debug, "SDL_GetDisplayBounds(first_display, &rect) succeeded, but at least one rect dimension is still 0. rect.w,h: ", rect.w, ",", rect.h);
+        }
+        else if (first_display != 0)
+        {
             const char* sdl_error{SDL_GetError()};
-            LOG(Error, "SDL error in Window::calculateWindowSize() at SDL_GetDisplayBounds(0, &rect): ", sdl_error);
+            LOG(Error, "SDL error in Window::calculateWindowSize() at SDL_GetDisplayBounds(first_display, &rect): ", sdl_error);
             SDL_ClearError();
         }
-    }
-    else
-    {
-        LOG(Debug, "SDL_GetDisplayBounds(target_display, &rect) returned false. target_display: ", target_display);
-        const char* sdl_error{SDL_GetError()};
-        LOG(Error, "SDL error in Window::calculateWindowSize() at SDL_GetDisplayBounds(target_display, &rect): ", sdl_error);
-        SDL_ClearError();
     }
 
     // Warn if the rect is too small to use
