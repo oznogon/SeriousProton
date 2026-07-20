@@ -128,7 +128,7 @@ void initOpenGL()
 
     // Query maximum supported texture size.
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl::max_texture_size);
-    LOG(Info, "GL_MAX_TEXTURE_SIZE = ", gl::max_texture_size);
+    LOG(Debug, "GL_MAX_TEXTURE_SIZE = ", gl::max_texture_size);
 
     // Find out supported compressed textures.
     GLint count{};

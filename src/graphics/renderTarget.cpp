@@ -189,7 +189,7 @@ static ImageInfo getTextureInfo(std::string_view texture)
 
     Rect uv_rect = atlas_texture->add(std::move(image), 1);
     image_info[texture] = {nullptr, size, uv_rect};
-    LOG(Info, "Added ", string(texture), " to atlas@", uv_rect.position, " ", uv_rect.size, "  ", atlas_texture->usageRate() * 100.0f, "%");
+    LOG(Debug, "Added ", string(texture), " to atlas@", uv_rect.position, " ", uv_rect.size, "  ", atlas_texture->usageRate() * 100.0f, "%");
     return {nullptr, size, uv_rect};
 }
 
