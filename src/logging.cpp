@@ -23,7 +23,8 @@
 namespace
 {
     const std::array<std::string, SDL_LOG_PRIORITY_COUNT> priority_labels{
-        "[UNKNOWN ]: ",
+        "[INVALID ]: ",
+        "[TRACE   ]: ",
         "[VERBOSE ]: ",
         "[DEBUG   ]: ",
         "[INFO    ]: ",
