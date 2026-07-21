@@ -33,3 +33,5 @@ master 20260531 -- fix-strict-compilation
 master 20260606 -- reverse-proxy-registry
 
 sdl3 20260719 --- breaking-change migration to SDL3
+
+GinjaNinja32/multicast-ip 20260720 -- update UDP multicast options
