@@ -40,8 +40,10 @@ namespace sp {
 namespace io {
 namespace network {
 
-int getMulticastIPv4(UdpMulticastMode mode, int group_nr) {
-    switch (mode) {
+int getMulticastIPv4(UdpMulticastMode mode, int group_nr)
+{
+    switch (mode)
+    {
     case UdpMulticastMode::SACN: // 239.255.gh.gl
         return htonl((239 << 24) | (255 << 16) | (group_nr));
     default:
@@ -49,11 +51,14 @@ int getMulticastIPv4(UdpMulticastMode mode, int group_nr) {
         return htonl((239 << 24) | (192 << 16) | (group_nr));
     }
 }
-void setMulticastIPv6(unsigned char* address, UdpMulticastMode mode, int group_nr) {
+
+void setMulticastIPv6(unsigned char* address, UdpMulticastMode mode, int group_nr)
+{
     address[14] = group_nr >> 8;
     address[15] = group_nr;
 
-    switch (mode) {
+    switch (mode)
+    {
     case UdpMulticastMode::SACN: // FF18::8300:GHGL
         address[0] = 0xff;
         address[1] = 0x18;
@@ -66,15 +71,13 @@ void setMulticastIPv6(unsigned char* address, UdpMulticastMode mode, int group_n
     }
 }
 
-
 UdpSocket::UdpSocket()
 {
 }
 
 UdpSocket::UdpSocket(UdpSocket&& socket)
 {
-    if (this == &socket)
-        return;
+    if (this == &socket) return;
 
     handle = socket.handle;
     blocking = socket.blocking;
@@ -92,8 +95,7 @@ bool UdpSocket::bind(int port)
     initSocketLib();
     close();
 
-    if (!createSocket())
-        return false;
+    if (!createSocket()) return false;
 
     if (socket_is_ipv6)
     {
@@ -131,15 +133,12 @@ bool UdpSocket::bind(int port)
 bool UdpSocket::joinMulticast(int group_nr)
 {
     if (handle == INVALID_SOCKET)
-    {
-        if (!createSocket())
-            return false;
-    }
+        if (!createSocket()) return false;
 
     bool success = true;
     if (!socket_is_ipv6)
     {
-        for(const auto& addr_info : Address::getLocalAddress().addr_info)
+        for (const auto& addr_info : Address::getLocalAddress().addr_info)
         {
             if (addr_info.family == AF_INET && !socket_is_ipv6 && addr_info.addr.size() == sizeof(struct sockaddr_in))
             {
@@ -182,17 +181,14 @@ void UdpSocket::close()
 bool UdpSocket::send(const void* data, size_t size, const Address& address, int port)
 {
     if (handle == INVALID_SOCKET)
-    {
-        if (!createSocket())
-            return false;
-    }
+        if (!createSocket()) return false;
 
     if (socket_is_ipv6)
     {
         struct sockaddr_in6 server_addr;
         bool is_set = false;
         memset(&server_addr, 0, sizeof(server_addr));
-        for(auto& addr_info : address.addr_info)
+        for (auto& addr_info : address.addr_info)
         {
             if (addr_info.family == AF_INET6 && addr_info.addr.size() == sizeof(server_addr))
             {
@@ -208,14 +204,14 @@ bool UdpSocket::send(const void* data, size_t size, const Address& address, int 
             server_addr.sin6_port = htons(port);
 
             int result = ::sendto(handle, data, size, flags, reinterpret_cast<const sockaddr*>(&server_addr), sizeof(server_addr));
-            return result == int(size);
+            return result == static_cast<int>(size);
         }
     }
 
     struct sockaddr_in server_addr;
     bool is_set = false;
     memset(&server_addr, 0, sizeof(server_addr));
-    for(auto& addr_info : address.addr_info)
+    for (auto& addr_info : address.addr_info)
     {
         if (addr_info.family == AF_INET && addr_info.addr.size() == sizeof(server_addr))
         {
@@ -238,8 +234,7 @@ bool UdpSocket::send(const void* data, size_t size, const Address& address, int 
 
 size_t UdpSocket::receive(void* data, size_t size, Address& address, int& port)
 {
-    if (handle == INVALID_SOCKET)
-        return 0;
+    if (handle == INVALID_SOCKET) return 0;
 
     address.addr_info.clear();
     if (socket_is_ipv6)
@@ -299,21 +294,17 @@ bool UdpSocket::receive(DataBuffer& buffer, Address& address, int& port)
     size_t received_size = receive(receive_buffer, sizeof(receive_buffer), address, port);
 
     if (received_size > 0)
-    {
         buffer = std::vector<uint8_t>(receive_buffer, receive_buffer + received_size);
-    }
+
     return received_size > 0;
 }
 
 bool UdpSocket::sendMulticast(const void* data, size_t size, int group_nr, int port, UdpMulticastMode mode)
 {
-    if (handle == INVALID_SOCKET)
-    {
-        createSocket();
-    }
+    if (handle == INVALID_SOCKET) createSocket();
 
     bool success = false;
-    for(const auto& addr_info : Address::getLocalAddress().addr_info)
+    for (const auto& addr_info : Address::getLocalAddress().addr_info)
     {
         if (addr_info.family == AF_INET && !socket_is_ipv6 && addr_info.addr.size() == sizeof(struct sockaddr_in))
         {
@@ -329,9 +320,9 @@ bool UdpSocket::sendMulticast(const void* data, size_t size, int group_nr, int p
             server_addr.sin_port = htons(port);
 
             int result = ::sendto(handle, data, size, flags, reinterpret_cast<const sockaddr*>(&server_addr), sizeof(server_addr));
-            if (result == int(size))
-                success = true;
+            if (result == static_cast<int>(size)) success = true;
         }
+
         if (addr_info.family == AF_INET6 && socket_is_ipv6 && addr_info.addr.size() == sizeof(struct sockaddr_in6))
         {
             struct sockaddr_in6 server_addr;
@@ -345,8 +336,7 @@ bool UdpSocket::sendMulticast(const void* data, size_t size, int group_nr, int p
             server_addr.sin6_port = htons(port);
 
             int result = ::sendto(handle, data, size, flags, reinterpret_cast<const sockaddr*>(&server_addr), sizeof(server_addr));
-            if (result == int(size))
-                success = true;
+            if (result == static_cast<int>(size)) success = true;
         }
     }
     return success;
@@ -359,10 +349,8 @@ bool UdpSocket::sendMulticast(const DataBuffer& buffer, int group_nr, int port, 
 
 bool UdpSocket::sendBroadcast(const void* data, size_t size, int port)
 {
-    if (handle == INVALID_SOCKET)
-        return false;
-    if (socket_is_ipv6)
-        return false;
+    if (handle == INVALID_SOCKET) return false;
+    if (socket_is_ipv6) return false;
 
 #ifdef _WIN32
     bool success = false;
@@ -410,8 +398,8 @@ bool UdpSocket::createSocket()
 {
     close();
 
-    //As IPv6 multicast isn't working yet, just use IPv4 sockets only right now.
-    //handle = ::socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+    // As IPv6 multicast isn't working yet, just use IPv4 sockets only right now.
+    // handle = ::socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
     handle = INVALID_SOCKET;
     socket_is_ipv6 = true;
     if (handle == INVALID_SOCKET)
@@ -425,7 +413,7 @@ bool UdpSocket::createSocket()
         int optval = 0;
         ::setsockopt(handle, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<const char*>(&optval), sizeof(int));
     }
-    //Enable broadcasting
+    // Enable broadcasting
     int enable = 1;
     ::setsockopt(handle, SOL_SOCKET, SO_BROADCAST, reinterpret_cast<char*>(&enable), sizeof(enable));
 
