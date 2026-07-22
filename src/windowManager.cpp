@@ -467,6 +467,11 @@ void Window::handleEvent(const SDL_Event& event)
     case SDL_EVENT_FINGER_UP:
         render_chain->onPointerUp({event.tfinger.x * current_virtual_size.x, event.tfinger.y * current_virtual_size.y}, event.tfinger.fingerID);
         break;
+    case SDL_EVENT_PINCH_BEGIN:
+    case SDL_EVENT_PINCH_UPDATE:
+    case SDL_EVENT_PINCH_END:
+        render_chain->onPinch(event.pinch.scale);
+        break;
     case SDL_EVENT_TEXT_INPUT:
         render_chain->onTextInput(event.text.text);
         break;

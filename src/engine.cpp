@@ -421,6 +421,11 @@ void Engine::handleEvent(SDL_Event& event)
     case SDL_EVENT_FINGER_MOTION:
         window_id = event.tfinger.windowID;
         break;
+    case SDL_EVENT_PINCH_BEGIN:
+    case SDL_EVENT_PINCH_UPDATE:
+    case SDL_EVENT_PINCH_END:
+        window_id = event.pinch.windowID;
+        break;
     case SDL_EVENT_TEXT_EDITING:
         window_id = event.edit.windowID;
         break;

@@ -78,6 +78,15 @@ void RenderLayer::onMouseWheelScroll(glm::vec2 position, float value)
         link->onMouseWheelScroll(position, value);
 }
 
+void RenderLayer::onPinch(float scale)
+{
+    if (active)
+        foreach (Renderable, r, renderableList)
+            r->onPinch(scale);
+    if (link)
+        link->onPinch(scale);
+}
+
 void RenderLayer::onTextInput(const string& text)
 {
     if (active)
