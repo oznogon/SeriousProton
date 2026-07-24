@@ -68,10 +68,7 @@ else()
     FetchContent_GetProperties(glm)
 
     if(NOT glm_POPULATED)
-        if(COMMAND FetchContent_Populate)
-            FetchContent_Populate(glm)
-        endif()
-        add_subdirectory(${glm_SOURCE_DIR} ${glm_BINARY_DIR} EXCLUDE_FROM_ALL)
+        FetchContent_MakeAvailable(glm)
     endif()
 endif()
 
