@@ -136,8 +136,32 @@ static void initializeLibSSL()
         }
     }
 #else
-    libcrypto = DynamicLibrary::open("libcrypto.so.1.1");
-    libssl = DynamicLibrary::open("libssl.so.1.1");
+    {
+        const char* search_paths[] = {
+            "libcrypto.so.1.1",
+            "libcrypto.so.3",
+            "libcrypto.so",
+            nullptr
+        };
+        for (int i = 0; search_paths[i]; i++)
+        {
+            libcrypto = DynamicLibrary::open(search_paths[i]);
+            if (libcrypto) break;
+        }
+    }
+    {
+        const char* search_paths[] = {
+            "libssl.so.1.1",
+            "libssl.so.3",
+            "libssl.so",
+            nullptr
+        };
+        for (int i = 0; search_paths[i]; i++)
+        {
+            libssl = DynamicLibrary::open(search_paths[i]);
+            if (libssl) break;
+        }
+    }
 #endif
     if (!libcrypto || !libssl)
         return;
