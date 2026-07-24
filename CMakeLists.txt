@@ -29,7 +29,17 @@ set(CMAKE_CXX_EXTENSIONS ON)
 include("cmake/DrMingw.cmake")
 
 #--------------------------------Dependencies----------------------------------
-find_package(SDL3 CONFIG REQUIRED COMPONENTS SDL3)
+include(FetchContent)
+FetchContent_Declare(
+    SDL3
+    GIT_REPOSITORY https://github.com/libsdl-org/SDL
+    GIT_TAG release-3.4.12
+    GIT_SHALLOW TRUE
+)
+FetchContent_GetProperties(SDL3)
+if(NOT SDL3_POPULATED)
+    FetchContent_MakeAvailable(SDL3)
+endif()
 
 # GLM - OpenGL Mathematic library
 SET(WITH_GLM "auto" CACHE STRING "Which GLM to use (possible values are 'bundled', 'system' or 'auto')")
@@ -434,14 +444,7 @@ install(
 )
 
 if(WIN32)
-    if(MINGW)
-        # For the MinGW library, the 'imported location' looks at the dll in the wrong folder (lib instead of bin)
-        # So we have to get it by hand.
-        # Also covers backwards compatibility with SDL version < 2.0.12.
-        install(FILES "${SDL3_PREFIX}/bin/SDL3.dll" DESTINATION . COMPONENT runtime)
-    else()
-        install(PROGRAMS "$<TARGET_PROPERTY:SDL3::SDL3,IMPORTED_LOCATION>" DESTINATION . COMPONENT runtime)
-    endif()
+    install(PROGRAMS "$<TARGET_FILE:SDL3::SDL3-shared>" DESTINATION . COMPONENT runtime)
     if(STEAMSDK)
         if(${CMAKE_SIZEOF_VOID_P} EQUAL 4)
             install(FILES "${STEAMSDK}/redistributable_bin/steam_api.dll" DESTINATION . COMPONENT runtime)
