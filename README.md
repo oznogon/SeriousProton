@@ -4,7 +4,7 @@ This repo is a fork of the [SeriousProton](https://github.com/daid/SeriousProton
 
 ## Major breaking changes in this fork
 
-- SDL migrated from SDL2 to SDL3
+- SDL migrated from SDL2 to SDL3; SDL3 is now vendored via CMake FetchContent
 - Control bind interaction types (discrete, repeat, hold, toggle) to define behaviors of non-standard control surfaces
 - Custom arbitrary clipping regions (ClipRegion replacing ScissorRect) and render translation, to facilitate scrollable GUI elements
 - Font line_height parameterization
