@@ -83,24 +83,27 @@ Request::Response Request::request(const string& method, const string& path, con
     }
     free(body);
 #else
+    Response response;
+
     if (socket.getState() == sp::io::network::StreamSocket::State::Closed)
     {
         if (scheme == Scheme::Auto)
             scheme = ((port == 443) ? Scheme::Https : Scheme::Http);
+        bool connected;
         if (scheme == Scheme::Http)
-            socket.connect(io::network::Address(headers["Host"]), port);
+            connected = socket.connect(io::network::Address(headers["Host"]), port);
         else
-            socket.connectSSL(io::network::Address(headers["Host"]), port);
+            connected = socket.connectSSL(io::network::Address(headers["Host"]), port);
+        if (!connected)
+            return response;
         socket.setTimeout(5000);
     }
-    Response response;
 
     string request = method + " " + path + " HTTP/1.1\r\n";
     for(auto& h : headers)
         request += h.first + ": " + h.second + "\r\n";
     if (data.length() > 0)
     {
-        request += "Content-Type: application/x-www-form-urlencoded\r\n";
         request += "Content-Length: " + string(int(data.length())) + "\r\n";
     }
     request += "\r\n";

@@ -25,6 +25,7 @@ static inline int recv(SOCKET s, void* buf, size_t len, int flags)
 #include <arpa/inet.h>
 #include <string.h>
 #include <poll.h>
+#include <errno.h>
 #if defined(__APPLE__)
 static constexpr int flags = 0;
 #else
@@ -54,6 +55,7 @@ extern "C" {
     static int (*SSL_set_fd)(SSL *ssl, int fd);
     static int (*SSL_connect)(SSL *ssl);
     static long (*SSL_get_verify_result)(const SSL *ssl);
+    static int (*SSL_get_error)(const SSL *ssl, int ret);
     static int (*SSL_read)(SSL *ssl, void *buf, int num);
     static int (*SSL_write)(SSL *ssl, const void *buf, int num);
     static void (*SSL_free)(SSL *ssl);
@@ -84,6 +86,55 @@ static void initializeLibSSL()
 #ifdef _WIN32
     libcrypto = DynamicLibrary::open("libcrypto-1_1.dll");
     libssl = DynamicLibrary::open("libssl-1_1.dll");
+#elif defined(__APPLE__)
+    {
+        const char* search_paths[] = {
+            "/usr/lib/libcrypto.dylib",
+            "/usr/local/opt/openssl@3/lib/libcrypto.3.dylib",
+            "/usr/local/opt/openssl@3/lib/libcrypto.dylib",
+            "/usr/local/opt/openssl@1.1/lib/libcrypto.1.1.dylib",
+            "/usr/local/opt/openssl@1.1/lib/libcrypto.dylib",
+            "/usr/local/lib/libcrypto.dylib",
+            "/opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib",
+            "/opt/homebrew/opt/openssl@3/lib/libcrypto.dylib",
+            "/opt/homebrew/opt/openssl@1.1/lib/libcrypto.1.1.dylib",
+            "/opt/homebrew/opt/openssl@1.1/lib/libcrypto.dylib",
+            "/opt/homebrew/lib/libcrypto.dylib",
+            nullptr
+        };
+        for (int i = 0; search_paths[i]; i++)
+        {
+            if (access(search_paths[i], F_OK) == 0)
+            {
+                libcrypto = DynamicLibrary::open(search_paths[i]);
+                if (libcrypto) break;
+            }
+        }
+    }
+    {
+        const char* search_paths[] = {
+            "/usr/lib/libssl.dylib",
+            "/usr/local/opt/openssl@3/lib/libssl.3.dylib",
+            "/usr/local/opt/openssl@3/lib/libssl.dylib",
+            "/usr/local/opt/openssl@1.1/lib/libssl.1.1.dylib",
+            "/usr/local/opt/openssl@1.1/lib/libssl.dylib",
+            "/usr/local/lib/libssl.dylib",
+            "/opt/homebrew/opt/openssl@3/lib/libssl.3.dylib",
+            "/opt/homebrew/opt/openssl@3/lib/libssl.dylib",
+            "/opt/homebrew/opt/openssl@1.1/lib/libssl.1.1.dylib",
+            "/opt/homebrew/opt/openssl@1.1/lib/libssl.dylib",
+            "/opt/homebrew/lib/libssl.dylib",
+            nullptr
+        };
+        for (int i = 0; search_paths[i]; i++)
+        {
+            if (access(search_paths[i], F_OK) == 0)
+            {
+                libssl = DynamicLibrary::open(search_paths[i]);
+                if (libssl) break;
+            }
+        }
+    }
 #else
     libcrypto = DynamicLibrary::open("libcrypto.so.1.1");
     libssl = DynamicLibrary::open("libssl.so.1.1");
@@ -105,6 +156,7 @@ static void initializeLibSSL()
     SSL_set_fd = libssl->getFunction<int (*)(SSL *ssl, int fd)>("SSL_set_fd");
     SSL_connect = libssl->getFunction<int (*)(SSL *ssl)>("SSL_connect");
     SSL_get_verify_result = libssl->getFunction<long (*)(const SSL *ssl)>("SSL_get_verify_result");
+    SSL_get_error = libssl->getFunction<int (*)(const SSL*, int)>("SSL_get_error");
     SSL_read = libssl->getFunction<int (*)(SSL *ssl, void *buf, int num)>("SSL_read");
     SSL_write = libssl->getFunction<int (*)(SSL *ssl, const void *buf, int num)>("SSL_write");
     SSL_free = libssl->getFunction<void (*)(SSL *ssl)>("SSL_free");
@@ -170,13 +222,20 @@ bool TcpSocket::connect(const Address& host, int port)
     {
         handle = ::socket(addr_info.family, SOCK_STREAM, 0);
         if (handle == INVALID_SOCKET)
+        {
+            LOG(Warning, "Failed to create socket for TCP connection");
             return false;
+        }
         setBlocking(blocking);
         if (addr_info.family == AF_INET && sizeof(struct sockaddr_in) == addr_info.addr.size())
         {
             struct sockaddr_in server_addr;
             memset(&server_addr, 0, sizeof(server_addr));
             memcpy(&server_addr, addr_info.addr.data(), addr_info.addr.size());
+#if defined(__APPLE__)
+            server_addr.sin_len = sizeof(struct sockaddr_in);
+            server_addr.sin_family = AF_INET;
+#endif
             server_addr.sin_port = htons(port);
             if (::connect(handle, reinterpret_cast<const sockaddr*>(&server_addr), sizeof(server_addr)) == 0)
                 return true;
@@ -185,12 +244,17 @@ bool TcpSocket::connect(const Address& host, int port)
                 connecting = true;
                 return true;
             }
+            LOG(Warning, "TCP connect to ", addr_info.human_readable, ":", port, " failed. errno=", errno);
         }
-        if (addr_info.family == AF_INET6 && sizeof(struct sockaddr_in6) == addr_info.addr.size())
+        else if (addr_info.family == AF_INET6 && sizeof(struct sockaddr_in6) == addr_info.addr.size())
         {
             struct sockaddr_in6 server_addr;
             memset(&server_addr, 0, sizeof(server_addr));
             memcpy(&server_addr, addr_info.addr.data(), addr_info.addr.size());
+#if defined(__APPLE__)
+            server_addr.sin6_len = sizeof(struct sockaddr_in6);
+            server_addr.sin6_family = AF_INET6;
+#endif
             server_addr.sin6_port = htons(port);
             if (::connect(handle, reinterpret_cast<const sockaddr*>(&server_addr), sizeof(server_addr)) == 0)
                 return true;
@@ -199,9 +263,15 @@ bool TcpSocket::connect(const Address& host, int port)
                 connecting = true;
                 return true;
             }
+            LOG(Warning, "TCP connect to [", addr_info.human_readable, "]:", port, " failed. errno=", errno);
+        }
+        else
+        {
+            LOG(Warning, "Unsupported address family: ", addr_info.family, " addr_size=", addr_info.addr.size());
         }
         close();
     }
+    LOG(Warning, "Failed to connect TCP socket to port ", port, ". Address had ", host.addr_info.size(), " resolved entries.");
     return false;
 }
 
@@ -219,9 +289,13 @@ bool TcpSocket::connectSSL(const Address& host, int port)
 
     ssl_handle = SSL_new(ssl_context);
     SSL_set_fd(static_cast<SSL*>(ssl_handle), static_cast<int>(handle));
-    if (!SSL_connect(static_cast<SSL*>(ssl_handle)))
+    int ssl_ret = SSL_connect(static_cast<SSL*>(ssl_handle));
+    if (ssl_ret <= 0)
     {
-        LOG(Warning, "Failed to connect SSL socket due to SSL negotiation failure.");
+        int ssl_error_code = 0;
+        if (SSL_get_error)
+            ssl_error_code = SSL_get_error(static_cast<SSL*>(ssl_handle), ssl_ret);
+        LOG(Warning, "Failed to connect SSL socket due to SSL negotiation failure. SSL error: ", ssl_error_code);
         close();
         return false;
     }
