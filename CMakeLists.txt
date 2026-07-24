@@ -350,6 +350,7 @@ target_include_directories(seriousproton_deps
 target_compile_features(seriousproton_deps INTERFACE cxx_std_17)
 
 find_package(Threads REQUIRED)
+find_package(OpenSSL REQUIRED)
 
 target_compile_definitions(seriousproton_deps
     INTERFACE
@@ -374,7 +375,7 @@ target_compile_options(seriousproton_deps
 include("cmake/SteamSDK.cmake")
 target_link_libraries(seriousproton_deps
     INTERFACE
-        box2d glad lua SDL3::SDL3 glm::glm Threads::Threads ${FREETYPE_LIBRARIES} basisu-transcoder $<BUILD_INTERFACE:steamsdk>
+        box2d glad lua SDL3::SDL3 glm::glm Threads::Threads OpenSSL::SSL OpenSSL::Crypto ${FREETYPE_LIBRARIES} basisu-transcoder $<BUILD_INTERFACE:steamsdk>
         $<$<BOOL:${WIN32}>:wsock32 ws2_32 crypt32 iphlpapi>
         # LTO flag must be on the linker's list as well.
         "$<$<AND:$<BOOL:${CMAKE_COMPILER_IS_GNUCC}>,$<OR:$<CONFIG:RelWithDebInfo>,$<CONFIG:Release>>>:-flto=auto>"
@@ -445,6 +446,8 @@ install(
 
 if(WIN32)
     install(PROGRAMS "$<TARGET_FILE:SDL3::SDL3-shared>" DESTINATION . COMPONENT runtime)
+    install(PROGRAMS "$<TARGET_FILE:OpenSSL::SSL>" DESTINATION . COMPONENT runtime)
+    install(PROGRAMS "$<TARGET_FILE:OpenSSL::Crypto>" DESTINATION . COMPONENT runtime)
     if(STEAMSDK)
         if(${CMAKE_SIZEOF_VOID_P} EQUAL 4)
             install(FILES "${STEAMSDK}/redistributable_bin/steam_api.dll" DESTINATION . COMPONENT runtime)

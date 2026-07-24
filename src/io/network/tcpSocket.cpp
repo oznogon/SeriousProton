@@ -34,186 +34,50 @@ static constexpr int flags = MSG_NOSIGNAL;
 static constexpr intptr_t INVALID_SOCKET = -1;
 #endif
 
-
-extern "C" {
-    struct X509;
-    struct X509_STORE;
-    struct SSL_CTX;
-    struct SSL_METHOD;
-    struct SSL;
-
-    static X509_STORE* (*X509_STORE_new)();
-    static X509* (*d2i_X509)(X509**, const unsigned char **, long);
-    static int (*X509_STORE_add_cert)(X509_STORE*, X509*);
-    static void (*X509_free)(X509*);
-    static SSL_CTX* (*SSL_CTX_new)(const SSL_METHOD*);
-    static const SSL_METHOD* (*TLSv1_2_client_method)();
-    static long (*SSL_CTX_set_options)(SSL_CTX*, long);
-    static int (*SSL_CTX_set_default_verify_paths)(SSL_CTX*);
-    static void (*SSL_CTX_set_cert_store)(SSL_CTX*, X509_STORE*);
-    static SSL* (*SSL_new)(SSL_CTX*);
-    static int (*SSL_set_fd)(SSL *ssl, int fd);
-    static int (*SSL_connect)(SSL *ssl);
-    static long (*SSL_get_verify_result)(const SSL *ssl);
-    static int (*SSL_get_error)(const SSL *ssl, int ret);
-    static int (*SSL_read)(SSL *ssl, void *buf, int num);
-    static int (*SSL_write)(SSL *ssl, const void *buf, int num);
-    static void (*SSL_free)(SSL *ssl);
-
-    static SSL_CTX* ssl_context;
-}
-
-# define SSL_OP_NO_SSLv2                                 0x01000000L
-# define SSL_OP_NO_SSLv3                                 0x02000000L
-# define SSL_OP_NO_TLSv1                                 0x04000000L
-# define SSL_OP_NO_TLSv1_2                               0x08000000L
-# define SSL_OP_NO_TLSv1_1                               0x10000000L
-
-#ifndef __ANDROID__
-#include "dynamicLibrary.h"
-
-static std::unique_ptr<DynamicLibrary> libcrypto;
-static std::unique_ptr<DynamicLibrary> libssl;
+#include <openssl/ssl.h>
+#include <openssl/x509.h>
+#include <openssl/err.h>
+#if defined(_WIN32)
+#include <wincrypt.h>
 #endif
 
-static void initializeLibSSL()
+static SSL_CTX* getSSLContext()
 {
+    static SSL_CTX* ctx = nullptr;
     static bool initialized = false;
-    if (initialized) return;
-    initialized = true;
-
-#ifndef __ANDROID__
-#ifdef _WIN32
-    libcrypto = DynamicLibrary::open("libcrypto-1_1.dll");
-    libssl = DynamicLibrary::open("libssl-1_1.dll");
-#elif defined(__APPLE__)
+    if (!initialized)
     {
-        const char* search_paths[] = {
-            "/usr/lib/libcrypto.dylib",
-            "/usr/local/opt/openssl@3/lib/libcrypto.3.dylib",
-            "/usr/local/opt/openssl@3/lib/libcrypto.dylib",
-            "/usr/local/opt/openssl@1.1/lib/libcrypto.1.1.dylib",
-            "/usr/local/opt/openssl@1.1/lib/libcrypto.dylib",
-            "/usr/local/lib/libcrypto.dylib",
-            "/opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib",
-            "/opt/homebrew/opt/openssl@3/lib/libcrypto.dylib",
-            "/opt/homebrew/opt/openssl@1.1/lib/libcrypto.1.1.dylib",
-            "/opt/homebrew/opt/openssl@1.1/lib/libcrypto.dylib",
-            "/opt/homebrew/lib/libcrypto.dylib",
-            nullptr
-        };
-        for (int i = 0; search_paths[i]; i++)
+        initialized = true;
+        ctx = SSL_CTX_new(TLS_client_method());
+        if (ctx)
         {
-            if (access(search_paths[i], F_OK) == 0)
+            SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1);
+#ifdef _WIN32
+            HCERTSTORE hStore = CertOpenSystemStore(0, "ROOT");
+            if (hStore)
             {
-                libcrypto = DynamicLibrary::open(search_paths[i]);
-                if (libcrypto) break;
+                X509_STORE* store = X509_STORE_new();
+                PCCERT_CONTEXT pContext = NULL;
+                while ((pContext = CertEnumCertificatesInStore(hStore, pContext)) != nullptr)
+                {
+                    const unsigned char* c = pContext->pbCertEncoded;
+                    X509* x509 = d2i_X509(nullptr, &c, pContext->cbCertEncoded);
+                    if (x509)
+                    {
+                        X509_STORE_add_cert(store, x509);
+                        X509_free(x509);
+                    }
+                }
+                CertFreeCertificateContext(pContext);
+                CertCloseStore(hStore, 0);
+                SSL_CTX_set_cert_store(ctx, store);
             }
-        }
-    }
-    {
-        const char* search_paths[] = {
-            "/usr/lib/libssl.dylib",
-            "/usr/local/opt/openssl@3/lib/libssl.3.dylib",
-            "/usr/local/opt/openssl@3/lib/libssl.dylib",
-            "/usr/local/opt/openssl@1.1/lib/libssl.1.1.dylib",
-            "/usr/local/opt/openssl@1.1/lib/libssl.dylib",
-            "/usr/local/lib/libssl.dylib",
-            "/opt/homebrew/opt/openssl@3/lib/libssl.3.dylib",
-            "/opt/homebrew/opt/openssl@3/lib/libssl.dylib",
-            "/opt/homebrew/opt/openssl@1.1/lib/libssl.1.1.dylib",
-            "/opt/homebrew/opt/openssl@1.1/lib/libssl.dylib",
-            "/opt/homebrew/lib/libssl.dylib",
-            nullptr
-        };
-        for (int i = 0; search_paths[i]; i++)
-        {
-            if (access(search_paths[i], F_OK) == 0)
-            {
-                libssl = DynamicLibrary::open(search_paths[i]);
-                if (libssl) break;
-            }
-        }
-    }
 #else
-    {
-        const char* search_paths[] = {
-            "libcrypto.so.1.1",
-            "libcrypto.so.3",
-            "libcrypto.so",
-            nullptr
-        };
-        for (int i = 0; search_paths[i]; i++)
-        {
-            libcrypto = DynamicLibrary::open(search_paths[i]);
-            if (libcrypto) break;
+            SSL_CTX_set_default_verify_paths(ctx);
+#endif
         }
     }
-    {
-        const char* search_paths[] = {
-            "libssl.so.1.1",
-            "libssl.so.3",
-            "libssl.so",
-            nullptr
-        };
-        for (int i = 0; search_paths[i]; i++)
-        {
-            libssl = DynamicLibrary::open(search_paths[i]);
-            if (libssl) break;
-        }
-    }
-#endif
-    if (!libcrypto || !libssl)
-        return;
-
-    X509_STORE_new = libcrypto->getFunction<X509_STORE*(*)()>("X509_STORE_new");
-    d2i_X509 = libcrypto->getFunction<X509* (*)(X509**, const unsigned char **, long)>("d2i_X509");
-    X509_STORE_add_cert = libcrypto->getFunction<int (*)(X509_STORE*, X509*)>("X509_STORE_add_cert");
-    X509_free = libcrypto->getFunction<void (*)(X509*)>("X509_free");
-
-    SSL_CTX_new = libssl->getFunction<SSL_CTX*(*)(const SSL_METHOD*)>("SSL_CTX_new");
-    TLSv1_2_client_method = libssl->getFunction<const SSL_METHOD* (*)()>("TLSv1_2_client_method");
-    SSL_CTX_set_options = libssl->getFunction<long (*)(SSL_CTX*, long)>("SSL_CTX_set_options");
-    SSL_CTX_set_default_verify_paths = libssl->getFunction<int (*)(SSL_CTX*)>("SSL_CTX_set_default_verify_paths");
-    SSL_CTX_set_cert_store = libssl->getFunction<void (*)(SSL_CTX*, X509_STORE*)>("SSL_CTX_set_cert_store");
-    SSL_new = libssl->getFunction<SSL* (*)(SSL_CTX*)>("SSL_new");
-    SSL_set_fd = libssl->getFunction<int (*)(SSL *ssl, int fd)>("SSL_set_fd");
-    SSL_connect = libssl->getFunction<int (*)(SSL *ssl)>("SSL_connect");
-    SSL_get_verify_result = libssl->getFunction<long (*)(const SSL *ssl)>("SSL_get_verify_result");
-    SSL_get_error = libssl->getFunction<int (*)(const SSL*, int)>("SSL_get_error");
-    SSL_read = libssl->getFunction<int (*)(SSL *ssl, void *buf, int num)>("SSL_read");
-    SSL_write = libssl->getFunction<int (*)(SSL *ssl, const void *buf, int num)>("SSL_write");
-    SSL_free = libssl->getFunction<void (*)(SSL *ssl)>("SSL_free");
-
-#ifdef _WIN32
-    HCERTSTORE hStore;
-    PCCERT_CONTEXT pContext = NULL;
-    X509 *x509;
-    X509_STORE *store = X509_STORE_new();
-
-    hStore = CertOpenSystemStore(0, "ROOT");
-    while((pContext = CertEnumCertificatesInStore(hStore, pContext)) != nullptr)
-    {
-        const unsigned char* c = pContext->pbCertEncoded;
-        x509 = d2i_X509(nullptr, &c, pContext->cbCertEncoded);
-        if (x509)
-        {
-            X509_STORE_add_cert(store, x509);
-            X509_free(x509);
-        }
-    }
-    CertFreeCertificateContext(pContext);
-    CertCloseStore(hStore, 0);
-#endif
-
-    ssl_context = SSL_CTX_new(TLSv1_2_client_method());
-    SSL_CTX_set_options(ssl_context, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1);
-#ifdef _WIN32
-    SSL_CTX_set_cert_store(ssl_context, store);
-#else
-    SSL_CTX_set_default_verify_paths(ssl_context);
-#endif
-#endif
+    return ctx;
 }
 
 
@@ -303,32 +167,40 @@ bool TcpSocket::connectSSL(const Address& host, int port)
 {
     if (!connect(host, port))
         return false;
-    initializeLibSSL();
-    if (!SSL_new)
+
+    SSL_CTX* ctx = getSSLContext();
+    if (!ctx)
     {
-        LOG(Warning, "Failed to connect SSL socket due to missing libssl/libcrypto v1.1");
+        LOG(Warning, "Failed to create SSL context");
         close();
         return false;
     }
 
-    ssl_handle = SSL_new(ssl_context);
-    SSL_set_fd(static_cast<SSL*>(ssl_handle), static_cast<int>(handle));
-    int ssl_ret = SSL_connect(static_cast<SSL*>(ssl_handle));
+    SSL* ssl = SSL_new(ctx);
+    if (!ssl)
+    {
+        LOG(Warning, "Failed to create SSL session");
+        close();
+        return false;
+    }
+    SSL_set_fd(ssl, static_cast<int>(handle));
+    int ssl_ret = SSL_connect(ssl);
     if (ssl_ret <= 0)
     {
-        int ssl_error_code = 0;
-        if (SSL_get_error)
-            ssl_error_code = SSL_get_error(static_cast<SSL*>(ssl_handle), ssl_ret);
+        int ssl_error_code = SSL_get_error(ssl, ssl_ret);
         LOG(Warning, "Failed to connect SSL socket due to SSL negotiation failure. SSL error: ", ssl_error_code);
+        SSL_free(ssl);
         close();
         return false;
     }
-    if (ssl_verify && SSL_get_verify_result(static_cast<SSL*>(ssl_handle)) != 0)
+    if (ssl_verify && SSL_get_verify_result(ssl) != 0)
     {
         LOG(Warning, "Failed to connect SSL socket due to certificate verification failure.");
+        SSL_free(ssl);
         close();
         return false;
     }
+    ssl_handle = ssl;
     return true;
 }
 
