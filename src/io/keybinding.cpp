@@ -491,7 +491,7 @@ void Keybinding::loadKeybindings(const string& filename)
                 string suffix = ":" + pair.first;
                 if (key_str.endswith(suffix))
                 {
-                    key_str = key_str.substr(0, key_str.length() - suffix.length());
+                    key_str = key_str.substr(0, static_cast<int>(key_str.length() - suffix.length()));
                     inter = pair.second;
                     break;
                 }
@@ -516,7 +516,7 @@ void Keybinding::loadKeybindings(const string& filename)
                         string suffix = ":" + pair.first;
                         if (key_str.endswith(suffix))
                         {
-                            key_str = key_str.substr(0, key_str.length() - suffix.length());
+                            key_str = key_str.substr(0, static_cast<int>(key_str.length() - suffix.length()));
                             inter = pair.second;
                             break;
                         }
@@ -673,7 +673,7 @@ void Keybinding::setValue(float new_value, int key_type, Interaction bind_intera
         if (prev_threshold < threshold && threshold_value >= threshold)
         {
             repeat_ready = true;
-            repeat_hold_ticks = SDL_GetTicks();
+            repeat_hold_ticks = static_cast<unsigned int>(SDL_GetTicks());
             repeat_started = false;
         }
 
@@ -742,7 +742,7 @@ void Keybinding::allPostUpdate()
         keybinding->postUpdate();
 
     // Tick clock.
-    unsigned int now = SDL_GetTicks();
+    unsigned int now = static_cast<unsigned int>(SDL_GetTicks());
 
     // Repeat repeating binds.
     for (Keybinding* keybinding = keybindings; keybinding; keybinding = keybinding->next)

@@ -89,7 +89,7 @@ template <typename T> struct multiplayerReplicationFunctions
     static void sendDataVector(void* data, sp::io::DataBuffer& packet)
     {
         std::vector<T>* ptr = (std::vector<T>*)data;
-        uint16_t count = ptr->size();
+        uint16_t count = static_cast<uint16_t>(ptr->size());
         packet << count;
         for(unsigned int n=0; n<count; n++)
             packet << (*ptr)[n];

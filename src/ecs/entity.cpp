@@ -16,7 +16,7 @@ Entity Entity::create()
 
     if (free_list.empty())
     {
-        e.index = entity_version.size();
+        e.index = static_cast<uint32_t>(entity_version.size());
         e.version = 0;
         entity_version.push_back(0);
     }
@@ -105,7 +105,7 @@ void Entity::destroyAllEntities()
     for (size_t index = 0; index < entity_version.size(); index++)
     {
         if (!(entity_version[index] & destroyed_flag))
-            forced(index, entity_version[index]).destroy();
+            forced(static_cast<uint32_t>(index), entity_version[index]).destroy();
     }
 }
 

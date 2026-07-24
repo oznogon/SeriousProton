@@ -137,7 +137,7 @@ private:
         auto ptr = e.getComponent<T>();
         if (!ptr) return 0;
         if (array_count_func && lua_isinteger(L, -1)) {
-            int index = lua_tointeger(L, -1);
+            int index = static_cast<int>(lua_tointeger(L, -1));
             if (index < 1 || index > array_count_func(*ptr))
                 return 0;
             auto ic = static_cast<IndexedComponent*>(lua_newuserdata(L, sizeof(IndexedComponent)));
@@ -157,7 +157,7 @@ private:
         auto ptr = luaToComponent(L, -3);
         if (!ptr) return 0;
         if (array_count_func && lua_isinteger(L, -2)) {
-            int index = lua_tointeger(L, -2);
+            int index = static_cast<int>(lua_tointeger(L, -2));
             if (index < 1)
                 return 0;
             if (lua_isnil(L, -1)) {
@@ -243,7 +243,7 @@ private:
             lua_pushnil(L);
             while(lua_next(L, -2)) {
                 if (array_count_func && lua_isinteger(L, -2)) {
-                    int index = lua_tointeger(L, -2) - 1;
+                    int index = static_cast<int>(lua_tointeger(L, -2)) - 1;
                     if (index < 0) luaL_error(L, "Cannot assign indexes below 1 on component %s", component_name);
                     if (array_count_func(component) < index + 1)
                         array_resize_func(component, index + 1);

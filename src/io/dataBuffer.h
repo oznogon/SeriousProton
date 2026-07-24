@@ -272,24 +272,24 @@ private:
 
     void writeVLQu64(uint64_t v) {
         if (v >= (1ULL << 63))
-            buffer.push_back((v >> 63) | 0x80);
+            buffer.push_back(static_cast<uint8_t>((v >> 63) | 0x80));
         if (v >= (1ULL << 56))
-            buffer.push_back((v >> 56) | 0x80);
+            buffer.push_back(static_cast<uint8_t>((v >> 56) | 0x80));
         if (v >= (1ULL << 49))
-            buffer.push_back((v >> 49) | 0x80);
+            buffer.push_back(static_cast<uint8_t>((v >> 49) | 0x80));
         if (v >= (1ULL << 42))
-            buffer.push_back((v >> 42) | 0x80);
+            buffer.push_back(static_cast<uint8_t>((v >> 42) | 0x80));
         if (v >= (1ULL << 35))
-            buffer.push_back((v >> 35) | 0x80);
+            buffer.push_back(static_cast<uint8_t>((v >> 35) | 0x80));
         if (v >= (1ULL << 28))
-            buffer.push_back((v >> 28) | 0x80);
+            buffer.push_back(static_cast<uint8_t>((v >> 28) | 0x80));
         if (v >= (1ULL << 21))
-            buffer.push_back((v >> 21) | 0x80);
+            buffer.push_back(static_cast<uint8_t>((v >> 21) | 0x80));
         if (v >= (1ULL << 14))
-            buffer.push_back((v >> 14) | 0x80);
+            buffer.push_back(static_cast<uint8_t>((v >> 14) | 0x80));
         if (v >= (1ULL << 7))
-            buffer.push_back((v >> 7) | 0x80);
-        buffer.push_back((v & 0x7F));
+            buffer.push_back(static_cast<uint8_t>((v >> 7) | 0x80));
+        buffer.push_back(static_cast<uint8_t>((v & 0x7F)));
     }
 
     void writeVLQs(int32_t v) {

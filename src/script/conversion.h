@@ -23,15 +23,15 @@ template<> struct Convert<bool> {
 };
 template<> struct Convert<int> {
     static int toLua(lua_State* L, int value) { lua_pushinteger(L, value); return 1; }
-    static int fromLua(lua_State* L, int idx) { return lua_tointeger(L, idx); }
+    static int fromLua(lua_State* L, int idx) { return static_cast<int>(lua_tointeger(L, idx)); }
 };
 template<> struct Convert<uint32_t> {
-    static int toLua(lua_State* L, uint32_t value) { lua_pushinteger(L, value); return 1; }
-    static int fromLua(lua_State* L, uint32_t idx) { return lua_tointeger(L, idx); }
+    static int toLua(lua_State* L, uint32_t value) { lua_pushinteger(L, static_cast<lua_Integer>(value)); return 1; }
+    static uint32_t fromLua(lua_State* L, int idx) { return static_cast<uint32_t>(lua_tointeger(L, idx)); }
 };
 template<> struct Convert<float> {
     static int toLua(lua_State* L, float value) { lua_pushnumber(L, double(value)); return 1; }
-    static float fromLua(lua_State* L, int idx) { return lua_tonumber(L, idx); }
+    static float fromLua(lua_State* L, int idx) { return static_cast<float>(lua_tonumber(L, idx)); }
 };
 template<> struct Convert<double> {
     static int toLua(lua_State* L, double value) { lua_pushnumber(L, value); return 1; }

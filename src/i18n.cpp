@@ -139,8 +139,8 @@ const string& Catalogue::trn(int n, const string& context, const string& singula
         form = 0;
     if (form > nplurals - 1)
         form = nplurals - 1;
-    if (form > (int)it->second.size() - 1)
-        form = it->second.size() - 1;
+    if (form > static_cast<int>(it->second.size() - 1))
+        form = static_cast<int>(it->second.size() - 1);
 
     return it->second[form];
 }

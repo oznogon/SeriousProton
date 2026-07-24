@@ -10,7 +10,7 @@ template<typename T> std::vector<T> astar(
     std::vector<std::pair<T, float>>(*get_neighbors)(T),
     float(*get_distance)(T, T)) {
 
-    using queueItem = std::pair<int, T>;
+    using queueItem = std::pair<float, T>;
     auto cmp = [](queueItem left, queueItem right) { return left.first > right.first; };
     std::priority_queue<queueItem, std::vector<queueItem>, decltype(cmp)> todo{cmp};
 
@@ -18,7 +18,7 @@ template<typename T> std::vector<T> astar(
     std::unordered_map<T, T> came_from;
     cost_so_far[start] = 0;
 
-    todo.push({0, start});
+    todo.push({0.0f, start});
     while(!todo.empty()) {
         auto [priority, position] = todo.top();
         todo.pop();

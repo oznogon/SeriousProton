@@ -74,7 +74,7 @@ class MultiplayerReplication {
 public:
     template<typename T> static void registerComponentReplication() {
         auto t = new T();
-        t->component_index = list.size();
+        t->component_index = static_cast<uint16_t>(list.size());
         list.push_back(t);
     }
 
