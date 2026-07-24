@@ -156,6 +156,11 @@ TcpSocket::~TcpSocket()
     close();
 }
 
+void TcpSocket::setSSLVerify(bool enabled)
+{
+    ssl_verify = enabled;
+}
+
 bool TcpSocket::connect(const Address& host, int port)
 {
     if (handle != INVALID_SOCKET)
@@ -220,9 +225,9 @@ bool TcpSocket::connectSSL(const Address& host, int port)
         close();
         return false;
     }
-    if (SSL_get_verify_result(static_cast<SSL*>(ssl_handle)) != 0)
+    if (ssl_verify && SSL_get_verify_result(static_cast<SSL*>(ssl_handle)) != 0)
     {
-        LOG(Warning, "Failed to connect SSL socket due to certificate verfication failure.");
+        LOG(Warning, "Failed to connect SSL socket due to certificate verification failure.");
         close();
         return false;
     }

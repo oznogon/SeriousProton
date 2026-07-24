@@ -1,4 +1,5 @@
 #include <io/http/request.h>
+#include <logging.h>
 
 #ifdef EMSCRIPTEN
 #include <emscripten.h>
@@ -19,6 +20,11 @@ void Request::setHeader(const string& key, const string& value)
     headers[key] = value;
     if (key == "Host")
         socket.close();
+}
+
+void Request::setSSLVerify(bool enabled)
+{
+    socket.setSSLVerify(enabled);
 }
 
 Request::Response Request::get(const string& path)
@@ -99,9 +105,13 @@ Request::Response Request::request(const string& method, const string& path, con
     }
     request += "\r\n";
 
+    LOG(Debug, "[HTTP] Sending request:\n", request);
+
     socket.send(request.data(), request.length());
     if (data.length() > 0)
         socket.send(data.data(), data.length());
+
+    LOG(Debug, "[HTTP] Request sent, waiting for response...");
 
     char receive_buffer[4096];
     auto received_size = socket.receive(receive_buffer, sizeof(receive_buffer));
@@ -115,6 +125,7 @@ Request::Response Request::request(const string& method, const string& path, con
     }
 
     std::vector<string> response_line = received_data.substr(0, received_data.find("\r\n")).split(" ");
+    LOG(Debug, "[HTTP] Response: ", received_data.substr(0, received_data.find("\r\n")));
     received_data = received_data.substr(received_data.find("\r\n") + 2);
 
     for(auto& header_line : received_data.substr(0, received_data.find("\r\n\r\n")).split("\r\n"))

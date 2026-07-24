@@ -20,7 +20,10 @@ public:
 
     bool connect(const Address& host, int port);
     bool connectSSL(const Address& host, int port);
-    void setDelay(bool delay); //Enable of disable the NO_DELAY/Nagle algorithm, allowing for less latency at the cost of more packets.
+    // Toggle the NO_DELAY/Nagle algorithm, allowing for less latency at the
+    // cost of more packets.
+    void setDelay(bool delay);
+    void setSSLVerify(bool enabled);
     virtual void close() override;
 
     virtual State getState() override;
@@ -32,6 +35,7 @@ protected:
 private:
     void* ssl_handle;
     bool connecting = false;
+    bool ssl_verify = true;
 
     friend class TcpListener;
 };

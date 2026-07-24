@@ -30,6 +30,7 @@ public:
     Request(const string& hostname, int port=80, Scheme scheme=Scheme::Auto);
 
     void setHeader(const string& key, const string& value);
+    void setSSLVerify(bool enabled);
 
     Response get(const string& path);
     Response post(const string& path, const string& data);
