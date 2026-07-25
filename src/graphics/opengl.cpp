@@ -101,27 +101,31 @@ void initOpenGL()
     if (init_done) return;
     init_done = true;
 
+    // Log OpenGL context version.
     int major = 0, minor = 0;
     int profile_mask = 0;
     SDL_GL_GetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, &major);
     SDL_GL_GetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, &minor);
     SDL_GL_GetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, &profile_mask);
-    LOG(Info, "OpenGL context version: ", major, ".", minor, "(profile:", profile_mask, ")");
-
     gl::contextIsES = profile_mask == SDL_GL_CONTEXT_PROFILE_ES;
+
     if (gl::contextIsES)
     {
+        LOG(Info, "OpenGL ES context version: ", major, ".", minor, " (profile: ", profile_mask, ")");
+
         if (!gladLoadGLES2Loader(&SDL_GL_GetProcAddress))
         {
-            LOG(Error, "Failed to initialize OpenGL functions...");
+            LOG(Error, "Failed to initialize OpenGL ES functions.");
             exit(1);
         }
     }
     else
     {
+        LOG(Info, "OpenGL context version: ", major, ".", minor, " (profile: ", profile_mask, ")");
+
         if (!gladLoadGLLoader(&SDL_GL_GetProcAddress))
         {
-            LOG(Error, "Failed to initialize OpenGL functions...");
+            LOG(Error, "Failed to initialize OpenGL functions.");
             exit(1);
         }
     }

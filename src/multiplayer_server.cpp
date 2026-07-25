@@ -121,7 +121,7 @@ void GameServer::connectToProxy(sp::io::network::Address address, int port)
         info.socket->send(packet);
     }
     LOG(Info, "New proxy connection: ", info.client_id, " waiting for authentication");
-    clientList.push_back(std::move(info));
+    client_list.push_back(std::move(info));
 }
 
 void GameServer::destroy()
@@ -137,7 +137,7 @@ void GameServer::destroy()
         master_server_update_thread.join();
     }
 
-    clientList.clear();
+    client_list.clear();
     objectMap.clear();
 
     listen_socket.close();
@@ -198,7 +198,7 @@ void GameServer::update(float /*gameDelta*/)
         }
     }
     //  For each component type, check which components are added/changed/deleted and send that over.
-    if (!clientList.empty()) {
+    if (!client_list.empty()) {
         for(auto& ecsrb : sp::ecs::MultiplayerReplication::list) {
             auto pre_size = ecs_packet.getDataSize();
             ecsrb->update(ecs_packet);
@@ -294,12 +294,12 @@ void GameServer::update(float /*gameDelta*/)
         newClientConnection(std::move(steam_socket));
 #endif
 
-    for(unsigned int n=0; n<clientList.size(); n++)
+    for(unsigned int n=0; n<client_list.size(); n++)
     {
         sp::io::DataBuffer packet;
-        while(clientList[n].socket && clientList[n].socket->receive(packet))
+        while(client_list[n].socket && client_list[n].socket->receive(packet))
         {
-            switch(clientList[n].receive_state)
+            switch(client_list[n].receive_state)
             {
             case CRS_Auth:
                 {
@@ -308,8 +308,8 @@ void GameServer::update(float /*gameDelta*/)
                     switch(command)
                     {
                     case CMD_SERVER_CONNECT_TO_PROXY:
-                        clientList[n].socket->close();
-                        clientList[n].socket = NULL;
+                        client_list[n].socket->close();
+                        client_list[n].socket = NULL;
                         break;
                     case CMD_REQUEST_AUTH:
                         break;
@@ -323,31 +323,31 @@ void GameServer::update(float /*gameDelta*/)
                             {
                                 if (server_password == "" || client_password == server_password)
                                 {
-                                    clientList[n].receive_state = CRS_Main;
-                                    handleNewClient(clientList[n]);
+                                    client_list[n].receive_state = CRS_Main;
+                                    handleNewClient(client_list[n]);
                                 }else{
                                     //Wrong password, send a new auth request so the client knows the password was not accepted.
                                     sp::io::DataBuffer auth_request_packet;
                                     auth_request_packet << CMD_REQUEST_AUTH << int32_t(version_number) << bool(server_password != "");
-                                    clientList[n].socket->queue(auth_request_packet);
+                                    client_list[n].socket->queue(auth_request_packet);
                                 }
                             }else{
                                 LOG(Error, n, ":Client version mismatch: ", version_number, " != ", client_version);
-                                clientList[n].socket->close();
-                                clientList[n].socket = NULL;
+                                client_list[n].socket->close();
+                                client_list[n].socket = NULL;
                             }
                             break;
                         }
                         break;
                     case CMD_ALIVE_RESP:
                         {
-                            clientList[n].ping = static_cast<int32_t>(clientList[n].round_trip_start_time.get() * 1000.0f);
+                            client_list[n].ping = static_cast<int32_t>(client_list[n].round_trip_start_time.get() * 1000.0f);
                         }
                         break;
                     default:
                         LOG(Error, "Unknown command from client while authenticating: ", command);
-                        clientList[n].socket->close();
-                        clientList[n].socket = NULL;
+                        client_list[n].socket->close();
+                        client_list[n].socket = NULL;
                         break;
                     }
                 }
@@ -362,37 +362,37 @@ void GameServer::update(float /*gameDelta*/)
                         {
                             int32_t temp_id = 0;
                             packet >> temp_id;
-                            handleNewProxy(clientList[n], temp_id);
+                            handleNewProxy(client_list[n], temp_id);
                         }
                         break;
                     case CMD_DEL_PROXY_CLIENT:
                         {
                             int32_t client_id = 0;
                             packet >> client_id;
-                            for(auto id : clientList[n].proxy_ids)
+                            for(auto id : client_list[n].proxy_ids)
                             {
                                 if (id == client_id)
                                 {
                                     onDisconnectClient(client_id);
                                 }
                             }
-                            clientList[n].proxy_ids.erase(std::remove_if(clientList[n].proxy_ids.begin(), clientList[n].proxy_ids.end(), [client_id](int32_t id) {return id == client_id;}), clientList[n].proxy_ids.end());
+                            client_list[n].proxy_ids.erase(std::remove_if(client_list[n].proxy_ids.begin(), client_list[n].proxy_ids.end(), [client_id](int32_t id) {return id == client_id;}), client_list[n].proxy_ids.end());
                         }
                         break;
                     case CMD_CLIENT_COMMAND:
-                        packet >> clientList[n].command_object_id;
-                        clientList[n].command_client_id = clientList[n].client_id;
-                        clientList[n].receive_state = CRS_Command;
+                        packet >> client_list[n].command_object_id;
+                        client_list[n].command_client_id = client_list[n].client_id;
+                        client_list[n].receive_state = CRS_Command;
                         break;
                     case CMD_PROXY_CLIENT_COMMAND:
                         {
                             int32_t client_id = 0;
-                            packet >> clientList[n].command_object_id >> client_id;
-                            clientList[n].command_client_id = clientList[n].client_id;
-                            for(auto id : clientList[n].proxy_ids)
+                            packet >> client_list[n].command_object_id >> client_id;
+                            client_list[n].command_client_id = client_list[n].client_id;
+                            for(auto id : client_list[n].proxy_ids)
                                 if (id == client_id)
-                                    clientList[n].command_client_id = client_id;
-                            clientList[n].receive_state = CRS_Command;
+                                    client_list[n].command_client_id = client_id;
+                            client_list[n].receive_state = CRS_Command;
                         }
                         break;
                     case CMD_AUDIO_COMM_START:
@@ -400,13 +400,13 @@ void GameServer::update(float /*gameDelta*/)
                             int32_t target_identifier = 0;
                             int32_t client_id = 0;
                             packet >> client_id >> target_identifier;
-                            if (client_id == clientList[n].client_id)
+                            if (client_id == client_list[n].client_id)
                             {
                                 startAudio(client_id, target_identifier);
                             }
                             else
                             {
-                                for(auto id : clientList[n].proxy_ids)
+                                for(auto id : client_list[n].proxy_ids)
                                     if (id == client_id)
                                         startAudio(client_id, target_identifier);
                             }
@@ -420,13 +420,13 @@ void GameServer::update(float /*gameDelta*/)
 
                             const unsigned char* ptr = reinterpret_cast<const unsigned char*>(packet.getData());
                             ptr += sizeof(int32_t) + sizeof(command_t);
-                            if (client_id == clientList[n].client_id)
+                            if (client_id == client_list[n].client_id)
                             {
                                 gotAudioPacket(client_id, ptr, static_cast<int>(packet.getDataSize()) - sizeof(int32_t) - sizeof(command_t));
                             }
                             else
                             {
-                                for(auto id : clientList[n].proxy_ids)
+                                for(auto id : client_list[n].proxy_ids)
                                     if (id == client_id)
                                         gotAudioPacket(client_id, ptr, static_cast<int>(packet.getDataSize()) - sizeof(int32_t) - sizeof(command_t));
                             }
@@ -436,13 +436,13 @@ void GameServer::update(float /*gameDelta*/)
                         {
                             int32_t client_id;
                             packet >> client_id;
-                            if (client_id == clientList[n].client_id)
+                            if (client_id == client_list[n].client_id)
                             {
                                 stopAudio(client_id);
                             }
                             else
                             {
-                                for(auto id : clientList[n].proxy_ids)
+                                for(auto id : client_list[n].proxy_ids)
                                     if (id == client_id)
                                         stopAudio(client_id);
                             }
@@ -450,14 +450,14 @@ void GameServer::update(float /*gameDelta*/)
                         break;
                     case CMD_ALIVE_RESP:
                         {
-                            clientList[n].ping = static_cast<int32_t>(clientList[n].round_trip_start_time.get() * 1000.0f);
+                            client_list[n].ping = static_cast<int32_t>(client_list[n].round_trip_start_time.get() * 1000.0f);
                         }
                         break;
                     case CMD_ALIVE:
                         {
                             sp::io::DataBuffer response_packet;
                             response_packet << CMD_ALIVE_RESP;
-                            clientList[n].socket->queue(response_packet);
+                            client_list[n].socket->queue(response_packet);
                         }
                         break;
                     default:
@@ -466,23 +466,23 @@ void GameServer::update(float /*gameDelta*/)
                 }
                 break;
             case CRS_Command:
-                if (objectMap.find(clientList[n].command_object_id) != objectMap.end() && objectMap[clientList[n].command_object_id])
-                    objectMap[clientList[n].command_object_id]->onReceiveClientCommand(clientList[n].command_client_id, packet);
-                clientList[n].receive_state = CRS_Main;
+                if (objectMap.find(client_list[n].command_object_id) != objectMap.end() && objectMap[client_list[n].command_object_id])
+                    objectMap[client_list[n].command_object_id]->onReceiveClientCommand(client_list[n].command_client_id, packet);
+                client_list[n].receive_state = CRS_Main;
                 break;
             }
         }
-        if (clientList[n].socket != NULL && engine)
+        if (client_list[n].socket != NULL && engine)
         {
             float now = engine->getElapsedTime();
-            auto& delayed = clientList[n].delayed_packets;
+            auto& delayed = client_list[n].delayed_packets;
             for (auto it = delayed.begin(); it != delayed.end(); )
             {
                 if (it->second <= now)
                 {
                     sp::io::DataBuffer p;
                     p.appendRaw(it->first.data(), it->first.size());
-                    clientList[n].socket->queue(p);
+                    client_list[n].socket->queue(p);
                     it = delayed.erase(it);
                 }
                 else
@@ -490,17 +490,17 @@ void GameServer::update(float /*gameDelta*/)
                     ++it;
                 }
             }
-            clientList[n].socket->sendSendQueue();
+            client_list[n].socket->sendSendQueue();
         }
-        if (clientList[n].socket == NULL || clientList[n].socket->getState() == sp::io::network::StreamSocket::State::Closed)
+        if (client_list[n].socket == NULL || client_list[n].socket->getState() == sp::io::network::StreamSocket::State::Closed)
         {
-            if (clientList[n].socket)
+            if (client_list[n].socket)
             {
-                for(auto id : clientList[n].proxy_ids)
+                for(auto id : client_list[n].proxy_ids)
                     onDisconnectClient(id);
-                onDisconnectClient(clientList[n].client_id);
+                onDisconnectClient(client_list[n].client_id);
             }
-            clientList.erase(clientList.begin() + n);
+            client_list.erase(client_list.begin() + n);
             n--;
         }
     }
@@ -527,7 +527,7 @@ void GameServer::update(float /*gameDelta*/)
 int GameServer::getClientCount()
 {
     int count = 0;
-    for (auto& client : clientList)
+    for (auto& client : client_list)
         if (client.receive_state == CRS_Main) count++;
 
     return count;
@@ -536,7 +536,7 @@ int GameServer::getClientCount()
 std::vector<std::pair<int32_t, int32_t>> GameServer::getClientPings()
 {
     std::vector<std::pair<int32_t, int32_t>> result;
-    for (auto& client : clientList)
+    for (auto& client : client_list)
     {
         if (client.receive_state == CRS_Main)
             result.push_back({client.client_id, client.ping});
@@ -636,7 +636,7 @@ void GameServer::handleBroadcastUDPSocket(float delta)
     {
         // We do not care about what we received. Reply that we live!
         sp::io::DataBuffer sendPacket;
-        sendPacket << int32_t(multiplayerVerficationNumber) << int32_t(version_number) << server_name;
+        sendPacket << int32_t(MULTIPLAYER_VERIFICATION_NUMBER) << int32_t(version_number) << server_name;
         broadcast_listen_socket.send(sendPacket, recvAddress, recvPort);
     }
 
@@ -647,7 +647,7 @@ void GameServer::handleBroadcastUDPSocket(float delta)
         broadcast_server_delay = 5.0f;
 
         sp::io::DataBuffer sendPacket;
-        sendPacket << int32_t(multiplayerVerficationNumber) << int32_t(version_number) << server_name;
+        sendPacket << int32_t(MULTIPLAYER_VERIFICATION_NUMBER) << int32_t(version_number) << server_name;
         broadcast_listen_socket.sendMulticast(sendPacket, 666, listen_port + 1);
         broadcast_listen_socket.sendBroadcast(sendPacket, listen_port + 1);
     }
@@ -666,7 +666,7 @@ void GameServer::newClientConnection(std::unique_ptr<sp::io::network::StreamSock
         info.socket->queue(packet);
     }
     LOG(Info, "New connection ", info.client_id, " is waiting for authentication");
-    clientList.push_back(std::move(info));
+    client_list.push_back(std::move(info));
 }
 
 void GameServer::registerObject(P<MultiplayerObject> obj)
@@ -715,7 +715,7 @@ void GameServer::keepAliveAll()
     sp::io::DataBuffer packet;
     packet << CMD_ALIVE;
     sendDataCounterPerClient += packet.getDataSize();
-    for (auto& client : clientList)
+    for (auto& client : client_list)
     {
         if (client.socket)
         {
@@ -728,7 +728,7 @@ void GameServer::keepAliveAll()
 void GameServer::sendAll(sp::io::DataBuffer& packet)
 {
     sendDataCounterPerClient += packet.getDataSize();
-    for (auto& client : clientList)
+    for (auto& client : client_list)
     {
         if (client.receive_state != CRS_Auth && client.socket)
         {
@@ -870,7 +870,7 @@ void GameServer::sendAudioPacketFrom(int32_t client_id, sp::io::DataBuffer& pack
     if (it == voice_targets.end()) return;
 
     auto& ids = it->second;
-    for (auto& client : clientList)
+    for (auto& client : client_list)
     {
         if (client.receive_state != CRS_Auth && client.socket)
         {
@@ -901,7 +901,7 @@ std::unordered_set<int32_t> GameServer::onVoiceChat(int32_t client_id, int32_t /
     std::unordered_set<int32_t> result;
     if (client_id != 0) result.insert(0);
 
-    for (auto& client : clientList)
+    for (auto& client : client_list)
     {
         if (client.receive_state != CRS_Auth)
         {
@@ -1025,7 +1025,7 @@ void GameServer::registerOnProxyRegistry(string registry_url, string password)
             connectToProxy(sp::io::network::Address(proxy_host), proxy_port);
             bool connected = false;
 
-            for (auto& ci : clientList)
+            for (auto& ci : client_list)
             {
                 if (ci.socket && ci.receive_state == CRS_Auth)
                 {

@@ -1,21 +1,17 @@
+#include "soundManager.h"
+#include "vectorUtils.h"
+#include "resources.h"
+#include "random.h"
 #include <stdio.h>
 #include <string.h>
 #include <iostream>
 #include <iomanip>
 #include <sstream>
 
-#include "vectorUtils.h"
-#include "resources.h"
-#include "soundManager.h"
-#include "random.h"
-
 SoundManager* soundManager;
 
 SoundManager::SoundManager()
 {
-    master_sound_volume = 1.0f;
-    music_volume = 1.0f;
-    positional_sound_enabled = false;
     music_channel.mode = None;
 }
 
@@ -34,8 +30,7 @@ void SoundManager::playMusicSet(const std::vector<string>& filenames)
     music_set = filenames;
     if (music_set.size() > 0)
         startMusic(music_set[irandom(0, static_cast<int>(music_set.size()) - 1)], false);
-    else
-        stopMusic();
+    else stopMusic();
 }
 
 void SoundManager::stopMusic()
@@ -61,21 +56,16 @@ float SoundManager::getMusicVolume()
 
 void SoundManager::stopSound(int index)
 {
-    if (index < 0 || index >= int(active_sound_list.size()))
-        return;
+    if (index < 0 || index >= int(active_sound_list.size())) return;
+
     auto& sound = active_sound_list[index];
-    if (sound.playback.isPlaying())
-    {
-        sound.playback.stop();
-    }
+    if (sound.playback.isPlaying()) sound.playback.stop();
 }
 
 void SoundManager::setMasterSoundVolume(float volume)
 {
     if (volume != master_sound_volume * 100.0f)
-    {
         master_sound_volume = std::clamp(volume / 100.0f, 0.0f, 1.0f);
-    }
 }
 
 float SoundManager::getMasterSoundVolume()
@@ -95,8 +85,8 @@ void SoundManager::setSoundVolume(int index, float volume)
 
 void SoundManager::setSoundPitch(int index, float pitch)
 {
-    if (index < 0 || index >= int(active_sound_list.size()))
-        return;
+    if (index < 0 || index >= int(active_sound_list.size())) return;
+
     auto& sound = active_sound_list[index];
     if (sound.playback.isPlaying())
     {
@@ -109,8 +99,7 @@ void SoundManager::setSoundPitch(int index, float pitch)
 int SoundManager::playSound(string name, float pitch, float volume, bool loop)
 {
     auto data = sound_map[name];
-    if (data == nullptr)
-        data = loadSound(name);
+    if (data == nullptr) data = loadSound(name);
 
     // Return the sound's index in activeSoundList[].
     // Returns -1 if the list was full of playing sounds.
@@ -131,15 +120,15 @@ void SoundManager::disablePositionalSound()
 
 int SoundManager::playSound(string name, glm::vec2 position, float min_distance, float attenuation, float pitch, float volume, bool loop)
 {
-    if (!positional_sound_enabled)
-        return -1;
-    auto* data = sound_map[name];
-    if (data == nullptr)
-        data = loadSound(name);
-    if (data->getChannelCount() > 1)
-        LOG(WARNING) << name << ": Used as positional sound but has more than 1 channel.";
+    if (!positional_sound_enabled) return -1;
 
-    for(unsigned int n = 0; n < active_sound_list.size(); n++)
+    auto* data = sound_map[name];
+    if (data == nullptr) data = loadSound(name);
+
+    if (data->getChannelCount() > 1)
+        LOG(Warning, "[sound] ", name, " used as positional sound but has more than 1 channel.");
+
+    for (unsigned int n = 0; n < active_sound_list.size(); n++)
     {
         auto& sound = active_sound_list[n];
         if (!sound.playback.isPlaying())
@@ -162,7 +151,7 @@ int SoundManager::playSound(string name, glm::vec2 position, float min_distance,
 
 int SoundManager::playSoundData(sp::audio::Sound* data, float pitch, float volume, bool loop)
 {
-    for(unsigned int n = 0; n < active_sound_list.size(); n++)
+    for (unsigned int n = 0; n < active_sound_list.size(); n++)
     {
         auto& sound = active_sound_list[n];
         if (!sound.playback.isPlaying())
@@ -172,7 +161,7 @@ int SoundManager::playSoundData(sp::audio::Sound* data, float pitch, float volum
             updateChannelVolume(sound);
             sound.playback.setPitch(pitch);
             sound.playback.play(*data, loop);
-            return int(n);
+            return static_cast<int>(n);
         }
     }
 
@@ -183,19 +172,18 @@ int SoundManager::playSoundData(sp::audio::Sound* data, float pitch, float volum
 sp::audio::Sound* SoundManager::loadSound(const string& name)
 {
     auto data = sound_map[name];
-    if (data)
-        return data;
+    if (data) return data;
 
     data = new sp::audio::Sound(name);
 
     if (data->getChannelCount() == 0)
     {
-        LOG(Warning, "Failed to load sound: ", name);
+        LOG(Warning, "[sound] Failed to load sound: ", name);
         sound_map[name] = data;
         return data;
     }
 
-    LOG(Info, "Loaded: ", name, " of ", data->getDuration(), " seconds");
+    LOG(Info, "[sound] Loaded: ", name, ", duration: ", data->getDuration(), " seconds");
     sound_map[name] = data;
     return data;
 }

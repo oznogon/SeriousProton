@@ -1,23 +1,23 @@
-#ifndef MULTIPLAYER_SERVER_SCANER_H
-#define MULTIPLAYER_SERVER_SCANER_H
+#pragma once
 
-#include <functional>
 #include "multiplayer_server.h"
+#include <functional>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
 
-
-//Class to find all servers that have the correct version number. Creates a big nice list.
+// Class to find all servers that have the correct version number. Creates a big nice list.
 class ServerScanner : public Updatable
 {
 public:
-    enum class ServerType {
+    enum class ServerType
+    {
         Manual,
         LAN,
         MasterServer,
         SteamFriend,
     };
+
     struct ServerInfo
     {
         ServerType type;
@@ -28,7 +28,7 @@ public:
         sp::SystemTimer timeout;
     };
 
-    ServerScanner(int version_number, int server_port = defaultServerPort);
+    ServerScanner(int version_number, int server_port = DEFAULT_SERVER_PORT);
     virtual ~ServerScanner();
 
     virtual void destroy() override;
@@ -52,8 +52,8 @@ private:
 
     std::vector<ServerInfo> server_list;
     int version_number;
-    constexpr static float BroadcastTimeout = 2.0f;
-    constexpr static float ServerTimeout = 30.0f;
+    constexpr static float BROADCAST_TIMEOUT = 2.0f;
+    constexpr static float SERVER_TIMEOUT = 30.0f;
 
     string master_server_url;
     std::mutex master_server_list_mutex;
@@ -64,5 +64,3 @@ private:
     std::function<void(const ServerInfo&)> newServerCallback;
     std::function<void(const ServerInfo&)> removedServerCallback;
 };
-
-#endif//MULTIPLAYER_SERVER_SCANER_H
