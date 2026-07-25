@@ -100,10 +100,12 @@ TcpSocket::~TcpSocket()
     close();
 }
 
+#ifdef HAVE_OPENSSL
 void TcpSocket::setSSLVerify(bool enabled)
 {
     ssl_verify = enabled;
 }
+#endif
 
 bool TcpSocket::connect(const Address& host, int port)
 {
