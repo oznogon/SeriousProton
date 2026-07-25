@@ -1,5 +1,4 @@
-#ifndef MULTIPLAYER_SERVER_H
-#define MULTIPLAYER_SERVER_H
+#pragma once
 
 #include "io/network/udpSocket.h"
 #include "io/network/tcpSocket.h"
@@ -20,9 +19,9 @@
 #include <atomic>
 #include <functional>
 
-
-static const int defaultServerPort = 35666;
-static const int multiplayerVerficationNumber = 0x2fab3f0f; //Used to verify that the server is actually a serious proton server
+static const int DEFAULT_SERVER_PORT = 35666;
+// Key to verify that the server is a SeriousProton server.
+static const int MULTIPLAYER_VERIFICATION_NUMBER = 0x2fab3f0f;
 
 class GameServer;
 class MultiplayerObject;
@@ -89,7 +88,7 @@ private:
         std::vector<std::pair<std::vector<uint8_t>, float>> delayed_packets;
     };
     int32_t nextclient_id;
-    std::vector<ClientInfo> clientList;
+    std::vector<ClientInfo> client_list;
     std::unordered_map<int32_t, std::unordered_set<int32_t>> voice_targets;
     NetworkAudioStreamManager audio_stream_manager;
 
@@ -110,10 +109,10 @@ private:
 public:
     bool simulate_high_latency = false;
     bool simulate_random_latency = false;
-    GameServer(string server_name, int versionNumber, int listenPort = defaultServerPort);
+    GameServer(string server_name, int versionNumber, int listenPort = DEFAULT_SERVER_PORT);
     virtual ~GameServer();
 
-    void connectToProxy(sp::io::network::Address address, int port = defaultServerPort);
+    void connectToProxy(sp::io::network::Address address, int port = DEFAULT_SERVER_PORT);
 
     virtual void destroy() override;
 
@@ -168,5 +167,3 @@ public:
     virtual void onDisconnectClient(int32_t client_id) {}
     virtual std::unordered_set<int32_t> onVoiceChat(int32_t client_id, int32_t target_identifier);
 };
-
-#endif//MULTIPLAYER_SERVER_H

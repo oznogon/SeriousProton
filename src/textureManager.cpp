@@ -70,14 +70,13 @@ sp::Texture* TextureManager::loadTexture(const string& name)
         if (!stream)
         {
             stream = getResourceStream(name);
-            if (!stream)
-                stream = getResourceStream(string(name) + ".png");
+            if (!stream) stream = getResourceStream(string(name) + ".png");
             image.loadFromStream(stream);
         }
 
         if (image.getSize().x == 0 || image.getSize().y == 0)
         {
-            LOG(WARNING) << "Failed to load texture: " << name;
+            LOG(Warning, "[teimagexture] Failed to load texture: ", name);
             image = sp::Image({ 8, 8 }, { 255, 0, 255, 128 });
         }
 
@@ -88,6 +87,6 @@ sp::Texture* TextureManager::loadTexture(const string& name)
     texture->setSmooth(defaultSmooth);
 
     textureMap[name] = texture.get();
-    LOG(INFO) << "Loaded: " << name;
+    LOG(Info, "[texture] Loaded: ", name);
     return texture.release();
 }

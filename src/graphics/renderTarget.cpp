@@ -1,19 +1,19 @@
 #include "graphics/renderTarget.h"
-#include "graphics/textureAtlas.h"
 #include "textureManager.h"
 #include "windowManager.h"
 #include "engine.h"
+#include "vectorUtils.h"
 
+#include "graphics/textureAtlas.h"
 #include "graphics/ktx2texture.h"
 #include "graphics/opengl.h"
 #include "graphics/shader.h"
-#include "vectorUtils.h"
+
 #include <glm/gtc/type_ptr.hpp>
 #include <variant>
 #include <array>
 
 #include <SDL3/SDL.h>
-
 
 namespace sp {
 
@@ -75,11 +75,9 @@ static glm::ivec2 computeAtlasSize()
         desired = 4096;
     else if (atlas_size_mode == RenderTarget::AtlasSizeMode::Force2K)
         desired = 2048;
-    else
-        desired = std::min(max_tex, 4096);
+    else desired = std::min(max_tex, 4096);
     int size = 2048;
-    while (size * 2 <= desired && size * 2 <= max_tex)
-        size *= 2;
+    while (size * 2 <= desired && size * 2 <= max_tex) size *= 2;
     return {size, size};
 }
 
@@ -93,7 +91,10 @@ static glm::vec2 getAtlasWhitePixel()
 {
     static glm::vec2 white_pixel = []{
         auto size = getAtlasSize();
-        return glm::vec2{(float(size.x)-0.5f)/float(size.x), (float(size.y)-0.5f)/float(size.y)};
+        return glm::vec2{
+            (static_cast<float>(size.x) - 0.5f) / static_cast<float>(size.x),
+            (static_cast<float>(size.y) - 0.5f) / static_cast<float>(size.y)
+        };
     }();
     return white_pixel;
 }
@@ -103,12 +104,10 @@ static int getFontPixelSize()
     return getAtlasSize().x >= 4096 ? 64 : 32;
 }
 
-
 static ImageInfo getTextureInfo(std::string_view texture)
 {
     auto it = image_info.find(texture);
-    if (it != image_info.end())
-        return it->second;
+    if (it != image_info.end()) return it->second;
 
     P<ResourceStream> stream;
     // filename variants:
@@ -118,17 +117,12 @@ static ImageInfo getTextureInfo(std::string_view texture)
     //  name.notanext.ext
     // Attempt to load the best version.
     auto last_dot = texture.find_last_of('.');
+    // Extension found, try and substitute it.
     if (last_dot != std::string::npos)
-    {
-        // Extension found, try and substitute it.
         stream = getResourceStream(string(texture.substr(0, static_cast<uint32_t>(last_dot))) + ".ktx2");
-    }
 
-    if (!stream)
-    {
-        // No extension, or substitution failed (maybe it wasn't an extension), blindly add it.
-        stream = getResourceStream(string(texture) + ".ktx2");
-    }
+    // No extension, or substitution failed (maybe it wasn't an extension), blindly add it.
+    if (!stream) stream = getResourceStream(string(texture) + ".ktx2");
 
     glm::ivec2 atlas_threshold = getAtlasSize().x >= 4096 ? glm::ivec2{256, 256} : glm::ivec2{128, 128};
     KTX2Texture ktxtexture;
@@ -143,28 +137,21 @@ static ImageInfo getTextureInfo(std::string_view texture)
                 auto mip_level = std::min(textureManager.getBaseMipLevel(), ktxtexture.getMipCount() - 1);
                 size = ktxtexture.getSize(mip_level);
                 auto gltexture = ktxtexture.toTexture(mip_level);
+
                 if (gltexture)
                 {
-                    LOG(Info, "Loaded ", texture.data(), " (ktx2)");
+                    LOG(Info, "[ktx2] Loaded ", texture.data());
                     image_info[texture] = { gltexture.get(), size, {0.0f, 0.0f, 1.0f, 1.0f} };
                     return { gltexture.release(), size, {0.0f, 0.0f, 1.0f, 1.0f} };
                 }
-                else
-                {
-                    LOG(Warning, "[ktx2]: ", texture.data(), " failed to load into texture.");
-                }
+                else LOG(Warning, "[ktx2] ", texture.data(), " failed to load into texture.");
             }
             else if (auto to_image = ktxtexture.toImage(); to_image.has_value())
-            {
                 image = std::move(to_image.value());
-            }
             else
-                LOG(Warning, "[ktx2]: ", texture.data(), " failed to load into image.");
+                LOG(Warning, "[ktx2] ", texture.data(), " failed to load into image.");
         }
-        else
-        {
-            LOG(Warning, "[ktx2]: ", texture.data(), " failed to read stream.");
-        }
+        else LOG(Warning, "[ktx2] ", texture.data(), " failed to read stream.");
 
         // failed to load from the KTX2 file - fallback on image.
         stream = nullptr;
@@ -173,15 +160,14 @@ static ImageInfo getTextureInfo(std::string_view texture)
     if (!stream)
     {
         stream = getResourceStream(texture);
-        if (!stream)
-            stream = getResourceStream(string(texture) + ".png");
+        if (!stream) stream = getResourceStream(string(texture) + ".png");
         image.loadFromStream(stream);
     }
 
     auto size = image.getSize();
     if (size.x > atlas_threshold.x || size.y > atlas_threshold.y)
     {
-        LOG(Info, "Loaded ", string(texture));
+        LOG(Info, "[atlas] Loaded ", string(texture));
         auto gltexture = new sp::BasicTexture(image);
         image_info[texture] = {gltexture, size, {0.0f, 0.0f, 1.0f, 1.0f}};
         return {gltexture, size, {0.0f, 0.0f, 1.0f, 1.0f}};
@@ -189,7 +175,7 @@ static ImageInfo getTextureInfo(std::string_view texture)
 
     Rect uv_rect = atlas_texture->add(std::move(image), 1);
     image_info[texture] = {nullptr, size, uv_rect};
-    LOG(Debug, "Added ", string(texture), " to atlas@", uv_rect.position, " ", uv_rect.size, "  ", atlas_texture->usageRate() * 100.0f, "%");
+    LOG(Debug, "[atlas] Added ", string(texture), " to atlas@", uv_rect.position, " ", uv_rect.size, "  ", atlas_texture->usageRate() * 100.0f, "%");
     return {nullptr, size, uv_rect};
 }
 
@@ -258,8 +244,8 @@ void main()
     shader->bind();
 
     glm::mat3 project_matrix{1.0f};
-    project_matrix[0][0] = 2.0f / float(virtual_size.x);
-    project_matrix[1][1] = -2.0f / float(virtual_size.y);
+    project_matrix[0][0] = 2.0f / static_cast<float>(virtual_size.x);
+    project_matrix[1][1] = -2.0f / static_cast<float>(virtual_size.y);
     project_matrix[2][0] = -1.0f;
     project_matrix[2][1] = 1.0f;
     glUniformMatrix3fv(shader->getUniformLocation("u_projection"), 1, GL_FALSE, glm::value_ptr(project_matrix));
@@ -267,8 +253,7 @@ void main()
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    if (!atlas_texture)
-        atlas_texture = new AtlasTexture(getAtlasSize());
+    if (!atlas_texture) atlas_texture = new AtlasTexture(getAtlasSize());
 }
 
 void RenderTarget::setDefaultFont(sp::Font* font)
@@ -285,15 +270,17 @@ void RenderTarget::setAtlasSizeMode(AtlasSizeMode mode)
 {
     if (atlas_texture)
     {
-        LOG(Warning, "Atlas already created, atlas size mode will apply on next restart.");
+        LOG(Warning, "[atlas] Atlas already created. Atlas size mode will apply on next restart.");
         return;
     }
+
     if (mode == AtlasSizeMode::Force4K && sp::gl::max_texture_size < 4096)
     {
-        LOG(Warning, "4K atlas not supported (GL_MAX_TEXTURE_SIZE=", sp::gl::max_texture_size, "), falling back to Automatic.");
+        LOG(Warning, "[atlas] 4K atlas not supported (GL_MAX_TEXTURE_SIZE=", sp::gl::max_texture_size, "), falling back to Automatic.");
         atlas_size_mode = AtlasSizeMode::Automatic;
         return;
     }
+
     atlas_size_mode = mode;
 }
 
@@ -319,8 +306,7 @@ glm::ivec2 RenderTarget::getAtlasTextureSize()
 
 float RenderTarget::getAtlasUsageRate()
 {
-    if (atlas_texture)
-        return atlas_texture->usageRate();
+    if (atlas_texture) return atlas_texture->usageRate();
     return 0.0f;
 }
 
@@ -331,8 +317,8 @@ void RenderTarget::drawAtlasTexture(sp::Rect rect)
 
     auto n = vertex_data.size();
     index_data.insert(index_data.end(), {
-        uint16_t(n), uint16_t(n + 1), uint16_t(n + 2),
-        uint16_t(n + 1), uint16_t(n + 3), uint16_t(n + 2),
+        static_cast<uint16_t>(n), static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 2),
+        static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 3), static_cast<uint16_t>(n + 2),
     });
 
     glm::u8vec4 color{255, 255, 255, 255};
@@ -362,8 +348,8 @@ void RenderTarget::drawSprite(std::string_view texture, glm::vec2 center, float 
 
     auto n = vertex_data.size();
     index_data.insert(index_data.end(), {
-        uint16_t(n), uint16_t(n + 1), uint16_t(n + 2),
-        uint16_t(n + 1), uint16_t(n + 3), uint16_t(n + 2),
+        static_cast<uint16_t>(n), static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 2),
+        static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 3), static_cast<uint16_t>(n + 2),
     });
     size *= 0.5f;
     glm::vec2 offset{size / static_cast<float>(info.size.y) * static_cast<float>(info.size.x), size};
@@ -380,14 +366,12 @@ void RenderTarget::drawSprite(std::string_view texture, glm::vec2 center, float 
         {center.x + offset.x, center.y + offset.y},
         color, {info.uv_rect.position.x + info.uv_rect.size.x, info.uv_rect.position.y + info.uv_rect.size.y}});
 
-    if (info.texture)
-        finish(info.texture);
+    if (info.texture) finish(info.texture);
 }
 
 void RenderTarget::drawSpriteClipped(std::string_view texture, glm::vec2 center, float size, sp::Rect clip_rect, glm::u8vec4 color)
 {
-    if (clip_rect.size.x < 0 || clip_rect.size.y < 0)
-        return;
+    if (clip_rect.size.x < 0 || clip_rect.size.y < 0) return;
 
     auto info = getTextureInfo(texture);
     if (info.texture || vertex_data.size() >= std::numeric_limits<uint16_t>::max() - 4U)
@@ -395,12 +379,12 @@ void RenderTarget::drawSpriteClipped(std::string_view texture, glm::vec2 center,
 
     auto n = vertex_data.size();
     index_data.insert(index_data.end(), {
-        uint16_t(n), uint16_t(n + 1), uint16_t(n + 2),
-        uint16_t(n + 1), uint16_t(n + 3), uint16_t(n + 2),
+        static_cast<uint16_t>(n), static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 2),
+        static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 3), static_cast<uint16_t>(n + 2),
     });
 
     size *= 0.5f;
-    glm::vec2 offset{size / float(info.size.y) * float(info.size.x), size};
+    glm::vec2 offset{size / static_cast<float>(info.size.y) * static_cast<float>(info.size.x), size};
 
     float x0 = center.x - offset.x;
     float x1 = center.x + offset.x;
@@ -413,67 +397,45 @@ void RenderTarget::drawSpriteClipped(std::string_view texture, glm::vec2 center,
     float v0 = uv_rect.position.y;
     float v1 = uv_rect.position.y + uv_rect.size.y;
 
-    if (x1 < clip_rect.position.x)
-    {
-        return;
-    }
+    if (x1 < clip_rect.position.x) return;
     else if (x0 < clip_rect.position.x)
     {
         u0 = u1 - uv_rect.size.x * (clip_rect.position.x - x1) / (x0 - x1);
         x0 = clip_rect.position.x;
     }
 
-    if (x0 > clip_rect.position.x + clip_rect.size.x)
-    {
-        return;
-    }
+    if (x0 > clip_rect.position.x + clip_rect.size.x) return;
     else if (x1 > clip_rect.position.x + clip_rect.size.x)
     {
         u1 = u0 + uv_rect.size.x * ((clip_rect.position.x + clip_rect.size.x) - x0) / (x1 - x0);
         x1 = clip_rect.position.x + clip_rect.size.x;
     }
 
-    if (y1 < clip_rect.position.y)
-    {
-        return;
-    }
+    if (y1 < clip_rect.position.y) return;
     else if (y0 < clip_rect.position.y)
     {
         v0 = v1 - uv_rect.size.y * (clip_rect.position.y - y1) / (y0 - y1);
         y0 = clip_rect.position.y;
     }
 
-    if (y0 > clip_rect.position.y + clip_rect.size.y)
-    {
-        return;
-    }
+    if (y0 > clip_rect.position.y + clip_rect.size.y) return;
     else if (y1 > clip_rect.position.y + clip_rect.size.y)
     {
         v1 = v0 + uv_rect.size.y * ((clip_rect.position.y + clip_rect.size.y) - y0) / (y1 - y0);
         y1 = clip_rect.position.y + clip_rect.size.y;
     }
 
-    vertex_data.push_back({
-        {x0, y0}, color, {u0, v0}
-    });
-    vertex_data.push_back({
-        {x1, y0}, color, {u1, v0}
-    });
-    vertex_data.push_back({
-        {x0, y1}, color, {u0, v1}
-    });
-    vertex_data.push_back({
-        {x1, y1}, color, {u1, v1}
-    });
+    vertex_data.push_back({{x0, y0}, color, {u0, v0}});
+    vertex_data.push_back({{x1, y0}, color, {u1, v0}});
+    vertex_data.push_back({{x0, y1}, color, {u0, v1}});
+    vertex_data.push_back({{x1, y1}, color, {u1, v1}});
 
-    if (info.texture)
-        finish(info.texture);
+    if (info.texture) finish(info.texture);
 }
 
 void RenderTarget::drawRotatedSprite(std::string_view texture, glm::vec2 center, float size, float rotation, glm::u8vec4 color)
 {
-    if (rotation == 0)
-        return drawSprite(texture, center, size, color);
+    if (rotation == 0) return drawSprite(texture, center, size, color);
     auto info = getTextureInfo(texture);
     if (info.texture || vertex_data.size() >= std::numeric_limits<uint16_t>::max() - 4U)
         finish();
@@ -481,27 +443,32 @@ void RenderTarget::drawRotatedSprite(std::string_view texture, glm::vec2 center,
 
     auto n = vertex_data.size();
     index_data.insert(index_data.end(), {
-        uint16_t(n + 0), uint16_t(n + 1), uint16_t(n + 2),
-        uint16_t(n + 1), uint16_t(n + 3), uint16_t(n + 2),
+        static_cast<uint16_t>(n + 0), static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 2),
+        static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 3), static_cast<uint16_t>(n + 2),
     });
+
     size *= 0.5f;
     glm::vec2 offset0 = rotateVec2({size / uv_rect.size.y * uv_rect.size.x, size}, rotation);
     glm::vec2 offset1{offset0.y, -offset0.x};
+
     vertex_data.push_back({
         center - offset0,
-        color, {uv_rect.position.x, uv_rect.position.y}});
+        color, {uv_rect.position.x, uv_rect.position.y}
+    });
     vertex_data.push_back({
         center - offset1,
-        color, {uv_rect.position.x, uv_rect.position.y + uv_rect.size.y}});
+        color, {uv_rect.position.x, uv_rect.position.y + uv_rect.size.y}
+    });
     vertex_data.push_back({
         center + offset1,
-        color, {uv_rect.position.x + uv_rect.size.x, uv_rect.position.y}});
+        color, {uv_rect.position.x + uv_rect.size.x, uv_rect.position.y}
+    });
     vertex_data.push_back({
         center + offset0,
-        color, {uv_rect.position.x + uv_rect.size.x, uv_rect.position.y + uv_rect.size.y}});
+        color, {uv_rect.position.x + uv_rect.size.x, uv_rect.position.y + uv_rect.size.y}
+    });
 
-    if (info.texture)
-        finish(info.texture);
+    if (info.texture) finish(info.texture);
 }
 
 void RenderTarget::drawRotatedSpriteBlendAdd(std::string_view texture, glm::vec2 center, float size, float rotation)
@@ -521,7 +488,7 @@ void RenderTarget::drawGLLine(glm::vec2 start, glm::vec2 end, glm::u8vec4 color)
     lines_vertex_data.push_back({start, color, getAtlasWhitePixel()});
     lines_vertex_data.push_back({end, color, getAtlasWhitePixel()});
     lines_index_data.insert(lines_index_data.end(), {
-        uint16_t(n), uint16_t(n + 1),
+        static_cast<uint16_t>(n), static_cast<uint16_t>(n + 1),
     });
 }
 
@@ -533,7 +500,7 @@ void RenderTarget::drawGLLine(glm::vec2 start, glm::vec2 end, glm::u8vec4 start_
     lines_vertex_data.push_back({start, start_color, getAtlasWhitePixel()});
     lines_vertex_data.push_back({end, end_color, getAtlasWhitePixel()});
     lines_index_data.insert(lines_index_data.end(), {
-        uint16_t(n), uint16_t(n + 1),
+        static_cast<uint16_t>(n), static_cast<uint16_t>(n + 1),
     });
 }
 
@@ -542,29 +509,32 @@ void RenderTarget::drawGLLine(const std::initializer_list<glm::vec2>& points, gl
     if (lines_index_data.size() >= std::numeric_limits<uint16_t>::max() - points.size())
         finish();
     auto n = lines_vertex_data.size();
-    for(auto& p : points)
+
+    for (auto& p : points)
         lines_vertex_data.push_back({p, color, getAtlasWhitePixel()});
-    for(unsigned int idx=0; idx<points.size() - 1;idx++)
+
+    for (unsigned int idx = 0; idx < points.size() - 1;idx++)
     {
         lines_index_data.insert(lines_index_data.end(), {
-            uint16_t(n + idx), uint16_t(n + idx + 1),
+            static_cast<uint16_t>(n + idx), static_cast<uint16_t>(n + idx + 1),
         });
     }
 }
 
 void RenderTarget::drawGLLine(const std::vector<glm::vec2>& points, glm::u8vec4 color)
 {
-    if (points.size() < 1)
-        return;
+    if (points.size() < 1) return;
     if (lines_index_data.size() >= std::numeric_limits<uint16_t>::max() - points.size())
         finish();
     auto n = lines_vertex_data.size();
-    for(auto& p : points)
+
+    for (auto& p : points)
         lines_vertex_data.push_back({p, color, getAtlasWhitePixel()});
-    for(unsigned int idx=0; idx<points.size() - 1;idx++)
+
+    for (unsigned int idx = 0; idx < points.size() - 1; idx++)
     {
         lines_index_data.insert(lines_index_data.end(), {
-            uint16_t(n + idx), uint16_t(n + idx + 1),
+            static_cast<uint16_t>(n + idx), static_cast<uint16_t>(n + idx + 1),
         });
     }
 }
@@ -575,14 +545,17 @@ void RenderTarget::drawGLLineBlendAdd(const std::vector<glm::vec2>& points, glm:
     finish();
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
     auto n = lines_vertex_data.size();
-    for(auto& p : points)
+
+    for (auto& p : points)
         lines_vertex_data.push_back({p, color, getAtlasWhitePixel()});
-    for(unsigned int idx=0; idx<points.size() - 1;idx++)
+
+    for (unsigned int idx = 0; idx < points.size() - 1; idx++)
     {
         lines_index_data.insert(lines_index_data.end(), {
-            uint16_t(n + idx), uint16_t(n + idx + 1),
+            static_cast<uint16_t>(n + idx), static_cast<uint16_t>(n + idx + 1),
         });
     }
+
     finish();
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
@@ -662,8 +635,8 @@ static void generateLineQuad(
 
     // Quad triangles
     indices.insert(indices.end(), {
-        uint16_t(n + 0), uint16_t(n + 1), uint16_t(n + 2),
-        uint16_t(n + 1), uint16_t(n + 3), uint16_t(n + 2),
+        static_cast<uint16_t>(n + 0), static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 2),
+        static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 3), static_cast<uint16_t>(n + 2),
     });
 }
 
@@ -700,7 +673,7 @@ static void generateBevelJoin(glm::vec2 joint_point, float half_width, glm::vec2
     }
 
     indices.insert(indices.end(), {
-        uint16_t(n), uint16_t(n + 1), uint16_t(n + 2),
+        static_cast<uint16_t>(n), static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 2),
     });
 }
 
@@ -712,6 +685,7 @@ void RenderTarget::drawLine(glm::vec2 start, glm::vec2 end, float width, glm::u8
         drawGLLine(start, end, color);
         return;
     }
+
     drawLine(start, end, width, color, color);
 }
 
@@ -858,64 +832,73 @@ void RenderTarget::drawCircleOutline(glm::vec2 center, float radius, float thick
 void RenderTarget::drawTiled(const sp::Rect& rect, std::string_view texture, glm::vec2 offset)
 {
     auto info = getTextureInfo(texture);
-    if (info.texture)
-        finish();
+    if (info.texture) finish();
 
     glm::vec2 increment = info.size;
     offset.x *= increment.x;
     offset.y *= increment.y;
-    glm::ivec2 tile_count{int((rect.size.x + offset.x) / increment.x) + 1, int((rect.size.y + offset.y) / increment.y) + 1};
-    for(int x=0; x<tile_count.x; x++)
+    glm::ivec2 tile_count{static_cast<int>((rect.size.x + offset.x) / increment.x) + 1, static_cast<int>((rect.size.y + offset.y) / increment.y) + 1};
+    for (int x = 0; x < tile_count.x; x++)
     {
-        for(int y=0; y<tile_count.y; y++)
+        for (int y = 0; y < tile_count.y; y++)
         {
-            if(vertex_data.size() >= std::numeric_limits<uint16_t>::max() - 4)
+            if (vertex_data.size() >= std::numeric_limits<uint16_t>::max() - 4)
             {
-                if (info.texture)
-                    finish(info.texture);
-                else
-                    finish();
+                if (info.texture) finish(info.texture);
+                else finish();
             }
 
             auto n = vertex_data.size();
             index_data.insert(index_data.end(), {
-                uint16_t(n), uint16_t(n + 1), uint16_t(n + 2),
-                uint16_t(n + 1), uint16_t(n + 3), uint16_t(n + 2),
+                static_cast<uint16_t>(n), static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 2),
+                static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 3), static_cast<uint16_t>(n + 2),
             });
+
             glm::vec2 p0 = rect.position + glm::vec2(increment.x * x, increment.y * y) - offset;
             glm::vec2 p1 = rect.position + glm::vec2(increment.x * (x + 1), increment.y * (y + 1)) - offset;
             glm::vec2 uv0 = info.uv_rect.position;
             glm::vec2 uv1 = info.uv_rect.position + info.uv_rect.size;
-            if (p0.x < 0) {
+
+            if (p0.x < 0)
+            {
                 uv0.x += info.uv_rect.size.x * -p0.x / increment.x;
                 p0.x = 0;
             }
-            if (p0.y < 0) {
+
+            if (p0.y < 0)
+            {
                 uv0.y += info.uv_rect.size.y * -p0.y / increment.y;
                 p0.y = 0;
             }
+
             if (p1.x > rect.position.x + rect.size.x)
             {
                 uv1.x -= info.uv_rect.size.x * (p1.x - (rect.position.x + rect.size.x)) / increment.x;
                 p1.x = rect.position.x + rect.size.x;
             }
+
             if (p1.y > rect.position.y + rect.size.y)
             {
                 uv1.y -= info.uv_rect.size.y * (p1.y - (rect.position.y + rect.size.y)) / increment.y;
                 p1.y = rect.position.y + rect.size.y;
             }
+
             vertex_data.push_back({
                 p0, {255, 255, 255, 255},
-                {uv0.x, uv0.y}});
+                {uv0.x, uv0.y}
+            });
             vertex_data.push_back({
                 {p0.x, p1.y}, {255, 255, 255, 255},
-                {uv0.x, uv1.y}});
+                {uv0.x, uv1.y}
+            });
             vertex_data.push_back({
                 {p1.x, p0.y}, {255, 255, 255, 255},
-                {uv1.x, uv0.y}});
+                {uv1.x, uv0.y}
+            });
             vertex_data.push_back({
                 p1, {255, 255, 255, 255},
-                {uv1.x, uv1.y}});
+                {uv1.x, uv1.y}
+            });
         }
     }
 
@@ -929,12 +912,12 @@ void RenderTarget::drawTriangleStrip(const std::initializer_list<glm::vec2>& poi
         finish();
 
     auto n = vertex_data.size();
-    for(auto& p : points)
+    for (auto& p : points)
         vertex_data.push_back({p, color, getAtlasWhitePixel()});
-    for(unsigned int idx=0; idx<points.size() - 2;idx++)
+    for (unsigned int idx = 0; idx < points.size() - 2; idx++)
     {
         index_data.insert(index_data.end(), {
-            uint16_t(n + idx), uint16_t(n + idx + 1), uint16_t(n + idx + 2),
+            static_cast<uint16_t>(n + idx), static_cast<uint16_t>(n + idx + 1), static_cast<uint16_t>(n + idx + 2),
         });
     }
 }
@@ -945,12 +928,14 @@ void RenderTarget::drawTriangleStrip(const std::vector<glm::vec2>& points, glm::
         finish();
 
     auto n = vertex_data.size();
+
     for (auto& p : points)
         vertex_data.push_back({p, color, getAtlasWhitePixel()});
-    for (size_t idx = 0; idx < points.size() - 2 ;idx++)
+
+    for (size_t idx = 0; idx < points.size() - 2; idx++)
     {
         index_data.insert(index_data.end(), {
-            uint16_t(n + idx), uint16_t(n + idx + 1), uint16_t(n + idx + 2),
+            static_cast<uint16_t>(n + idx), static_cast<uint16_t>(n + idx + 1), static_cast<uint16_t>(n + idx + 2),
         });
     }
 }
@@ -980,7 +965,7 @@ void RenderTarget::drawTexturedTriangleStrip(std::string_view texture, const std
     for (size_t idx = 0; idx < points.size() - 2; idx++)
     {
         index_data.insert(index_data.end(), {
-            uint16_t(n + idx), uint16_t(n + idx + 1), uint16_t(n + idx + 2),
+            static_cast<uint16_t>(n + idx), static_cast<uint16_t>(n + idx + 1), static_cast<uint16_t>(n + idx + 2),
         });
     }
 
@@ -994,10 +979,12 @@ void RenderTarget::drawTriangles(const std::vector<glm::vec2>& points, const std
         finish();
 
     auto n = vertex_data.size();
-    for(auto& p : points)
+
+    for (auto& p : points)
         vertex_data.push_back({p, color, getAtlasWhitePixel()});
-    for(auto idx : indices)
-        index_data.push_back(uint16_t(n + idx));
+
+    for (auto idx : indices)
+        index_data.push_back(static_cast<uint16_t>(n + idx));
 }
 
 void RenderTarget::fillCircle(glm::vec2 center, float radius, glm::u8vec4 color, size_t point_count)
@@ -1013,15 +1000,17 @@ void RenderTarget::fillCircle(glm::vec2 center, float radius, glm::u8vec4 color,
         finish();
 
     auto n = vertex_data.size();
+
     for (size_t idx = 0; idx < actual_point_count; idx++)
     {
         float f = static_cast<float>(idx) / static_cast<float>(actual_point_count) * static_cast<float>(M_PI) * 2.0f;
         vertex_data.push_back({center + glm::vec2{std::sin(f) * radius, std::cos(f) * radius}, color, getAtlasWhitePixel()});
     }
+
     for (size_t idx = 2; idx < actual_point_count; idx++)
     {
         index_data.insert(index_data.end(), {
-            uint16_t(n), uint16_t(n + idx - 1), uint16_t(n + idx),
+            static_cast<uint16_t>(n), static_cast<uint16_t>(n + idx - 1), static_cast<uint16_t>(n + idx),
         });
     }
 }
@@ -1053,9 +1042,10 @@ void RenderTarget::fillRect(const sp::Rect& rect, glm::u8vec4 color)
 
     auto n = vertex_data.size();
     index_data.insert(index_data.end(), {
-        uint16_t(n), uint16_t(n + 1), uint16_t(n + 2),
-        uint16_t(n + 1), uint16_t(n + 3), uint16_t(n + 2),
+        static_cast<uint16_t>(n), static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 2),
+        static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 3), static_cast<uint16_t>(n + 2),
     });
+
     vertex_data.push_back({{rect.position.x, rect.position.y}, color, getAtlasWhitePixel()});
     vertex_data.push_back({{rect.position.x, rect.position.y + rect.size.y}, color, getAtlasWhitePixel()});
     vertex_data.push_back({{rect.position.x + rect.size.x, rect.position.y}, color, getAtlasWhitePixel()});
@@ -1073,19 +1063,24 @@ void RenderTarget::drawTexturedQuad(std::string_view texture,
     auto& uv_rect = info.uv_rect;
 
     auto n = vertex_data.size();
+
     index_data.insert(index_data.end(), {
-        uint16_t(n), uint16_t(n + 1), uint16_t(n + 2),
-        uint16_t(n + 1), uint16_t(n + 3), uint16_t(n + 2),
+        static_cast<uint16_t>(n), static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 2),
+        static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 3), static_cast<uint16_t>(n + 2),
     });
 
     vertex_data.push_back({p0, color,
-        {uv_rect.position.x + uv_rect.size.x * uv0.x, uv_rect.position.y + uv_rect.size.y * uv0.y}});
+        {uv_rect.position.x + uv_rect.size.x * uv0.x, uv_rect.position.y + uv_rect.size.y * uv0.y}
+    });
     vertex_data.push_back({p1, color,
-        {uv_rect.position.x + uv_rect.size.x * uv1.x, uv_rect.position.y + uv_rect.size.y * uv1.y}});
+        {uv_rect.position.x + uv_rect.size.x * uv1.x, uv_rect.position.y + uv_rect.size.y * uv1.y}
+    });
     vertex_data.push_back({p3, color,
-        {uv_rect.position.x + uv_rect.size.x * uv3.x, uv_rect.position.y + uv_rect.size.y * uv3.y}});
+        {uv_rect.position.x + uv_rect.size.x * uv3.x, uv_rect.position.y + uv_rect.size.y * uv3.y}
+    });
     vertex_data.push_back({p2, color,
-        {uv_rect.position.x + uv_rect.size.x * uv2.x, uv_rect.position.y + uv_rect.size.y * uv2.y}});
+        {uv_rect.position.x + uv_rect.size.x * uv2.x, uv_rect.position.y + uv_rect.size.y * uv2.y}
+    });
 
     if (info.texture) finish(info.texture);
 }
@@ -1100,7 +1095,7 @@ void RenderTarget::drawText(sp::Rect rect, std::string_view text, Alignment alig
 void RenderTarget::drawText(sp::Rect rect, const sp::Font::PreparedFontString& prepared, int flags)
 {
     auto& ags = atlas_glyphs[prepared.getFont()];
-    for(auto gd : prepared.data)
+    for (auto gd : prepared.data)
     {
         Font::GlyphInfo glyph;
         if (gd.char_code == 0 || !prepared.getFont()->getGlyphInfo(gd.char_code, getFontPixelSize(), glyph))
@@ -1117,13 +1112,11 @@ void RenderTarget::drawText(sp::Rect rect, const sp::Font::PreparedFontString& p
             {
                 uv_rect = atlas_texture->add(prepared.getFont()->drawGlyph(gd.char_code, getFontPixelSize()), 1);
                 ags[gd.char_code] = uv_rect;
-                //LOG(Info, "Added glyph '", char(gd.char_code), "' to atlas@", uv_rect.position, " ", uv_rect.size, "  ", atlas_texture->usageRate() * 100.0f, "%");
+                LOG(Debug, "[atlas] Added font glyph '", char(gd.char_code), "' to atlas@", uv_rect.position, " ", uv_rect.size, "  ", atlas_texture->usageRate() * 100.0f, "%");
             }
-            else
-            {
-                uv_rect = it->second;
-            }
-            float size_scale = gd.size / float(getFontPixelSize());
+            else uv_rect = it->second;
+
+            float size_scale = gd.size / static_cast<float>(getFontPixelSize());
 
             float u0 = uv_rect.position.x;
             float v0 = uv_rect.position.y;
@@ -1133,37 +1126,33 @@ void RenderTarget::drawText(sp::Rect rect, const sp::Font::PreparedFontString& p
             float left = gd.position.x + glyph.bounds.position.x * size_scale;
             float right = left + glyph.bounds.size.x * size_scale;
             // Adjust font baseline if set.
-            float top = gd.position.y - glyph.bounds.position.y * size_scale + (prepared.getFont()->getBaselineOffset() * gd.size / float(getFontPixelSize()));
+            float top = gd.position.y - glyph.bounds.position.y * size_scale + (prepared.getFont()->getBaselineOffset() * gd.size / static_cast<float>(getFontPixelSize()));
             float bottom = top + glyph.bounds.size.y * size_scale;
 
             if (flags & Font::FlagClip)
             {
-                if (right < 0)
-                    continue;
+                if (right < 0) continue;
                 if (left < 0)
                 {
                     u0 = u1 - uv_rect.size.x * (0 - right) / (left - right);
                     left = 0;
                 }
 
-                if (left > rect.size.x)
-                    continue;
+                if (left > rect.size.x) continue;
                 if (right > rect.size.x)
                 {
                     u1 = u0 + uv_rect.size.x * (rect.size.x - left) / (right - left);
                     right = rect.size.x;
                 }
 
-                if (bottom < 0)
-                    continue;
+                if (bottom < 0) continue;
                 if (top < 0)
                 {
                     v0 = v1 - uv_rect.size.y * (0 - bottom) / (top - bottom);
                     top = 0;
                 }
 
-                if (top > rect.size.y)
-                    continue;
+                if (top > rect.size.y) continue;
                 if (bottom > rect.size.y)
                 {
                     v1 = v0 + uv_rect.size.y * (rect.size.y - top) / (bottom - top);
@@ -1194,25 +1183,22 @@ void RenderTarget::drawText(sp::Rect rect, const sp::Font::PreparedFontString& p
 
             auto n = vertex_data.size();
             index_data.insert(index_data.end(), {
-                uint16_t(n + 0), uint16_t(n + 1), uint16_t(n + 2),
-                uint16_t(n + 1), uint16_t(n + 3), uint16_t(n + 2),
+                static_cast<uint16_t>(n + 0), static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 2),
+                static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 3), static_cast<uint16_t>(n + 2),
             });
-            vertex_data.push_back({
-                p0, gd.color, {u0, v0}});
-            vertex_data.push_back({
-                p2, gd.color, {u0, v1}});
-            vertex_data.push_back({
-                p1, gd.color, {u1, v0}});
-            vertex_data.push_back({
-                p3, gd.color, {u1, v1}});
+
+            vertex_data.push_back({p0, gd.color, {u0, v0}});
+            vertex_data.push_back({p2, gd.color, {u0, v1}});
+            vertex_data.push_back({p1, gd.color, {u1, v0}});
+            vertex_data.push_back({p3, gd.color, {u1, v1}});
         }
     }
 }
 
 void RenderTarget::drawRotatedText(glm::vec2 center, float rotation, std::string_view text, float font_size, sp::Font* font, glm::u8vec4 color)
 {
-    if (!font)
-        font = default_font;
+    if (!font) font = default_font;
+
     auto prepared = font->prepare(text, getFontPixelSize(), font_size, color, {0.0f, 0.0f}, sp::Alignment::Center, 0);
 
     auto sin = std::sin(-glm::radians(rotation));
@@ -1220,8 +1206,9 @@ void RenderTarget::drawRotatedText(glm::vec2 center, float rotation, std::string
     glm::mat2 mat{cos, -sin, sin, cos};
 
     auto& ags = atlas_glyphs[prepared.getFont()];
-    float size_scale = font_size / float(getFontPixelSize());
-    for(auto gd : prepared.data)
+    float size_scale = font_size / static_cast<float>(getFontPixelSize());
+
+    for (auto gd : prepared.data)
     {
         Font::GlyphInfo glyph;
         if (gd.char_code == 0 || !prepared.getFont()->getGlyphInfo(gd.char_code, getFontPixelSize(), glyph))
@@ -1238,12 +1225,9 @@ void RenderTarget::drawRotatedText(glm::vec2 center, float rotation, std::string
             {
                 uv_rect = atlas_texture->add(prepared.getFont()->drawGlyph(gd.char_code, getFontPixelSize()), 1);
                 ags[gd.char_code] = uv_rect;
-                LOG(Info, "Added glyph '", char(gd.char_code), "' to atlas@", uv_rect.position, " ", uv_rect.size, "  ", atlas_texture->usageRate() * 100.0f, "%");
+                LOG(Info, "[atlas] Added font glyph '", char(gd.char_code), "' to atlas@", uv_rect.position, " ", uv_rect.size, "  ", atlas_texture->usageRate() * 100.0f, "%");
             }
-            else
-            {
-                uv_rect = it->second;
-            }
+            else uv_rect = it->second;
 
             float u0 = uv_rect.position.x;
             float v0 = uv_rect.position.y;
@@ -1253,7 +1237,7 @@ void RenderTarget::drawRotatedText(glm::vec2 center, float rotation, std::string
             float left = gd.position.x + glyph.bounds.position.x * size_scale;
             float right = left + glyph.bounds.size.x * size_scale;
             // Adjust font baseline if set.
-            float top = gd.position.y - glyph.bounds.position.y * size_scale + (prepared.getFont()->getBaselineOffset() * gd.size / float(getFontPixelSize()));
+            float top = gd.position.y - glyph.bounds.position.y * size_scale + (prepared.getFont()->getBaselineOffset() * gd.size / static_cast<float>(getFontPixelSize()));
             float bottom = top + glyph.bounds.size.y * size_scale;
 
             glm::vec2 p0 = mat * glm::vec2{left, top} + center;
@@ -1266,29 +1250,22 @@ void RenderTarget::drawRotatedText(glm::vec2 center, float rotation, std::string
 
             auto n = vertex_data.size();
             index_data.insert(index_data.end(), {
-                uint16_t(n + 0), uint16_t(n + 1), uint16_t(n + 2),
-                uint16_t(n + 1), uint16_t(n + 3), uint16_t(n + 2),
+                static_cast<uint16_t>(n + 0), static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 2),
+                static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 3), static_cast<uint16_t>(n + 2),
             });
-            vertex_data.push_back({
-                p0, color, {u0, v0}});
-            vertex_data.push_back({
-                p2, color, {u0, v1}});
-            vertex_data.push_back({
-                p1, color, {u1, v0}});
-            vertex_data.push_back({
-                p3, color, {u1, v1}});
+
+            vertex_data.push_back({p0, color, {u0, v0}});
+            vertex_data.push_back({p2, color, {u0, v1}});
+            vertex_data.push_back({p1, color, {u1, v0}});
+            vertex_data.push_back({p3, color, {u1, v1}});
         }
     }
 }
 
 void RenderTarget::drawStretched(sp::Rect rect, std::string_view texture, glm::u8vec4 color)
 {
-    if (rect.size.x >= rect.size.y)
-    {
-        drawStretchedH(rect, texture, color);
-    }else{
-        drawStretchedV(rect, texture, color);
-    }
+    if (rect.size.x >= rect.size.y) drawStretchedH(rect, texture, color);
+    else drawStretchedV(rect, texture, color);
 }
 
 void RenderTarget::drawStretchedH(sp::Rect rect, std::string_view texture, glm::u8vec4 color)
@@ -1298,46 +1275,53 @@ void RenderTarget::drawStretchedH(sp::Rect rect, std::string_view texture, glm::
         finish();
     auto& uv_rect = info.uv_rect;
 
-    float w = rect.size.y / 2.0f;
-    if (w * 2 > rect.size.x)
-        w = rect.size.x / 2.0f;
+    float w = rect.size.y * 0.5f;
+    if (w * 2 > rect.size.x) w = rect.size.x * 0.5f;
 
     auto n = vertex_data.size();
     index_data.insert(index_data.end(), {
-        uint16_t(n + 0), uint16_t(n + 1), uint16_t(n + 2),
-        uint16_t(n + 1), uint16_t(n + 3), uint16_t(n + 2),
-        uint16_t(n + 2), uint16_t(n + 3), uint16_t(n + 4),
-        uint16_t(n + 3), uint16_t(n + 5), uint16_t(n + 4),
-        uint16_t(n + 4), uint16_t(n + 5), uint16_t(n + 6),
-        uint16_t(n + 5), uint16_t(n + 7), uint16_t(n + 6),
+        static_cast<uint16_t>(n + 0), static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 2),
+        static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 3), static_cast<uint16_t>(n + 2),
+        static_cast<uint16_t>(n + 2), static_cast<uint16_t>(n + 3), static_cast<uint16_t>(n + 4),
+        static_cast<uint16_t>(n + 3), static_cast<uint16_t>(n + 5), static_cast<uint16_t>(n + 4),
+        static_cast<uint16_t>(n + 4), static_cast<uint16_t>(n + 5), static_cast<uint16_t>(n + 6),
+        static_cast<uint16_t>(n + 5), static_cast<uint16_t>(n + 7), static_cast<uint16_t>(n + 6),
     });
+
     vertex_data.push_back({
         {rect.position.x, rect.position.y},
-        color, {uv_rect.position.x, uv_rect.position.y}});
+        color, {uv_rect.position.x, uv_rect.position.y}
+    });
     vertex_data.push_back({
         {rect.position.x, rect.position.y + rect.size.y},
-        color, {uv_rect.position.x, uv_rect.position.y + uv_rect.size.y}});
+        color, {uv_rect.position.x, uv_rect.position.y + uv_rect.size.y}
+    });
     vertex_data.push_back({
         {rect.position.x + w, rect.position.y},
-        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y}});
+        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y}
+    });
     vertex_data.push_back({
         {rect.position.x + w, rect.position.y + rect.size.y},
-        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y + uv_rect.size.y}});
+        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y + uv_rect.size.y}
+    });
     vertex_data.push_back({
         {rect.position.x + rect.size.x - w, rect.position.y},
-        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y}});
+        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y}
+    });
     vertex_data.push_back({
         {rect.position.x + rect.size.x - w, rect.position.y + rect.size.y},
-        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y + uv_rect.size.y}});
+        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y + uv_rect.size.y}
+    });
     vertex_data.push_back({
         {rect.position.x + rect.size.x, rect.position.y},
-        color, {uv_rect.position.x + uv_rect.size.x, uv_rect.position.y}});
+        color, {uv_rect.position.x + uv_rect.size.x, uv_rect.position.y}
+    });
     vertex_data.push_back({
         {rect.position.x + rect.size.x, rect.position.y + rect.size.y},
-        color, {uv_rect.position.x + uv_rect.size.x, uv_rect.position.y + uv_rect.size.y}});
+        color, {uv_rect.position.x + uv_rect.size.x, uv_rect.position.y + uv_rect.size.y}
+    });
 
-    if (info.texture)
-        finish(info.texture);
+    if (info.texture) finish(info.texture);
 }
 
 void RenderTarget::drawStretchedV(sp::Rect rect, std::string_view texture, glm::u8vec4 color)
@@ -1347,46 +1331,53 @@ void RenderTarget::drawStretchedV(sp::Rect rect, std::string_view texture, glm::
         finish();
     auto& uv_rect = info.uv_rect;
 
-    float h = rect.size.x / 2.0f;
-    if (h * 2 > rect.size.y)
-        h = rect.size.y / 2.0f;
+    float h = rect.size.x * 0.5f;
+    if (h * 2 > rect.size.y) h = rect.size.y * 0.5f;
 
     auto n = vertex_data.size();
     index_data.insert(index_data.end(), {
-        uint16_t(n + 0), uint16_t(n + 1), uint16_t(n + 2),
-        uint16_t(n + 1), uint16_t(n + 3), uint16_t(n + 2),
-        uint16_t(n + 2), uint16_t(n + 3), uint16_t(n + 4),
-        uint16_t(n + 3), uint16_t(n + 5), uint16_t(n + 4),
-        uint16_t(n + 4), uint16_t(n + 5), uint16_t(n + 6),
-        uint16_t(n + 5), uint16_t(n + 7), uint16_t(n + 6),
+        static_cast<uint16_t>(n + 0), static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 2),
+        static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 3), static_cast<uint16_t>(n + 2),
+        static_cast<uint16_t>(n + 2), static_cast<uint16_t>(n + 3), static_cast<uint16_t>(n + 4),
+        static_cast<uint16_t>(n + 3), static_cast<uint16_t>(n + 5), static_cast<uint16_t>(n + 4),
+        static_cast<uint16_t>(n + 4), static_cast<uint16_t>(n + 5), static_cast<uint16_t>(n + 6),
+        static_cast<uint16_t>(n + 5), static_cast<uint16_t>(n + 7), static_cast<uint16_t>(n + 6),
     });
+
     vertex_data.push_back({
         {rect.position.x, rect.position.y},
-        color, {uv_rect.position.x, uv_rect.position.y}});
+        color, {uv_rect.position.x, uv_rect.position.y}
+    });
     vertex_data.push_back({
         {rect.position.x + rect.size.x, rect.position.y},
-        color, {uv_rect.position.x, uv_rect.position.y + uv_rect.size.y}});
+        color, {uv_rect.position.x, uv_rect.position.y + uv_rect.size.y}
+    });
     vertex_data.push_back({
         {rect.position.x, rect.position.y + h},
-        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y}});
+        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y}
+    });
     vertex_data.push_back({
         {rect.position.x + rect.size.x, rect.position.y + h},
-        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y + uv_rect.size.y}});
+        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y + uv_rect.size.y}
+    });
     vertex_data.push_back({
         {rect.position.x, rect.position.y + rect.size.y - h},
-        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y}});
+        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y}
+    });
     vertex_data.push_back({
         {rect.position.x + rect.size.x, rect.position.y + rect.size.y - h},
-        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y + uv_rect.size.y}});
+        color, {uv_rect.position.x + uv_rect.size.x * 0.5f, uv_rect.position.y + uv_rect.size.y}
+    });
     vertex_data.push_back({
         {rect.position.x, rect.position.y + rect.size.y},
-        color, {uv_rect.position.x + uv_rect.size.x, uv_rect.position.y}});
+        color, {uv_rect.position.x + uv_rect.size.x, uv_rect.position.y}
+    });
     vertex_data.push_back({
         {rect.position.x + rect.size.x, rect.position.y + rect.size.y},
-        color, {uv_rect.position.x + uv_rect.size.x, uv_rect.position.y + uv_rect.size.y}});
+        color, {uv_rect.position.x + uv_rect.size.x, uv_rect.position.y + uv_rect.size.y}
+    });
 
-    if (info.texture)
-        finish(info.texture);
+    if (info.texture) finish(info.texture);
 }
 
 void RenderTarget::drawStretchedHV(sp::Rect rect, float corner_size, std::string_view texture, glm::u8vec4 color, StretchedRotation rotation)
@@ -1396,8 +1387,8 @@ void RenderTarget::drawStretchedHV(sp::Rect rect, float corner_size, std::string
         finish();
     auto& uv_rect = info.uv_rect;
 
-    corner_size = std::min(corner_size, rect.size.y / 2.0f);
-    corner_size = std::min(corner_size, rect.size.x / 2.0f);
+    corner_size = std::min(corner_size, rect.size.y * 0.5f);
+    corner_size = std::min(corner_size, rect.size.x * 0.5f);
 
     auto getUV = [&](float u, float v) -> glm::vec2 {
         switch (rotation)
@@ -1415,27 +1406,28 @@ void RenderTarget::drawStretchedHV(sp::Rect rect, float corner_size, std::string
 
     auto n = vertex_data.size();
     index_data.insert(index_data.end(), {
-        uint16_t(n + 0), uint16_t(n + 4), uint16_t(n + 1),
-        uint16_t(n + 1), uint16_t(n + 4), uint16_t(n + 5),
-        uint16_t(n + 1), uint16_t(n + 5), uint16_t(n + 2),
-        uint16_t(n + 2), uint16_t(n + 5), uint16_t(n + 6),
-        uint16_t(n + 2), uint16_t(n + 6), uint16_t(n + 3),
-        uint16_t(n + 3), uint16_t(n + 6), uint16_t(n + 7),
+        static_cast<uint16_t>(n + 0), static_cast<uint16_t>(n + 4), static_cast<uint16_t>(n + 1),
+        static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 4), static_cast<uint16_t>(n + 5),
+        static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 5), static_cast<uint16_t>(n + 2),
+        static_cast<uint16_t>(n + 2), static_cast<uint16_t>(n + 5), static_cast<uint16_t>(n + 6),
+        static_cast<uint16_t>(n + 2), static_cast<uint16_t>(n + 6), static_cast<uint16_t>(n + 3),
+        static_cast<uint16_t>(n + 3), static_cast<uint16_t>(n + 6), static_cast<uint16_t>(n + 7),
 
-        uint16_t(n + 4), uint16_t(n + 8), uint16_t(n + 5),
-        uint16_t(n + 5), uint16_t(n + 8), uint16_t(n + 9),
-        uint16_t(n + 5), uint16_t(n + 9), uint16_t(n + 6),
-        uint16_t(n + 6), uint16_t(n + 9), uint16_t(n + 10),
-        uint16_t(n + 6), uint16_t(n + 10), uint16_t(n + 7),
-        uint16_t(n + 7), uint16_t(n + 10), uint16_t(n + 11),
+        static_cast<uint16_t>(n + 4), static_cast<uint16_t>(n + 8), static_cast<uint16_t>(n + 5),
+        static_cast<uint16_t>(n + 5), static_cast<uint16_t>(n + 8), static_cast<uint16_t>(n + 9),
+        static_cast<uint16_t>(n + 5), static_cast<uint16_t>(n + 9), static_cast<uint16_t>(n + 6),
+        static_cast<uint16_t>(n + 6), static_cast<uint16_t>(n + 9), static_cast<uint16_t>(n + 10),
+        static_cast<uint16_t>(n + 6), static_cast<uint16_t>(n + 10), static_cast<uint16_t>(n + 7),
+        static_cast<uint16_t>(n + 7), static_cast<uint16_t>(n + 10), static_cast<uint16_t>(n + 11),
 
-        uint16_t(n + 8), uint16_t(n + 12), uint16_t(n + 9),
-        uint16_t(n + 9), uint16_t(n + 12), uint16_t(n + 13),
-        uint16_t(n + 9), uint16_t(n + 13), uint16_t(n + 10),
-        uint16_t(n + 10), uint16_t(n + 13), uint16_t(n + 14),
-        uint16_t(n + 10), uint16_t(n + 14), uint16_t(n + 11),
-        uint16_t(n + 11), uint16_t(n + 14), uint16_t(n + 15),
+        static_cast<uint16_t>(n + 8), static_cast<uint16_t>(n + 12), static_cast<uint16_t>(n + 9),
+        static_cast<uint16_t>(n + 9), static_cast<uint16_t>(n + 12), static_cast<uint16_t>(n + 13),
+        static_cast<uint16_t>(n + 9), static_cast<uint16_t>(n + 13), static_cast<uint16_t>(n + 10),
+        static_cast<uint16_t>(n + 10), static_cast<uint16_t>(n + 13), static_cast<uint16_t>(n + 14),
+        static_cast<uint16_t>(n + 10), static_cast<uint16_t>(n + 14), static_cast<uint16_t>(n + 11),
+        static_cast<uint16_t>(n + 11), static_cast<uint16_t>(n + 14), static_cast<uint16_t>(n + 15),
     });
+
     vertex_data.push_back({
         {rect.position.x, rect.position.y},
         color, getUV(0.0f, 0.0f)
@@ -1509,8 +1501,7 @@ void RenderTarget::drawStretchedHV(sp::Rect rect, float corner_size, std::string
 
 void RenderTarget::drawStretchedHVClipped(sp::Rect rect, sp::Rect clip_rect, float corner_size, std::string_view texture, glm::u8vec4 color, StretchedRotation rotation)
 {
-    if (clip_rect.size.x < 0 || clip_rect.size.y < 0)
-        return;
+    if (clip_rect.size.x < 0 || clip_rect.size.y < 0) return;
 
     auto info = getTextureInfo(texture);
     if (info.texture || vertex_data.size() >= std::numeric_limits<uint16_t>::max() - 16U)
@@ -1522,27 +1513,28 @@ void RenderTarget::drawStretchedHVClipped(sp::Rect rect, sp::Rect clip_rect, flo
 
     auto n = vertex_data.size();
     index_data.insert(index_data.end(), {
-        uint16_t(n + 0), uint16_t(n + 4), uint16_t(n + 1),
-        uint16_t(n + 1), uint16_t(n + 4), uint16_t(n + 5),
-        uint16_t(n + 1), uint16_t(n + 5), uint16_t(n + 2),
-        uint16_t(n + 2), uint16_t(n + 5), uint16_t(n + 6),
-        uint16_t(n + 2), uint16_t(n + 6), uint16_t(n + 3),
-        uint16_t(n + 3), uint16_t(n + 6), uint16_t(n + 7),
+        static_cast<uint16_t>(n + 0), static_cast<uint16_t>(n + 4), static_cast<uint16_t>(n + 1),
+        static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 4), static_cast<uint16_t>(n + 5),
+        static_cast<uint16_t>(n + 1), static_cast<uint16_t>(n + 5), static_cast<uint16_t>(n + 2),
+        static_cast<uint16_t>(n + 2), static_cast<uint16_t>(n + 5), static_cast<uint16_t>(n + 6),
+        static_cast<uint16_t>(n + 2), static_cast<uint16_t>(n + 6), static_cast<uint16_t>(n + 3),
+        static_cast<uint16_t>(n + 3), static_cast<uint16_t>(n + 6), static_cast<uint16_t>(n + 7),
 
-        uint16_t(n + 4), uint16_t(n + 8), uint16_t(n + 5),
-        uint16_t(n + 5), uint16_t(n + 8), uint16_t(n + 9),
-        uint16_t(n + 5), uint16_t(n + 9), uint16_t(n + 6),
-        uint16_t(n + 6), uint16_t(n + 9), uint16_t(n + 10),
-        uint16_t(n + 6), uint16_t(n + 10), uint16_t(n + 7),
-        uint16_t(n + 7), uint16_t(n + 10), uint16_t(n + 11),
+        static_cast<uint16_t>(n + 4), static_cast<uint16_t>(n + 8), static_cast<uint16_t>(n + 5),
+        static_cast<uint16_t>(n + 5), static_cast<uint16_t>(n + 8), static_cast<uint16_t>(n + 9),
+        static_cast<uint16_t>(n + 5), static_cast<uint16_t>(n + 9), static_cast<uint16_t>(n + 6),
+        static_cast<uint16_t>(n + 6), static_cast<uint16_t>(n + 9), static_cast<uint16_t>(n + 10),
+        static_cast<uint16_t>(n + 6), static_cast<uint16_t>(n + 10), static_cast<uint16_t>(n + 7),
+        static_cast<uint16_t>(n + 7), static_cast<uint16_t>(n + 10), static_cast<uint16_t>(n + 11),
 
-        uint16_t(n + 8), uint16_t(n + 12), uint16_t(n + 9),
-        uint16_t(n + 9), uint16_t(n + 12), uint16_t(n + 13),
-        uint16_t(n + 9), uint16_t(n + 13), uint16_t(n + 10),
-        uint16_t(n + 10), uint16_t(n + 13), uint16_t(n + 14),
-        uint16_t(n + 10), uint16_t(n + 14), uint16_t(n + 11),
-        uint16_t(n + 11), uint16_t(n + 14), uint16_t(n + 15),
+        static_cast<uint16_t>(n + 8), static_cast<uint16_t>(n + 12), static_cast<uint16_t>(n + 9),
+        static_cast<uint16_t>(n + 9), static_cast<uint16_t>(n + 12), static_cast<uint16_t>(n + 13),
+        static_cast<uint16_t>(n + 9), static_cast<uint16_t>(n + 13), static_cast<uint16_t>(n + 10),
+        static_cast<uint16_t>(n + 10), static_cast<uint16_t>(n + 13), static_cast<uint16_t>(n + 14),
+        static_cast<uint16_t>(n + 10), static_cast<uint16_t>(n + 14), static_cast<uint16_t>(n + 11),
+        static_cast<uint16_t>(n + 11), static_cast<uint16_t>(n + 14), static_cast<uint16_t>(n + 15),
     });
+
     float x0 = rect.position.x;
     float x1 = rect.position.x + corner_size;
     float x2 = rect.position.x + rect.size.x - corner_size;
@@ -1558,58 +1550,79 @@ void RenderTarget::drawStretchedHVClipped(sp::Rect rect, sp::Rect clip_rect, flo
     float uvy1 = uv_rect.position.y + uv_rect.size.y * 0.5f;
     float uvy2 = uv_rect.position.y + uv_rect.size.y;
 
-    if (x3 < clip_rect.position.x) {
-        return;
-    } else if (x2 < clip_rect.position.x) {
+    if (x3 < clip_rect.position.x) return;
+    else if (x2 < clip_rect.position.x)
+    {
         uvx0 = uvx1 = uvx1 + (uvx2 - uvx1) * ((clip_rect.position.x - x2) / (x3 - x2));
         x0 = x1 = x2 = clip_rect.position.x;
-    } else if (x1 < clip_rect.position.x) {
+    }
+    else if (x1 < clip_rect.position.x)
+    {
         uvx0 = uvx1;
         x0 = x1 = clip_rect.position.x;
-    } else if (x0 < clip_rect.position.x) {
+    }
+    else if (x0 < clip_rect.position.x)
+    {
         uvx0 = uvx0 + (uvx1 - uvx0) * ((clip_rect.position.x - x0) / (x1 - x0));
         x0 = clip_rect.position.x;
     }
-    if (x0 > clip_rect.position.x + clip_rect.size.x) {
-        return;
-    } else if (x1 > clip_rect.position.x + clip_rect.size.x) {
+
+    if (x0 > clip_rect.position.x + clip_rect.size.x) return;
+    else if (x1 > clip_rect.position.x + clip_rect.size.x)
+    {
         uvx1 = uvx2 = uvx0 + (uvx1 - uvx0) * ((clip_rect.position.x + clip_rect.size.x - x0) / (x1 - x0));
         x1 = x2 = x3 = clip_rect.position.x + clip_rect.size.x;
-    } else if (x2 > clip_rect.position.x + clip_rect.size.x) {
+    }
+    else if (x2 > clip_rect.position.x + clip_rect.size.x)
+    {
         uvx2 = uvx1;
         x2 = x3 = clip_rect.position.x + clip_rect.size.x;
-    } else if (x3 > clip_rect.position.x + clip_rect.size.x) {
+    }
+    else if (x3 > clip_rect.position.x + clip_rect.size.x)
+    {
         uvx2 = uvx1 + (uvx2 - uvx1) * ((clip_rect.position.x + clip_rect.size.x - x2) / (x3 - x2));
         x3 = clip_rect.position.x + clip_rect.size.x;
     }
-    if (y3 < clip_rect.position.y) {
-        return;
-    } else if (y2 < clip_rect.position.y) {
+
+    if (y3 < clip_rect.position.y) return;
+    else if (y2 < clip_rect.position.y)
+    {
         uvy0 = uvy1 = uvy1 + (uvy2 - uvy1) * ((clip_rect.position.y - y2) / (y3 - y2));
         y0 = y1 = y2 = clip_rect.position.y;
-    } else if (y1 < clip_rect.position.y) {
+    }
+    else if (y1 < clip_rect.position.y)
+    {
         uvy0 = uvy1;
         y0 = y1 = clip_rect.position.y;
-    } else if (y0 < clip_rect.position.y) {
+    }
+    else if (y0 < clip_rect.position.y)
+    {
         uvy0 = uvy0 + (uvy1 - uvy0) * ((clip_rect.position.y - y0) / (y1 - y0));
         y0 = clip_rect.position.y;
     }
-    if (y0 > clip_rect.position.y + clip_rect.size.y) {
-        return;
-    } else if (y1 > clip_rect.position.y + clip_rect.size.y) {
+
+    if (y0 > clip_rect.position.y + clip_rect.size.y) return;
+    else if (y1 > clip_rect.position.y + clip_rect.size.y)
+    {
         uvy1 = uvy2 = uvy0 + (uvy1 - uvy0) * ((clip_rect.position.y + clip_rect.size.y - y0) / (y1 - y0));
         y1 = y2 = y3 = clip_rect.position.y + clip_rect.size.y;
-    } else if (y2 > clip_rect.position.y + clip_rect.size.y) {
+    }
+    else if (y2 > clip_rect.position.y + clip_rect.size.y)
+    {
         uvy2 = uvy1;
         y2 = y3 = clip_rect.position.y + clip_rect.size.y;
-    } else if (y3 > clip_rect.position.y + clip_rect.size.y) {
+    }
+    else if (y3 > clip_rect.position.y + clip_rect.size.y)
+    {
         uvy2 = uvy1 + (uvy2 - uvy1) * ((clip_rect.position.y + clip_rect.size.y - y2) / (y3 - y2));
         y3 = clip_rect.position.y + clip_rect.size.y;
     }
 
-    auto rotateUV = [&](float u, float v) -> glm::vec2 {
+    auto rotateUV = [&](float u, float v) -> glm::vec2
+    {
         float nu = (u - uv_rect.position.x) / uv_rect.size.x;
         float nv = (v - uv_rect.position.y) / uv_rect.size.y;
+
         switch (rotation)
         {
         case StretchedRotation::Rotate90:
@@ -1786,8 +1799,7 @@ void RenderTarget::popClipRegion()
 
     // If that was the last rect, or there weren't any, stop clipping.
     // Otherwise, clip to the back rect.
-    if (clip_region_stack.empty())
-        glDisable(GL_SCISSOR_TEST);
+    if (clip_region_stack.empty()) glDisable(GL_SCISSOR_TEST);
     else
     {
         const auto& top = clip_region_stack.back();

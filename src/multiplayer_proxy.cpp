@@ -3,24 +3,24 @@
 #include "engine.h"
 
 
-GameServerProxy::GameServerProxy(sp::io::network::Address hostname, int hostPort, string password, int listenPort, string proxyName)
-: password(password), proxyName(proxyName)
+GameServerProxy::GameServerProxy(sp::io::network::Address hostname, int hostPort, string password, int listenPort, string proxy_name)
+: password(password), proxy_name(proxy_name)
 {
     LOG(INFO) << "Starting proxy server";
-    mainSocket = std::make_unique<sp::io::network::TcpSocket>();
-    if (!mainSocket->connect(hostname, static_cast<uint16_t>(hostPort)))
+    main_socket = std::make_unique<sp::io::network::TcpSocket>();
+    if (!main_socket->connect(hostname, static_cast<uint16_t>(hostPort)))
         LOG(INFO) << "Failed to connect to server";
     else
         LOG(INFO) << "Connected to server";
-    mainSocket->setBlocking(false);
-    listenSocket.listen(static_cast<uint16_t>(listenPort));
-    listenSocket.setBlocking(false);
+    main_socket->setBlocking(false);
+    listen_socket.listen(static_cast<uint16_t>(listenPort));
+    listen_socket.setBlocking(false);
 
-    newSocket = std::make_unique<sp::io::network::TcpSocket>();
-    newSocket->setBlocking(false);
+    new_socket = std::make_unique<sp::io::network::TcpSocket>();
+    new_socket->setBlocking(false);
 
     broadcast_server_delay = 0.0f;
-    if (proxyName != "")
+    if (proxy_name != "")
     {
         if (!broadcast_listen_socket.bind(static_cast<uint16_t>(listenPort)))
         {
@@ -33,22 +33,22 @@ GameServerProxy::GameServerProxy(sp::io::network::Address hostname, int hostPort
         broadcast_listen_socket.setBlocking(false);
     }
 
-    no_data_timeout.start(noDataDisconnectTime);
-    heartbeat_timer.start(heartbeatTime);
+    no_data_timeout.start(NO_DATA_DISCONNECT_TIME);
+    heartbeat_timer.start(HEARTBEAT_TIME);
 }
 
-GameServerProxy::GameServerProxy(string password, int listenPort, string proxyName)
-: password(password), proxyName(proxyName)
+GameServerProxy::GameServerProxy(string password, int listenPort, string proxy_name)
+: password(password), proxy_name(proxy_name)
 {
     LOG(INFO) << "Starting listening proxy server";
-    listenSocket.listen(static_cast<uint16_t>(listenPort));
-    listenSocket.setBlocking(false);
+    listen_socket.listen(static_cast<uint16_t>(listenPort));
+    listen_socket.setBlocking(false);
 
-    newSocket = std::make_unique<sp::io::network::TcpSocket>();
-    newSocket->setBlocking(false);
+    new_socket = std::make_unique<sp::io::network::TcpSocket>();
+    new_socket->setBlocking(false);
 
     broadcast_server_delay = 0.0f;
-    if (proxyName != "")
+    if (proxy_name != "")
     {
         if (!broadcast_listen_socket.bind(static_cast<uint16_t>(listenPort)))
         {
@@ -57,8 +57,8 @@ GameServerProxy::GameServerProxy(string password, int listenPort, string proxyNa
         broadcast_listen_socket.setBlocking(false);
     }
 
-    no_data_timeout.start(noDataDisconnectTime);
-    heartbeat_timer.start(heartbeatTime);
+    no_data_timeout.start(NO_DATA_DISCONNECT_TIME);
+    heartbeat_timer.start(HEARTBEAT_TIME);
 }
 
 GameServerProxy::~GameServerProxy()
@@ -67,20 +67,20 @@ GameServerProxy::~GameServerProxy()
 
 void GameServerProxy::destroy()
 {
-    clientList.clear();
+    client_list.clear();
 
     broadcast_listen_socket.close();
 }
 
 void GameServerProxy::update(float delta)
 {
-    if (mainSocket)
+    if (main_socket)
     {
         sp::io::DataBuffer packet;
-        while(mainSocket->receive(packet))
+        while(main_socket->receive(packet))
         {
-            no_data_timeout.start(noDataDisconnectTime);
-            heartbeat_timer.start(heartbeatTime);
+            no_data_timeout.start(NO_DATA_DISCONNECT_TIME);
+            heartbeat_timer.start(HEARTBEAT_TIME);
             command_t command;
             packet >> command;
             switch(command)
@@ -88,21 +88,21 @@ void GameServerProxy::update(float delta)
             case CMD_REQUEST_AUTH:
                 {
                     bool requirePassword;
-                    packet >> serverVersion >> requirePassword;
+                    packet >> server_version >> requirePassword;
 
                     sp::io::DataBuffer reply;
-                    reply << CMD_CLIENT_SEND_AUTH << int32_t(serverVersion) << string(password);
-                    mainSocket->send(reply);
+                    reply << CMD_CLIENT_SEND_AUTH << int32_t(server_version) << string(password);
+                    main_socket->send(reply);
                 }
                 break;
             case CMD_SET_CLIENT_ID:
-                packet >> clientId;
+                packet >> client_id;
                 break;
             case CMD_ALIVE:
                 {
                     sp::io::DataBuffer reply;
                     reply << CMD_ALIVE_RESP;
-                    mainSocket->send(reply);
+                    main_socket->send(reply);
                 }
                 sendAll(packet);
                 break;
@@ -133,16 +133,16 @@ void GameServerProxy::update(float delta)
                 {
                     int32_t tempId, proxied_clientId;
                     packet >> tempId >> proxied_clientId;
-                    for(auto& info : clientList)
+                    for(auto& info : client_list)
                     {
-                        if (!info.validClient && info.clientId == tempId)
+                        if (!info.validClient && info.client_id == tempId)
                         {
                             info.validClient = true;
-                            info.clientId = proxied_clientId;
+                            info.client_id = proxied_clientId;
                             info.receiveState = CRS_Main;
                             {
                                 sp::io::DataBuffer proxied_packet;
-                                proxied_packet << CMD_SET_CLIENT_ID << info.clientId;
+                                proxied_packet << CMD_SET_CLIENT_ID << info.client_id;
                                 info.socket->send(proxied_packet);
                             }
                         }
@@ -157,43 +157,43 @@ void GameServerProxy::update(float delta)
 
         if (heartbeat_timer.isExpired())
         {
-            heartbeat_timer.start(heartbeatTime);
+            heartbeat_timer.start(HEARTBEAT_TIME);
             sp::io::DataBuffer ping;
             ping << CMD_ALIVE;
-            mainSocket->send(ping);
+            main_socket->send(ping);
         }
 
-        if (mainSocket->getState() == sp::io::network::StreamSocket::State::Closed || no_data_timeout.isExpired())
+        if (main_socket->getState() == sp::io::network::StreamSocket::State::Closed || no_data_timeout.isExpired())
         {
             LOG(INFO) << "Disconnected proxy";
-            mainSocket->close();
+            main_socket->close();
             engine->shutdown();
         }
     }
 
-    if (proxyName != "")
+    if (proxy_name != "")
     {
         handleBroadcastUDPSocket(delta);
     }
 
-    if (listenSocket.accept(*newSocket))
+    if (listen_socket.accept(*new_socket))
     {
         ClientInfo info;
-        info.socket = std::move(newSocket);
-        newSocket = std::make_unique<sp::io::network::TcpSocket>();
-        newSocket->setBlocking(false);
+        info.socket = std::move(new_socket);
+        new_socket = std::make_unique<sp::io::network::TcpSocket>();
+        new_socket->setBlocking(false);
         {
             sp::io::DataBuffer packet;
-            packet << CMD_REQUEST_AUTH << int32_t(serverVersion) << bool(password != "");
+            packet << CMD_REQUEST_AUTH << int32_t(server_version) << bool(password != "");
             info.socket->send(packet);
         }
-        clientList.emplace_back(std::move(info));
+        client_list.emplace_back(std::move(info));
     }
 
-    for(unsigned int n=0; n<clientList.size(); n++)
+    for(unsigned int n=0; n<client_list.size(); n++)
     {
         sp::io::DataBuffer packet;
-        auto& info = clientList[n];
+        auto& info = client_list[n];
         while(info.socket && info.socket->receive(packet))
         {
             command_t command;
@@ -204,16 +204,16 @@ void GameServerProxy::update(float delta)
                 switch(command)
                 {
                 case CMD_SERVER_CONNECT_TO_PROXY:
-                    if (mainSocket)
+                    if (main_socket)
                     {
                         info.socket->close();
                         info.socket = NULL;
                     }
                     else
                     {
-                        mainSocket = std::move(info.socket);
-                        no_data_timeout.start(noDataDisconnectTime);
-                        heartbeat_timer.start(heartbeatTime);
+                        main_socket = std::move(info.socket);
+                        no_data_timeout.start(NO_DATA_DISCONNECT_TIME);
+                        heartbeat_timer.start(HEARTBEAT_TIME);
                     }
                     break;
                 case CMD_CLIENT_SEND_AUTH:
@@ -221,11 +221,11 @@ void GameServerProxy::update(float delta)
                         int32_t clientVersion;
                         string clientPassword;
                         packet >> clientVersion >> clientPassword;
-                        if (mainSocket && clientVersion == serverVersion && clientPassword == password)
+                        if (main_socket && clientVersion == server_version && clientPassword == password)
                         {
                             sp::io::DataBuffer serverUpdate;
-                            serverUpdate << CMD_NEW_PROXY_CLIENT << info.clientId;
-                            mainSocket->send(serverUpdate);
+                            serverUpdate << CMD_NEW_PROXY_CLIENT << info.client_id;
+                            main_socket->send(serverUpdate);
                         }
                         else
                         {
@@ -254,8 +254,8 @@ void GameServerProxy::update(float delta)
                     {
                         int32_t client_id = 0;
                         packet >> client_id;
-                        if (client_id == info.clientId)
-                            mainSocket->send(packet);
+                        if (client_id == info.client_id)
+                            main_socket->send(packet);
                     }
                     break;
                 case CMD_ALIVE_RESP:
@@ -275,9 +275,9 @@ void GameServerProxy::update(float delta)
             case CRS_Command:
                 {
                     sp::io::DataBuffer mainPacket;
-                    mainPacket << CMD_PROXY_CLIENT_COMMAND << info.commandObjectId << info.clientId;
-                    mainSocket->send(mainPacket);
-                    mainSocket->send(packet);
+                    mainPacket << CMD_PROXY_CLIENT_COMMAND << info.commandObjectId << info.client_id;
+                    main_socket->send(mainPacket);
+                    main_socket->send(packet);
                 }
                 info.receiveState = CRS_Main;
                 break;
@@ -288,10 +288,10 @@ void GameServerProxy::update(float delta)
             if (info.validClient)
             {
                 sp::io::DataBuffer serverUpdate;
-                serverUpdate << CMD_DEL_PROXY_CLIENT << info.clientId;
-                mainSocket->send(serverUpdate);
+                serverUpdate << CMD_DEL_PROXY_CLIENT << info.client_id;
+                main_socket->send(serverUpdate);
             }
-            clientList.erase(clientList.begin() + n);
+            client_list.erase(client_list.begin() + n);
             n--;
         }
     }
@@ -301,7 +301,7 @@ void GameServerProxy::sendAll(sp::io::DataBuffer& packet)
 {
     if (targetClients.empty())
     {
-        for(auto& info : clientList)
+        for(auto& info : client_list)
         {
             if (info.validClient && info.socket)
                 info.socket->send(packet);
@@ -309,9 +309,9 @@ void GameServerProxy::sendAll(sp::io::DataBuffer& packet)
     }
     else
     {
-        for(auto& info : clientList)
+        for(auto& info : client_list)
         {
-            if (info.validClient && info.socket && targetClients.find(info.clientId) != targetClients.end())
+            if (info.validClient && info.socket && targetClients.find(info.client_id) != targetClients.end())
                 info.socket->send(packet);
         }
         targetClients.clear();
@@ -327,7 +327,7 @@ void GameServerProxy::handleBroadcastUDPSocket(float delta)
     {
         //We do not care about what we received. Reply that we live!
         sp::io::DataBuffer sendPacket;
-        sendPacket << int32_t(multiplayerVerficationNumber) << int32_t(serverVersion) << proxyName;
+        sendPacket << int32_t(MULTIPLAYER_VERIFICATION_NUMBER) << int32_t(server_version) << proxy_name;
         broadcast_listen_socket.send(sendPacket, recvAddress, recvPort);
     }
     if (broadcast_server_delay > 0.0f)
@@ -337,7 +337,7 @@ void GameServerProxy::handleBroadcastUDPSocket(float delta)
         broadcast_server_delay = 5.0f;
 
         sp::io::DataBuffer sendPacket;
-        sendPacket << int32_t(multiplayerVerficationNumber) << int32_t(serverVersion) << proxyName;
+        sendPacket << int32_t(MULTIPLAYER_VERIFICATION_NUMBER) << int32_t(server_version) << proxy_name;
         broadcast_listen_socket.sendMulticast(sendPacket, 666, 35667);
     }
 }

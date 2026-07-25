@@ -20,9 +20,9 @@ KeyValueTreeLoader::KeyValueTreeLoader(const string& resource_name)
     }
     result = std::make_shared<KeyValueTree>();
 
-    LOG(Info, "Loading tree ", resource_name);
+    LOG(Info, "Loading theme tree: ", resource_name);
 
-    while(stream->tell() < stream->getSize())
+    while (stream->tell() < stream->getSize())
     {
         string line = stream->readLine().strip();
         if (line.startswith("//"))

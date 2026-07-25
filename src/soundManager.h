@@ -1,5 +1,4 @@
-#ifndef SOUNDMANAGER_H
-#define SOUNDMANAGER_H
+#pragma once
 
 #include "audio/music.h"
 #include "audio/sound.h"
@@ -49,10 +48,10 @@ private:
 
     std::unordered_map<string, sp::audio::Sound*> sound_map;
     std::array<SoundChannel, 16> active_sound_list;
-    float music_volume;
-    float master_sound_volume;
+    float music_volume = 1.0f;
+    float master_sound_volume = 1.0f;
 
-    bool positional_sound_enabled;
+    bool positional_sound_enabled = false;
     glm::vec2 listener_position;
 public:
     SoundManager();
@@ -92,5 +91,3 @@ private:
 
     friend class Engine;
 };
-
-#endif//SOUNDMANAGER_H

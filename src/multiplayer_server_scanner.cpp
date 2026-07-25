@@ -40,7 +40,7 @@ void ServerScanner::scanLocalNetwork()
         LOG(ERROR, "Failed to join multicast for local network discovery");
 
     socket->setBlocking(false);
-    broadcast_timer.repeat(BroadcastTimeout);
+    broadcast_timer.repeat(BROADCAST_TIMEOUT);
 }
 
 void ServerScanner::update(float /*gameDelta*/)
@@ -67,7 +67,7 @@ void ServerScanner::update(float /*gameDelta*/)
         if (broadcast_timer.isExpired())
         {
             sp::io::DataBuffer sendPacket;
-            sendPacket << multiplayerVerficationNumber << "ServerQuery" << int32_t(version_number);
+            sendPacket << MULTIPLAYER_VERIFICATION_NUMBER << "ServerQuery" << int32_t(version_number);
             socket->sendMulticast(sendPacket, 666, server_port);
         }
 
@@ -79,9 +79,9 @@ void ServerScanner::update(float /*gameDelta*/)
             int32_t verification, version_nr;
             string name;
             recv_packet >> verification >> version_nr >> name;
-            if (verification == multiplayerVerficationNumber && (version_nr == version_number || version_nr == 0 || version_number == 0))
+            if (verification == MULTIPLAYER_VERIFICATION_NUMBER && (version_nr == version_number || version_nr == 0 || version_number == 0))
             {
-                updateServerEntry({ServerType::LAN, recv_address, uint64_t(recv_port), name, {}});
+                updateServerEntry({ServerType::LAN, recv_address, static_cast<uint64_t>(recv_port), name, {}});
             }
         }
     }
@@ -95,14 +95,14 @@ void ServerScanner::updateServerEntry(const ServerInfo& info)
         {
             server_list[n].port = info.port;
             server_list[n].name = info.name;
-            server_list[n].timeout.start(ServerTimeout);
+            server_list[n].timeout.start(SERVER_TIMEOUT);
             return;
         }
     }
 
     LOG(INFO) << "ServerScanner::New server: " << info.address.getHumanReadable()[0] << " " << info.port << " " << info.name;
     ServerInfo si = info;
-    si.timeout.start(ServerTimeout);
+    si.timeout.start(SERVER_TIMEOUT);
     server_list.push_back(si);
 
     if (newServerCallback)
