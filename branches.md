@@ -35,3 +35,5 @@ master 20260606 -- reverse-proxy-registry
 sdl3 20260719 --- breaking-change migration to SDL3
 
 GinjaNinja32/multicast-ip 20260720 -- update UDP multicast options
+
+hue-v2 20260725 -- Add SSL support for Hue V2
