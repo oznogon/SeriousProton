@@ -12,7 +12,6 @@ SeriousProton is a C++17 project built with CMake.
 
 | Dependency | How obtained | Notes |
 |---|---|---|
-| **OpenSSL** | System (`find_package(OpenSSL REQUIRED)`) | TLS networking, primarily to support integrations that require SSL. Both `libssl` and `libcrypto` required. Set `-DWITH_SSL=OFF` to disable. |
 | **Threads** | System (`find_package(Threads REQUIRED)`) | Multithreading |
 
 ### Vendored libraries (fetched or bundled automatically via CMake)
@@ -37,6 +36,7 @@ SeriousProton is a C++17 project built with CMake.
 |---|---|---|
 | **Steam SDK** | `-DSTEAMSDK=/path/to/sdk` | Steamworks P2P networking; not required if Steam features are not needed |
 | **Prometheus** | `-DPROMETHEUS_ENABLE_METRICS=ON` | Exposes a metrics endpoint; requires `prometheus-cpp` |
+| **OpenSSL** | `-DWITH_SSL=ON` | System (`find_package(OpenSSL REQUIRED)`) TLS networking, primarily to support integrations that require SSL. Both `libssl` and `libcrypto` are required. |
 
 ## Major breaking changes in this fork
 

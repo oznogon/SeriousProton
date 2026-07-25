@@ -15,7 +15,7 @@ endif()
 # User-settings
 option(WARNING_IS_ERROR "Enable warning as errors." OFF)
 option(SHARED_SP "Build SeriousProton as a shared library, to speed up mingw linking times" OFF)
-option(WITH_SSL "Enable SSL/TLS support via OpenSSL" ON)
+option(WITH_SSL "Enable SSL/TLS support via OpenSSL" OFF)
 set(STEAMSDK "" CACHE PATH "Path to steam SDK, if not supplied steam features will not be available. Steam features are NOT required.")
 
 #
