@@ -109,10 +109,9 @@ void TcpSocket::setSSLVerify(bool enabled)
 
 bool TcpSocket::connect(const Address& host, int port)
 {
-    if (handle != INVALID_SOCKET)
-        close();
+    if (handle != INVALID_SOCKET) close();
 
-    for(const auto& addr_info : host.addr_info)
+    for (const auto& addr_info : host.addr_info)
     {
         handle = ::socket(addr_info.family, SOCK_STREAM, 0);
         if (handle == INVALID_SOCKET)
@@ -120,7 +119,9 @@ bool TcpSocket::connect(const Address& host, int port)
             LOG(Warning, "Failed to create socket for TCP connection");
             return false;
         }
+
         setBlocking(blocking);
+
         if (addr_info.family == AF_INET && sizeof(struct sockaddr_in) == addr_info.addr.size())
         {
             struct sockaddr_in server_addr;
@@ -131,13 +132,16 @@ bool TcpSocket::connect(const Address& host, int port)
             server_addr.sin_family = AF_INET;
 #endif
             server_addr.sin_port = htons(port);
+
             if (::connect(handle, reinterpret_cast<const sockaddr*>(&server_addr), sizeof(server_addr)) == 0)
                 return true;
+
             if (isLastErrorNonBlocking())
             {
                 connecting = true;
                 return true;
             }
+
             LOG(Warning, "TCP connect to ", addr_info.human_readable, ":", port, " failed. errno=", errno);
         }
         else if (addr_info.family == AF_INET6 && sizeof(struct sockaddr_in6) == addr_info.addr.size())
@@ -169,11 +173,10 @@ bool TcpSocket::connect(const Address& host, int port)
     return false;
 }
 
+#ifdef HAVE_OPENSSL
 bool TcpSocket::connectSSL(const Address& host, int port)
 {
-#ifdef HAVE_OPENSSL
-    if (!connect(host, port))
-        return false;
+    if (!connect(host, port)) return false;
 
     SSL_CTX* ctx = getSSLContext();
     if (!ctx)
@@ -190,7 +193,9 @@ bool TcpSocket::connectSSL(const Address& host, int port)
         close();
         return false;
     }
+
     SSL_set_fd(ssl, static_cast<int>(handle));
+
     int ssl_ret = SSL_connect(ssl);
     if (ssl_ret <= 0)
     {
@@ -200,6 +205,7 @@ bool TcpSocket::connectSSL(const Address& host, int port)
         close();
         return false;
     }
+
     if (ssl_verify && SSL_get_verify_result(ssl) != 0)
     {
         LOG(Warning, "Failed to connect SSL socket due to certificate verification failure.");
@@ -207,14 +213,11 @@ bool TcpSocket::connectSSL(const Address& host, int port)
         close();
         return false;
     }
+
     ssl_handle = ssl;
     return true;
-#else
-    LOG(Warning, "SSL support not compiled in, connectSSL() called");
-    close();
-    return false;
-#endif
 }
+#endif
 
 void TcpSocket::setDelay(bool delay)
 {
@@ -252,9 +255,9 @@ void TcpSocket::close()
 
 StreamSocket::State TcpSocket::getState()
 {
-    if (handle == INVALID_SOCKET)
-        return StreamSocket::State::Closed;
-    if (connecting) {
+    if (handle == INVALID_SOCKET) return StreamSocket::State::Closed;
+    if (connecting)
+    {
         struct pollfd fds;
         fds.fd = handle;
         fds.events = POLLOUT;
@@ -267,16 +270,20 @@ StreamSocket::State TcpSocket::getState()
         {
             struct sockaddr_in6 server_addr;
             socklen_t server_addr_len = sizeof(server_addr);
+
             if (getpeername(handle, reinterpret_cast<sockaddr*>(&server_addr), &server_addr_len))
             {
                 close();
                 return StreamSocket::State::Closed;
             }
+
             connecting = false;
             return StreamSocket::State::Connected;
         }
+
         return StreamSocket::State::Connecting;
     }
+
     return StreamSocket::State::Connected;
 }
 
@@ -291,8 +298,7 @@ size_t TcpSocket::_send(const void* data, size_t size)
         result = ::send(handle, reinterpret_cast<const void *>(static_cast<const char*>(data)), size, flags);
     if (result < 0)
     {
-        if (!isLastErrorNonBlocking())
-            close();
+        if (!isLastErrorNonBlocking()) close();
         return 0;
     }
     return result;
@@ -307,12 +313,13 @@ size_t TcpSocket::_receive(void* data, size_t size)
     else
 #endif
         result = ::recv(handle, data, size, flags);
+
     if (result < 0)
     {
         result = 0;
-        if (!isLastErrorNonBlocking())
-            close();
+        if (!isLastErrorNonBlocking()) close();
     }
+
     return result;
 }
 
