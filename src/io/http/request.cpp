@@ -22,10 +22,12 @@ void Request::setHeader(const string& key, const string& value)
         socket.close();
 }
 
+#ifdef HAVE_OPENSSL
 void Request::setSSLVerify(bool enabled)
 {
     socket.setSSLVerify(enabled);
 }
+#endif
 
 Request::Response Request::get(const string& path)
 {
@@ -91,9 +93,21 @@ Request::Response Request::request(const string& method, const string& path, con
             scheme = ((port == 443) ? Scheme::Https : Scheme::Http);
         bool connected;
         if (scheme == Scheme::Http)
+        {
             connected = socket.connect(io::network::Address(headers["Host"]), port);
+        }
+#ifdef HAVE_OPENSSL
         else
+        {
             connected = socket.connectSSL(io::network::Address(headers["Host"]), port);
+        }
+#else
+        else
+        {
+            LOG(Warning, "HTTPS requested but SSL support not compiled in");
+            return response;
+        }
+#endif
         if (!connected)
             return response;
         socket.setTimeout(5000);

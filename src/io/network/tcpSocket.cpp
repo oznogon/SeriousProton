@@ -34,13 +34,16 @@ static constexpr int flags = MSG_NOSIGNAL;
 static constexpr intptr_t INVALID_SOCKET = -1;
 #endif
 
+#ifdef HAVE_OPENSSL
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
 #include <openssl/err.h>
 #if defined(_WIN32)
 #include <wincrypt.h>
 #endif
+#endif
 
+#ifdef HAVE_OPENSSL
 static SSL_CTX* getSSLContext()
 {
     static SSL_CTX* ctx = nullptr;
@@ -79,6 +82,7 @@ static SSL_CTX* getSSLContext()
     }
     return ctx;
 }
+#endif
 
 
 namespace sp {
@@ -165,6 +169,7 @@ bool TcpSocket::connect(const Address& host, int port)
 
 bool TcpSocket::connectSSL(const Address& host, int port)
 {
+#ifdef HAVE_OPENSSL
     if (!connect(host, port))
         return false;
 
@@ -202,6 +207,11 @@ bool TcpSocket::connectSSL(const Address& host, int port)
     }
     ssl_handle = ssl;
     return true;
+#else
+    LOG(Warning, "SSL support not compiled in, connectSSL() called");
+    close();
+    return false;
+#endif
 }
 
 void TcpSocket::setDelay(bool delay)
@@ -230,8 +240,10 @@ void TcpSocket::close()
         handle = INVALID_SOCKET;
         connecting = false;
         clearQueue();
+#ifdef HAVE_OPENSSL
         if (ssl_handle)
             SSL_free(static_cast<SSL*>(ssl_handle));
+#endif
         ssl_handle = nullptr;
     }
 }
@@ -269,9 +281,11 @@ StreamSocket::State TcpSocket::getState()
 size_t TcpSocket::_send(const void* data, size_t size)
 {
     int result;
+#ifdef HAVE_OPENSSL
     if (ssl_handle)
         result = SSL_write(static_cast<SSL*>(ssl_handle), static_cast<const char*>(data), static_cast<int>(size));
     else
+#endif
         result = ::send(handle, reinterpret_cast<const void *>(static_cast<const char*>(data)), size, flags);
     if (result < 0)
     {
@@ -285,9 +299,11 @@ size_t TcpSocket::_send(const void* data, size_t size)
 size_t TcpSocket::_receive(void* data, size_t size)
 {
     int result;
+#ifdef HAVE_OPENSSL
     if (ssl_handle)
         result = SSL_read(static_cast<SSL*>(ssl_handle), static_cast<char*>(data), static_cast<int>(size));
     else
+#endif
         result = ::recv(handle, data, size, flags);
     if (result < 0)
     {

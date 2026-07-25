@@ -19,11 +19,15 @@ public:
     ~TcpSocket();
 
     bool connect(const Address& host, int port);
+#ifdef HAVE_OPENSSL
     bool connectSSL(const Address& host, int port);
+#endif
     // Toggle the NO_DELAY/Nagle algorithm, allowing for less latency at the
     // cost of more packets.
     void setDelay(bool delay);
+#ifdef HAVE_OPENSSL
     void setSSLVerify(bool enabled);
+#endif
     virtual void close() override;
 
     virtual State getState() override;

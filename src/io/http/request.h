@@ -30,7 +30,9 @@ public:
     Request(const string& hostname, int port=80, Scheme scheme=Scheme::Auto);
 
     void setHeader(const string& key, const string& value);
+#ifdef HAVE_OPENSSL
     void setSSLVerify(bool enabled);
+#endif
 
     Response get(const string& path);
     Response post(const string& path, const string& data);

@@ -15,6 +15,7 @@ endif()
 # User-settings
 option(WARNING_IS_ERROR "Enable warning as errors." OFF)
 option(SHARED_SP "Build SeriousProton as a shared library, to speed up mingw linking times" OFF)
+option(WITH_SSL "Enable SSL/TLS support via OpenSSL" ON)
 set(STEAMSDK "" CACHE PATH "Path to steam SDK, if not supplied steam features will not be available. Steam features are NOT required.")
 
 #
@@ -350,7 +351,9 @@ target_include_directories(seriousproton_deps
 target_compile_features(seriousproton_deps INTERFACE cxx_std_17)
 
 find_package(Threads REQUIRED)
-find_package(OpenSSL REQUIRED)
+if(WITH_SSL)
+    find_package(OpenSSL REQUIRED)
+endif()
 
 target_compile_definitions(seriousproton_deps
     INTERFACE
@@ -361,6 +364,7 @@ target_compile_definitions(seriousproton_deps
         # Windows: Backwards compatibility with Win7 SP1: https://docs.microsoft.com/en-us/cpp/porting/modifying-winver-and-win32-winnt
         $<$<BOOL:${WIN32}>:WINVER=0x0601;_WIN32_WINNT=0x0601>
         $<$<AND:$<PLATFORM_ID:Android>,$<NOT:$<CONFIG:Release>>>:NDK_DEBUG=1>
+        $<$<BOOL:${WITH_SSL}>:HAVE_OPENSSL=1>
 )
 
 target_compile_options(seriousproton_deps
@@ -375,7 +379,7 @@ target_compile_options(seriousproton_deps
 include("cmake/SteamSDK.cmake")
 target_link_libraries(seriousproton_deps
     INTERFACE
-        box2d glad lua SDL3::SDL3 glm::glm Threads::Threads OpenSSL::SSL OpenSSL::Crypto ${FREETYPE_LIBRARIES} basisu-transcoder $<BUILD_INTERFACE:steamsdk>
+        box2d glad lua SDL3::SDL3 glm::glm Threads::Threads $<$<BOOL:${WITH_SSL}>:OpenSSL::SSL> $<$<BOOL:${WITH_SSL}>:OpenSSL::Crypto> ${FREETYPE_LIBRARIES} basisu-transcoder $<BUILD_INTERFACE:steamsdk>
         $<$<BOOL:${WIN32}>:wsock32 ws2_32 crypt32 iphlpapi>
         # LTO flag must be on the linker's list as well.
         "$<$<AND:$<BOOL:${CMAKE_COMPILER_IS_GNUCC}>,$<OR:$<CONFIG:RelWithDebInfo>,$<CONFIG:Release>>>:-flto=auto>"
@@ -446,8 +450,10 @@ install(
 
 if(WIN32)
     install(PROGRAMS "$<TARGET_FILE:SDL3::SDL3-shared>" DESTINATION . COMPONENT runtime)
-    install(PROGRAMS "$<TARGET_FILE:OpenSSL::SSL>" DESTINATION . COMPONENT runtime)
-    install(PROGRAMS "$<TARGET_FILE:OpenSSL::Crypto>" DESTINATION . COMPONENT runtime)
+    if(WITH_SSL)
+        install(PROGRAMS "$<TARGET_FILE:OpenSSL::SSL>" DESTINATION . COMPONENT runtime)
+        install(PROGRAMS "$<TARGET_FILE:OpenSSL::Crypto>" DESTINATION . COMPONENT runtime)
+    endif()
     if(STEAMSDK)
         if(${CMAKE_SIZEOF_VOID_P} EQUAL 4)
             install(FILES "${STEAMSDK}/redistributable_bin/steam_api.dll" DESTINATION . COMPONENT runtime)

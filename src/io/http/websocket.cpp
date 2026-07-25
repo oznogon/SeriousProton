@@ -144,8 +144,13 @@ bool Websocket::connect(const string& hostname, int port, const string& path, Sc
 #else
     if (scheme == Scheme::Https)
     {
+#ifdef HAVE_OPENSSL
         if (!socket->connectSSL(io::network::Address(hostname), port))
             return false;
+#else
+        LOG(Warning, "WSS requested but SSL support not compiled in");
+        return false;
+#endif
     }
     else
     {
