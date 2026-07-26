@@ -106,12 +106,12 @@ Engine::Engine()
 
     if (!SteamAPI_Init())
     {
-        LOG(Error, "Failed to initialize Steam API.");
+        LOG(Error, "[sp-engine] Failed to initialize Steam API.");
         exit(1);
     }
 
     SteamNetworkingUtils()->InitRelayNetworkAccess();
-    LOG(Debug, "SteamID: ", SteamAPI_ISteamUser_GetSteamID(SteamAPI_SteamUser()));
+    LOG(Debug, "[sp-engine] SteamID: ", SteamAPI_ISteamUser_GetSteamID(SteamAPI_SteamUser()));
 #endif
 
 #ifdef WIN32
@@ -124,7 +124,7 @@ Engine::Engine()
         if (pfnExcHndlInit)
         {
             pfnExcHndlInit();
-            LOG(Info, "Crash reporter ON");
+            LOG(Info, "[sp-engine] WIN32 crash reporter ON");
         }
         else exchndl.reset();
     }
@@ -138,7 +138,7 @@ Engine::Engine()
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_JOYSTICK | SDL_INIT_GAMEPAD | SDL_INIT_HAPTIC))
     {
         const char* sdl_error{SDL_GetError()};
-        LOG(Error, "SDL error in Engine initialization: ", sdl_error);
+        LOG(Error, "[sp-engine] SDL error in Engine initialization: ", sdl_error);
     }
     SDL_HideCursor();
 
@@ -186,7 +186,7 @@ void Engine::runMainLoop()
                 if (event.type == SDL_EVENT_QUIT) running = false;
 #ifdef DEBUG
             if (debug_output_timer.isExpired())
-                LOG(DEBUG) << "Object count: " << DEBUG_PobjCount << " " << updatableList.size();
+                LOG(Debug, "[sp-engine] Object count: ", DEBUG_PobjCount, " " << updatableList.size());
 #endif
 
             auto realtime_delta = frame_timer.restart();
@@ -255,7 +255,7 @@ void Engine::runMainLoop()
 
 #ifdef DEBUG
             if (debug_output_timer.isExpired())
-                LOG(Debug, "Object count: ", DEBUG_PobjCount, " ", updatableList.size());
+                LOG(Debug, "[sp-engine] Object count: ", DEBUG_PobjCount, " ", updatableList.size());
 #endif
 
             float delta = frame_timer.restart();

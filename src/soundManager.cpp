@@ -126,7 +126,7 @@ int SoundManager::playSound(string name, glm::vec2 position, float min_distance,
     if (data == nullptr) data = loadSound(name);
 
     if (data->getChannelCount() > 1)
-        LOG(Warning, "[sound] ", name, " used as positional sound but has more than 1 channel.");
+        LOG(Warning, "[sp-sound] ", name, " used as positional sound but has more than 1 channel.");
 
     for (unsigned int n = 0; n < active_sound_list.size(); n++)
     {
@@ -178,12 +178,12 @@ sp::audio::Sound* SoundManager::loadSound(const string& name)
 
     if (data->getChannelCount() == 0)
     {
-        LOG(Warning, "[sound] Failed to load sound: ", name);
+        LOG(Warning, "[sp-sound] Failed to load sound: ", name);
         sound_map[name] = data;
         return data;
     }
 
-    LOG(Info, "[sound] Loaded: ", name, ", duration: ", data->getDuration(), " seconds");
+    LOG(Info, "[sp-sound] Loaded: ", name, ", duration: ", data->getDuration(), " seconds");
     sound_map[name] = data;
     return data;
 }

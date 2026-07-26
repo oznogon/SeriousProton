@@ -1,13 +1,11 @@
-#ifndef SP_GRAPHICS_FREETYPEFONT_H
-#define SP_GRAPHICS_FREETYPEFONT_H
+#pragma once
 
 #include "graphics/font.h"
 #include "resources.h"
 #include <unordered_map>
 
-
-namespace sp {
-
+namespace sp
+{
 class FreetypeFont : public Font
 {
 public:
@@ -26,16 +24,13 @@ private:
     void* ft_library;
     void* ft_face;
     void* ft_stream_rec;
-    
-    //We need to keep the resource stream open, as the freetype keeps it open as well.
-    //So we store the reference here.
+
+    // We need to keep the resource stream open, as the freetype keeps it open as well.
+    // So we store the reference here.
     P<ResourceStream> font_resource_stream;
-    
-    //Keep track of glyphs that are loaded in the texture already.
-    //As soon as we load a new glyph, the texture becomes invalid and needs to be updated.
+
+    // Keep track of glyphs that are loaded in the texture already.
+    // As soon as we load a new glyph, the texture becomes invalid and needs to be updated.
     std::unordered_map<int, std::unordered_map<int, GlyphInfo>> loaded_glyphs;
 };
-
 }
-
-#endif//SP_GRAPHICS_FREETYPEFONT_H

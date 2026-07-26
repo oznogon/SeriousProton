@@ -70,7 +70,7 @@ Window::Window(glm::vec2 virtual_size, Mode mode, RenderChain* render_chain, int
         glEnable(GL_MULTISAMPLE);
         break;
     default:
-        LOG(Warning, "FSAA must be off (0), 2x, 4x, or 8x, but ", fsaa , "x was passed and ignored.");
+        LOG(Warning, "[sp-window] FSAA must be off (0), 2x, 4x, or 8x, but ", fsaa , "x was passed and ignored.");
     }
 
     all_windows.push_back(this);
@@ -80,8 +80,8 @@ Window::~Window()
 {
     if (gl_context && all_windows.size() <= 1)
         SDL_GL_DestroyContext(gl_context);
-    if (window)
-        SDL_DestroyWindow(window);
+
+    if (window) SDL_DestroyWindow(window);
 }
 
 void Window::render()
@@ -161,9 +161,9 @@ void Window::saveAllScreenshotsToFile()
             string full_path = output_directory + "/" + filename;
 
             if (stbi_write_png(full_path.c_str(), width, height, 3, flipped.data(), width * 3))
-                LOG(Info, "Screenshot saved to ", full_path);
+                LOG(Info, "[sp-window] Screenshot saved: ", full_path);
             else
-                LOG(Error, "Failed to save screenshot to ", full_path);
+                LOG(Error, "[sp-window] Failed to save screenshot: ", full_path);
         }).detach();
 
         index++;
@@ -215,14 +215,14 @@ void Window::setFSAA(int new_fsaa)
             fsaa = new_fsaa;
             break;
         default:
-            LOG(Warning, "FSAA must be off (0), 2x, 4x, or 8x, but ", new_fsaa , "x was passed. Treating as fsaa=0.");
+            LOG(Warning, "[sp-window] FSAA must be off (0), 2x, 4x, or 8x, but ", new_fsaa , "x was passed. Treating as fsaa=0.");
             if (fsaa == 0) return;
             fsaa = 0;
     }
 
     // Can't apply this without recreating the OpenGL context.
     // Log that a restart is required.
-    LOG(Warning, "FSAA changed to ", fsaa, "x. Restart required for this change to take effect.");
+    LOG(Warning, "[sp-window] FSAA changed to ", fsaa, "x. Restart required for this change to take effect.");
 }
 
 void Window::setTitle(string title)
@@ -235,7 +235,7 @@ void Window::setIcon(string icon_name)
     sp::Image image;
     if (!image.loadFromStream(getResourceStream(icon_name)))
     {
-        LOG(Warning, "Couldn't load application icon ", icon_name);
+        LOG(Warning, "[sp-window] Couldn't load application icon: ", icon_name);
         return;
     }
 
@@ -249,7 +249,7 @@ void Window::setIcon(string icon_name)
 
     if (!icon_surface)
     {
-        LOG(Warning, "Couldn't create SDL surface for application icon ", icon_name, ". SDL_Error: ", SDL_GetError());
+        LOG(Warning, "[sp-window] Couldn't create SDL surface for application icon: ", icon_name, " SDL_Error: ", SDL_GetError());
         return;
     }
 
@@ -262,8 +262,8 @@ glm::vec2 Window::mapPixelToCoords(const glm::ivec2 point) const
 {
     int w, h;
     SDL_GetWindowSize(window, &w, &h);
-    float x = float(point.x) / float(w) * float(current_virtual_size.x);
-    float y = float(point.y) / float(h) * float(current_virtual_size.y);
+    float x = static_cast<float>(point.x) / static_cast<float>(w) * static_cast<float>(current_virtual_size.x);
+    float y = static_cast<float>(point.y) / static_cast<float>(h) * static_cast<float>(current_virtual_size.y);
     return glm::vec2(x, y);
 }
 
@@ -271,8 +271,8 @@ glm::ivec2 Window::mapCoordsToPixel(const glm::vec2 point) const
 {
     int w, h;
     SDL_GetWindowSize(window, &w, &h);
-    float x = float(point.x) * float(w) / float(current_virtual_size.x);
-    float y = float(point.y) * float(h) / float(current_virtual_size.y);
+    float x = static_cast<float>(point.x) * static_cast<float>(w) / static_cast<float>(current_virtual_size.x);
+    float y = static_cast<float>(point.y) * static_cast<float>(h) / static_cast<float>(current_virtual_size.y);
     return glm::ivec2(x, y);
 }
 
@@ -281,10 +281,9 @@ void Window::create()
     if (window) return;
 
     int display_nr = 0;
-    for(auto w : all_windows)
+    for (auto w : all_windows)
     {
-        if (w == this)
-            break;
+        if (w == this) break;
         display_nr ++;
     }
 
@@ -334,7 +333,7 @@ void Window::create()
         SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, fsaa);
         break;
     default:
-        LOG(Warning, "FSAA must be off (0), 2x, 4x, or 8x, but ", fsaa , "x was passed. Treating as fsaa=0.");
+        LOG(Warning, "[sp-window] FSAA must be off (0), 2x, 4x, or 8x, but ", fsaa , "x was passed. Treating as fsaa=0.");
         SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 0);
         SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
     }
@@ -357,7 +356,7 @@ void Window::create()
 
     if (!window)
     {
-        LOG(Error, "Failed to create SDL window: ", SDL_GetError());
+        LOG(Error, "[sp-window] Failed to create SDL window. SDL_Error: ", SDL_GetError());
         exit(1);
     }
 
@@ -380,8 +379,8 @@ void Window::create()
         if (!gl_context)
         {
             SDL_DestroyWindow(window);
-            LOG(Warning, "Failed to create OpenGL context: ", SDL_GetError());
-            LOG(Info, "retrying with GLES2.0 context");
+            LOG(Warning, "[sp-window] Failed to create OpenGL context. SDL_Error: ", SDL_GetError());
+            LOG(Info, "[sp-window] Retrying with GLES2.0 context.");
             SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
             SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
             SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
@@ -399,7 +398,7 @@ void Window::create()
 
         if (!gl_context)
         {
-            LOG(Error, "Failed to create OpenGL context:", SDL_GetError());
+            LOG(Error, "[sp-window] Failed to create OpenGL context. SDL_Error: ", SDL_GetError());
             exit(1);
         }
     }
@@ -415,11 +414,11 @@ void Window::create()
         SDL_GL_GetAttribute(SDL_GL_MULTISAMPLESAMPLES, &actual_samples);
 
         if (actual_buffers == 0 || actual_samples == 0)
-            LOG(Warning, "FSAA ", fsaa, "x requested but not available on this system.");
+            LOG(Warning, "[sp-window] FSAA ", fsaa, "x requested but not available on this system.");
         else if (actual_samples != fsaa)
-            LOG(Warning, "FSAA ", fsaa, "x requested, but ", actual_samples, "x provided.");
+            LOG(Warning, "[sp-window] FSAA ", fsaa, "x requested, but ", actual_samples, "x provided.");
         else
-            LOG(Info, "FSAA ", fsaa, "x enabled.");
+            LOG(Info, "[sp-window] FSAA ", fsaa, "x enabled.");
     }
 
     setupView();
@@ -669,31 +668,31 @@ glm::ivec2 Window::calculateWindowSize() const
     {
         if (!display_bounds)
         {
-            LOG(Debug, "SDL_GetDisplayBounds(target_display, &rect) returned false. target_display: ", target_display);
+            LOG(Debug, "[sp-window] SDL_GetDisplayBounds(target_display, &rect) returned false. target_display: ", target_display);
             const char* sdl_error{SDL_GetError()};
-            LOG(Error, "SDL error in Window::calculateWindowSize() at SDL_GetDisplayBounds(target_display, &rect): ", sdl_error);
+            LOG(Error, "[sp-window] SDL error in Window::calculateWindowSize() at SDL_GetDisplayBounds(target_display, &rect): ", sdl_error);
             SDL_ClearError();
         }
         else
         {
-            LOG(Debug, "SDL_GetDisplayBounds(target_display, &rect) succeeded, but at least one rect dimension is still 0. target_display: ", target_display, ", rect.w,h: ", rect.w, ",", rect.h);
+            LOG(Debug, "[sp-window] SDL_GetDisplayBounds(target_display, &rect) succeeded, but at least one rect dimension is still 0. target_display: ", target_display, ", rect.w,h: ", rect.w, ",", rect.h);
         }
 
         if (first_display != 0 && SDL_GetDisplayBounds(first_display, &rect))
         {
             if (rect.w == 0 || rect.h == 0)
-                LOG(Debug, "SDL_GetDisplayBounds(first_display, &rect) succeeded, but at least one rect dimension is still 0. rect.w,h: ", rect.w, ",", rect.h);
+                LOG(Debug, "[sp-window] SDL_GetDisplayBounds(first_display, &rect) succeeded, but at least one rect dimension is still 0. rect.w,h: ", rect.w, ",", rect.h);
         }
         else if (first_display != 0)
         {
             const char* sdl_error{SDL_GetError()};
-            LOG(Error, "SDL error in Window::calculateWindowSize() at SDL_GetDisplayBounds(first_display, &rect): ", sdl_error);
+            LOG(Error, "[sp-window] SDL error in Window::calculateWindowSize() at SDL_GetDisplayBounds(first_display, &rect): ", sdl_error);
             SDL_ClearError();
         }
     }
 
     // Warn if the rect is too small to use
-    if (rect.w < fallback_size || rect.h < fallback_size) LOG(Warning, "SDL_GetDisplayBounds() returned a rect with at least one dimension < ", fallback_size, ": ", rect.w, ",", rect.h);
+    if (rect.w < fallback_size || rect.h < fallback_size) LOG(Warning, "[sp-window] SDL_GetDisplayBounds() returned a rect with at least one dimension < ", fallback_size, ": ", rect.w, ",", rect.h);
 
     if (mode != Mode::Window)
     {
@@ -701,7 +700,7 @@ glm::ivec2 Window::calculateWindowSize() const
             return {rect.w, rect.h};
         else
         {
-            LOG(Debug, "Calculated window size has at least one dimension of < ", fallback_size, ": ", rect.w, ",", rect.h, "\nFalling back to ", fallback_dimensions.x, ",", fallback_dimensions.y, ".");
+            LOG(Debug, "[sp-window] Calculated window size has at least one dimension of < ", fallback_size, ": ", rect.w, ",", rect.h, ". Falling back to ", fallback_dimensions.x, ",", fallback_dimensions.y, ".");
             return fallback_dimensions;
         }
     }
@@ -718,11 +717,11 @@ glm::ivec2 Window::calculateWindowSize() const
     }
 
     if (count >= max_attempts)
-        LOG(Warning, "Window::calculateWindowSize() couldn't solve scale in ", max_attempts, "attempts: ", scale);
+        LOG(Warning, "[sp-window] calculateWindowSize() couldn't solve scale in ", max_attempts, "attempts: ", scale);
 
     windowWidth *= scale - 1;
     windowHeight *= scale - 1;
-    LOG(Debug, "Window dimensions before scaling loop: ", windowWidth, ",", windowHeight);
+    LOG(Debug, "[sp-window] Dimensions before scaling loop: ", windowWidth, ",", windowHeight);
 
     count = 0;
     max_attempts = 16;
@@ -734,11 +733,11 @@ glm::ivec2 Window::calculateWindowSize() const
     }
 
     if (count >= max_attempts)
-        LOG(Warning, "Window::calculateWindowSize() couldn't solve windowWidth and windowHeight in ", max_attempts, " attempts: ", windowWidth, ",", windowHeight);
+        LOG(Warning, "[sp-window] calculateWindowSize() couldn't solve windowWidth and windowHeight in ", max_attempts, " attempts: ", windowWidth, ",", windowHeight);
 
     if (windowWidth < fallback_size || windowHeight < fallback_size)
     {
-        LOG(Debug, "Window::calculateWindowSize() reported at least one window dimension of < ", fallback_size, ": ", windowWidth, ",", windowHeight, "\nFalling back to ", fallback_dimensions.x, ",", fallback_dimensions.y, ".");
+        LOG(Debug, "[sp-window] calculateWindowSize() reported at least one window dimension of < ", fallback_size, ": ", windowWidth, ",", windowHeight, ". Falling back to ", fallback_dimensions.x, ",", fallback_dimensions.y, ".");
         return fallback_dimensions;
     }
 

@@ -5,8 +5,10 @@
 
 #include "stringImproved.h"
 
-namespace sp {
-    namespace gl {
+namespace sp
+{
+    namespace gl
+    {
         bool contextIsES = false;
         int max_texture_size = 0;
     }
@@ -22,8 +24,8 @@ extern "C" {
     GLboolean(APIENTRYP sp_glIsVertexArrayANY)(GLuint array) = nullptr;
 }
 
-namespace {
-
+namespace
+{
     const char* debugTypeLabel(GLenum type)
     {
         switch (type)
@@ -68,6 +70,7 @@ namespace {
                 return "[Unknown] ";
         }
     }
+
     ELogLevel severityCast(GLenum severity)
     {
         switch (severity)
@@ -111,28 +114,28 @@ void initOpenGL()
 
     if (gl::contextIsES)
     {
-        LOG(Info, "OpenGL ES context version: ", major, ".", minor, " (profile: ", profile_mask, ")");
+        LOG(Info, "[sp-opengl] OpenGL ES context version: ", major, ".", minor, " (profile: ", profile_mask, ")");
 
         if (!gladLoadGLES2Loader(&SDL_GL_GetProcAddress))
         {
-            LOG(Error, "Failed to initialize OpenGL ES functions.");
+            LOG(Error, "[sp-opengl] Failed to initialize OpenGL ES functions.");
             exit(1);
         }
     }
     else
     {
-        LOG(Info, "OpenGL context version: ", major, ".", minor, " (profile: ", profile_mask, ")");
+        LOG(Info, "[sp-opengl] OpenGL context version: ", major, ".", minor, " (profile: ", profile_mask, ")");
 
         if (!gladLoadGLLoader(&SDL_GL_GetProcAddress))
         {
-            LOG(Error, "Failed to initialize OpenGL functions.");
+            LOG(Error, "[sp-opengl] Failed to initialize OpenGL functions.");
             exit(1);
         }
     }
 
     // Query maximum supported texture size.
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl::max_texture_size);
-    LOG(Debug, "GL_MAX_TEXTURE_SIZE = ", gl::max_texture_size);
+    LOG(Debug, "[sp-opengl] GL_MAX_TEXTURE_SIZE = ", gl::max_texture_size);
 
     // Find out supported compressed textures.
     GLint count{};
@@ -172,7 +175,8 @@ void initOpenGL()
     SDL_assert_always(glGetError() == GL_NO_ERROR);
 }
 
-namespace gl {
+namespace gl
+{
     bool enableDebugOutput(bool synchronous)
     {
         if (GLAD_GL_KHR_debug)
@@ -198,8 +202,8 @@ namespace gl {
             int error = glad_glGetError();
     #ifdef FULL_LOG
     #if defined(ANDROID) || defined(__EMSCRIPTEN__)
-            LOG(Debug, "GL_TRACE", source_file, source_line_number, source_function, function_name, parameters);
-            if (error) LOG(Error, "GL_TRACE ERROR", error);
+            LOG(Debug, "[sp-opengl] GL_TRACE", source_file, source_line_number, source_function, function_name, parameters);
+            if (error) LOG(Error, "[sp-opengl] GL_TRACE ERROR", error);
     #else
             static FILE* f = nullptr;
             if (!f) f = fopen("opengl.trace.txt", "wt");
@@ -209,9 +213,9 @@ namespace gl {
     #else
             SDL_assert_always(error == GL_NO_ERROR);
             if (error != GL_NO_ERROR)
-                LOG(Error, "glGetError:", error, "@", source_file, ":", source_line_number, ":", source_function, ":", function_name, ":", parameters);
+                LOG(Error, "[sp-opengl] glGetError: ", error, "@", source_file, ":", source_line_number, ":", source_function, ":", function_name, ":", parameters);
     #endif
         }
     }
 #endif//SP_ENABLE_OPENGL_TRACING
-}//namespace sp
+}//namespace gl

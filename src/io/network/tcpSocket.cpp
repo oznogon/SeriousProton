@@ -116,7 +116,7 @@ bool TcpSocket::connect(const Address& host, int port)
         handle = ::socket(addr_info.family, SOCK_STREAM, 0);
         if (handle == INVALID_SOCKET)
         {
-            LOG(Warning, "Failed to create socket for TCP connection");
+            LOG(Warning, "[sp-tcpsocket] Failed to create socket for TCP connection.");
             return false;
         }
 
@@ -142,7 +142,7 @@ bool TcpSocket::connect(const Address& host, int port)
                 return true;
             }
 
-            LOG(Warning, "TCP connect to ", addr_info.human_readable, ":", port, " failed. errno=", errno);
+            LOG(Warning, "[sp-tcpsocket] TCP connect to ", addr_info.human_readable, ":", port, " failed. errno=", errno);
         }
         else if (addr_info.family == AF_INET6 && sizeof(struct sockaddr_in6) == addr_info.addr.size())
         {
@@ -161,15 +161,15 @@ bool TcpSocket::connect(const Address& host, int port)
                 connecting = true;
                 return true;
             }
-            LOG(Warning, "TCP connect to [", addr_info.human_readable, "]:", port, " failed. errno=", errno);
+            LOG(Warning, "[sp-tcpsocket] TCP connect to [", addr_info.human_readable, "]:", port, " failed. errno=", errno);
         }
         else
         {
-            LOG(Warning, "Unsupported address family: ", addr_info.family, " addr_size=", addr_info.addr.size());
+            LOG(Warning, "[sp-tcpsocket] Unsupported address family: ", addr_info.family, " addr_size=", addr_info.addr.size());
         }
         close();
     }
-    LOG(Warning, "Failed to connect TCP socket to port ", port, ". Address had ", host.addr_info.size(), " resolved entries.");
+    LOG(Warning, "[sp-tcpsocket] Failed to connect TCP socket to port ", port, ". Address had ", host.addr_info.size(), " resolved entries.");
     return false;
 }
 
@@ -181,7 +181,7 @@ bool TcpSocket::connectSSL(const Address& host, int port)
     SSL_CTX* ctx = getSSLContext();
     if (!ctx)
     {
-        LOG(Warning, "Failed to create SSL context");
+        LOG(Warning, "[sp-tcpsocket] Failed to create SSL context.");
         close();
         return false;
     }
@@ -189,7 +189,7 @@ bool TcpSocket::connectSSL(const Address& host, int port)
     SSL* ssl = SSL_new(ctx);
     if (!ssl)
     {
-        LOG(Warning, "Failed to create SSL session");
+        LOG(Warning, "[sp-tcpsocket] Failed to create SSL session");
         close();
         return false;
     }
@@ -200,7 +200,7 @@ bool TcpSocket::connectSSL(const Address& host, int port)
     if (ssl_ret <= 0)
     {
         int ssl_error_code = SSL_get_error(ssl, ssl_ret);
-        LOG(Warning, "Failed to connect SSL socket due to SSL negotiation failure. SSL error: ", ssl_error_code);
+        LOG(Warning, "[sp-tcpsocket] Failed to connect SSL socket due to SSL negotiation failure. SSL error: ", ssl_error_code);
         SSL_free(ssl);
         close();
         return false;
@@ -208,7 +208,7 @@ bool TcpSocket::connectSSL(const Address& host, int port)
 
     if (ssl_verify && SSL_get_verify_result(ssl) != 0)
     {
-        LOG(Warning, "Failed to connect SSL socket due to certificate verification failure.");
+        LOG(Warning, "[sp-tcpsocket] Failed to connect SSL socket due to certificate verification failure.");
         SSL_free(ssl);
         close();
         return false;
@@ -223,13 +223,14 @@ void TcpSocket::setDelay(bool delay)
 {
     if (handle == INVALID_SOCKET)
     {
-        LOG(Warning, "Failed to setDelay due to being called on an incomplete socket");
+        LOG(Warning, "[sp-tcpsocket] Failed to setDelay due to being called on an incomplete socket.");
         return;
     }
+
     int mode = delay ? 0 : 1;
     if (setsockopt(handle, IPPROTO_TCP, TCP_NODELAY, (char*)&mode, sizeof(mode)) == -1)
     {
-        LOG(Warning, "Failed to setDelay on a socket");
+        LOG(Warning, "[sp-tcpsocket] Failed to setDelay on a socket.");
     }
 }
 

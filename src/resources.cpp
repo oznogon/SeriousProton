@@ -22,17 +22,15 @@ bool ResourceProvider::searchMatch(const string name, const string searchPattern
     std::vector<string> parts = searchPattern.split("*");
     int pos = 0;
     if (parts[0].length() > 0)
-    {
-        if (name.find(parts[0]) != 0)
-            return false;
-    }
-    for(unsigned int n=1; n<parts.size(); n++)
+        if (name.find(parts[0]) != 0) return false;
+
+    for (unsigned int n = 1; n < parts.size(); n++)
     {
         int offset = name.find(parts[n], pos);
-        if (offset < 0)
-            return false;
+        if (offset < 0) return false;
         pos = offset + static_cast<int>(parts[n].length());
     }
+
     return pos == static_cast<int>(name.length());
 }
 
@@ -40,12 +38,10 @@ string ResourceStream::readLine()
 {
     string ret;
     char c;
-    while(true)
+    while (true)
     {
-        if (read(&c, 1) < 1)
-            return ret;
-        if (c == '\n')
-            return ret;
+        if (read(&c, 1) < 1) return ret;
+        if (c == '\n') return ret;
         ret += string(c);
     }
 }
@@ -67,12 +63,10 @@ public:
     {
 #ifndef ANDROID
         std::error_code ec;
-        if(!std::filesystem::is_regular_file(filename.c_str(), ec))
-        {
-            //Error code "no such file or directory" thrown really often, so no trace here
-            //not to spam the log
+        // Error code "no such file or directory" is thrown often, so don't
+        // trace here to avoid spamming the log.
+        if (!std::filesystem::is_regular_file(filename.c_str(), ec))
             io = nullptr;
-        }
         else
             io = SDL_IOFromFile(filename.c_str(), "rb");
 #else
@@ -83,8 +77,7 @@ public:
 
     virtual ~FileResourceStream()
     {
-        if (io)
-            SDL_CloseIO(io);
+        if (io) SDL_CloseIO(io);
     }
 
     bool isOpen()
@@ -96,27 +89,32 @@ public:
     {
         return SDL_ReadIO(io, data, size);
     }
+
     virtual size_t seek(size_t position) override
     {
         auto offset = SDL_SeekIO(io, position, SDL_IO_SEEK_SET);
         SDL_assert(offset != -1);
         return static_cast<size_t>(offset);
     }
+
     virtual size_t tell() override
     {
         auto offset = SDL_SeekIO(io, 0, SDL_IO_SEEK_CUR);
         SDL_assert(offset != -1);
         return static_cast<size_t>(offset);
     }
+
     virtual size_t getSize() override
     {
-        if (size == 0) {
+        if (size == 0)
+        {
             size_t cur = tell();
             auto end_offset = SDL_SeekIO(io, 0, SDL_IO_SEEK_END);
             SDL_assert(end_offset != -1);
             size = static_cast<size_t>(end_offset);
             seek(cur);
         }
+
         return size;
     }
 };
@@ -130,8 +128,7 @@ DirectoryResourceProvider::DirectoryResourceProvider(string basepath)
 P<ResourceStream> DirectoryResourceProvider::getResourceStream(string filename)
 {
     P<FileResourceStream> stream = new FileResourceStream(basepath + "/" + filename);
-    if (stream->isOpen())
-        return stream;
+    if (stream->isOpen()) return stream;
     return nullptr;
 }
 
@@ -188,16 +185,16 @@ std::vector<string> DirectoryResourceProvider::findResources(string searchPatter
     std::error_code error_code{};
     for (const auto& entry : fs::recursive_directory_iterator(root, traversal_options, error_code))
     {
+        // Use relative generic paths (i.e. forward slashes) in case the caller
+        // wants to pattern match with a folder.
         if (!error_code)
         {
-            // Use relative generic paths (ie forward slashes)
-            // In case caller want to pattern match with a folder.
             auto relative_path = entry.path().lexically_relative(root).generic_u8string();
             if (!entry.is_directory() && searchMatch(relative_path, searchPattern))
                 found_files.push_back(relative_path);
         }
         else
-            LOG(WARNING, entry.path().u8string(), " encountered an error: ", error_code.message());
+            LOG(Warning, "[sp-drp] Resource path ", entry.path().u8string(), " encountered an error: ", error_code.message());
     }
 #endif
     return found_files;
@@ -205,11 +202,10 @@ std::vector<string> DirectoryResourceProvider::findResources(string searchPatter
 
 P<ResourceStream> getResourceStream(string filename)
 {
-    foreach(ResourceProvider, rp, resourceProviders)
+    foreach (ResourceProvider, rp, resourceProviders)
     {
         P<ResourceStream> stream = rp->getResourceStream(filename);
-        if (stream)
-            return stream;
+        if (stream) return stream;
     }
     return NULL;
 }
@@ -217,10 +213,12 @@ P<ResourceStream> getResourceStream(string filename)
 std::vector<string> findResources(string searchPattern)
 {
     std::vector<string> foundFiles;
-    foreach(ResourceProvider, rp, resourceProviders)
+
+    foreach (ResourceProvider, rp, resourceProviders)
     {
         std::vector<string> res = rp->findResources(searchPattern);
         foundFiles.insert(foundFiles.end(), res.begin(), res.end());
     }
+
     return foundFiles;
 }

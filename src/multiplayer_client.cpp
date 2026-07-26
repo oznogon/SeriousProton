@@ -70,12 +70,12 @@ void GameClient::update(float /*delta*/)
         case sp::io::network::StreamSocket::State::Closed:
             status = Disconnected;
             disconnect_reason = DisconnectReason::FailedToConnect;
-            LOG(INFO) << "GameClient: Failed to connect";
+            LOG(Info, "[sp-gameclient] Failed to connect.");
             break;
         case sp::io::network::StreamSocket::State::Connecting:
             break;
         case sp::io::network::StreamSocket::State::Connected:
-            LOG(INFO) << "GameClient: Connected, waiting for authentication";
+            LOG(Info, "[sp-gameclient] Connected, waiting for authentication.");
             status = Authenticating;
             break;
         }
@@ -83,19 +83,19 @@ void GameClient::update(float /*delta*/)
     }
 
     std::vector<int32_t> delList;
-    for(std::unordered_map<int32_t, P<MultiplayerObject> >::iterator i=objectMap.begin(); i != objectMap.end(); i++)
+    for (std::unordered_map<int32_t, P<MultiplayerObject> >::iterator i = objectMap.begin(); i != objectMap.end(); i++)
     {
         int id = i->first;
         P<MultiplayerObject> obj = i->second;
-        if (!obj)
-            delList.push_back(id);
+        if (!obj) delList.push_back(id);
     }
-    for(unsigned int n=0; n<delList.size(); n++)
+
+    for (unsigned int n = 0; n < delList.size(); n++)
         objectMap.erase(delList[n]);
 
     sp::io::DataBuffer reply;
     sp::io::DataBuffer packet;
-    while(socket->receive(packet))
+    while (socket->receive(packet))
     {
         no_data_timeout.start(no_data_disconnect_time);
         heartbeat_timer.start(heartbeat_time);
@@ -107,7 +107,7 @@ void GameClient::update(float /*delta*/)
         case Connecting:
         case Authenticating:
         case WaitingForPassword:
-            switch(command)
+            switch (command)
             {
             case CMD_REQUEST_AUTH:
                 {
@@ -117,19 +117,19 @@ void GameClient::update(float /*delta*/)
 
                     if (server_version != 0 && server_version != version_number)
                     {
-                        require_password = false; // forcibly send an empty pass, we're about to fail anyway.
+                        // Forcibly send an empty pass, we're about to fail anyway.
+                        require_password = false;
                         disconnect_reason = DisconnectReason::VersionMismatch;
-                        LOG(INFO) << "Server version " << server_version << " does not match client version " << version_number;
+                        LOG(Info, "[sp-gameclient] Server version ", server_version, " doesn't match client version ", version_number);
                     }
 
                     if (!require_password)
                     {
                         reply.clear();
-                        reply << CMD_CLIENT_SEND_AUTH << int32_t(version_number) << string("");
+                        reply << CMD_CLIENT_SEND_AUTH << static_cast<int32_t>(version_number) << string("");
                         socket->send(reply);
-                    }else{
-                        status = WaitingForPassword;
                     }
+                    else status = WaitingForPassword;
                 }
                 break;
             case CMD_SET_CLIENT_ID:
@@ -138,13 +138,13 @@ void GameClient::update(float /*delta*/)
                 disconnect_reason = DisconnectReason::None;
                 break;
             case CMD_ALIVE:
-                // send response to calculate ping
+                // Send response to calculate ping.
                 reply.clear();
                 reply << CMD_ALIVE_RESP;
                 socket->send(reply);
                 break;
             default:
-                LOG(ERROR) << "Unknown command from server: " << command;
+                LOG(Error, "[sp-gameclient] Unknown command from server: ", command);
             }
             break;
         case Connected:
@@ -155,25 +155,26 @@ void GameClient::update(float /*delta*/)
                     int32_t id;
                     string name;
                     packet >> id >> name;
+
                     if (objectMap.find(id) == objectMap.end() || !objectMap[id])
                     {
-                        for(MultiplayerClassListItem* i = multiplayerClassListStart; i; i = i->next)
+                        for (MultiplayerClassListItem* i = multiplayerClassListStart; i; i = i->next)
                         {
                             if (i->name == name)
                             {
-                                LOG(INFO) << "Created " << name << " from server replication";
+                                LOG(Info, "[sp-gameclient] Created ", name, " from server replication.");
                                 MultiplayerObject* obj = i->func();
                                 obj->multiplayerObjectId = id;
                                 objectMap[id] = obj;
 
-                                while(packet.available())
+                                while (packet.available())
                                 {
                                     int16_t idx;
                                     packet >> idx;
                                     if (idx >= 0 && idx < int16_t(obj->memberReplicationInfo.size()))
                                         (obj->memberReplicationInfo[idx].receiveFunction)(obj->memberReplicationInfo[idx].ptr, packet);
                                     else
-                                        LOG(DEBUG) << "Odd index from server replication: " << idx;
+                                        LOG(Debug, "[sp-gameclient] Odd index from server replication: ", idx);
                                 }
                             }
                         }
@@ -286,15 +287,16 @@ void GameClient::update(float /*delta*/)
                             uint16_t component_index;
                             uint32_t index;
                             packet >> component_index >> index;
-                            if (component_index < sp::ecs::MultiplayerReplication::list.size()) {
-                                if (index < entity_mapping.size() && entity_mapping[index]) {
+
+                            if (component_index < sp::ecs::MultiplayerReplication::list.size())
+                            {
+                                if (index < entity_mapping.size() && entity_mapping[index])
                                     sp::ecs::MultiplayerReplication::list[component_index]->receive(entity_mapping[index], packet);
-                                } else {
-                                    LOG(Error, "MP: ECS set component of unknown entity: ", index);
-                                }
-                            } else {
-                                LOG(Error, "MP: ECS set component of unknown component index: ", component_index);
+                                else
+                                    LOG(Error, "[sp-gameclient] MP: ECS set component of unknown entity: ", index);
                             }
+                            else
+                                LOG(Error, "[sp-gameclient] MP: ECS set component of unknown component index: ", component_index);
                         }
                         break;
                     case CMD_ECS_DEL_COMPONENT:
@@ -302,9 +304,12 @@ void GameClient::update(float /*delta*/)
                             uint16_t component_index;
                             uint32_t index;
                             packet >> component_index >> index;
+
                             if (component_index < sp::ecs::MultiplayerReplication::list.size())
+                            {
                                 if (index < entity_mapping.size() && entity_mapping[index])
                                     sp::ecs::MultiplayerReplication::list[component_index]->remove(entity_mapping[index]);
+                            }
                         }
                         break;
                     case CMD_ECS_SET_COMPONENT_BATCH:
@@ -312,19 +317,21 @@ void GameClient::update(float /*delta*/)
                             uint16_t component_index;
                             uint16_t count;
                             packet >> component_index >> count;
-                            if (component_index < sp::ecs::MultiplayerReplication::list.size()) {
-                                for (uint16_t i = 0; i < count; i++) {
+
+                            if (component_index < sp::ecs::MultiplayerReplication::list.size())
+                            {
+                                for (uint16_t i = 0; i < count; i++)
+                                {
                                     uint32_t index;
                                     packet >> index;
-                                    if (index < entity_mapping.size() && entity_mapping[index]) {
+                                    if (index < entity_mapping.size() && entity_mapping[index])
                                         sp::ecs::MultiplayerReplication::list[component_index]->receive(entity_mapping[index], packet);
-                                    } else {
-                                        LOG(Error, "MP: ECS batch set component of unknown entity: ", index);
-                                    }
+                                    else
+                                        LOG(Error, "[sp-gameclient] MP: ECS batch set component of unknown entity: ", index);
                                 }
-                            } else {
-                                LOG(Error, "MP: ECS batch set component of unknown component index: ", component_index);
                             }
+                            else
+                                LOG(Error, "[sp-gameclient] MP: ECS batch set component of unknown component index: ", component_index);
                         }
                         break;
                     case CMD_ECS_DEL_COMPONENT_BATCH:
@@ -332,10 +339,14 @@ void GameClient::update(float /*delta*/)
                             uint16_t component_index;
                             uint16_t count;
                             packet >> component_index >> count;
-                            if (component_index < sp::ecs::MultiplayerReplication::list.size()) {
-                                for (uint16_t i = 0; i < count; i++) {
+
+                            if (component_index < sp::ecs::MultiplayerReplication::list.size())
+                            {
+                                for (uint16_t i = 0; i < count; i++)
+                                {
                                     uint32_t index;
                                     packet >> index;
+
                                     if (index < entity_mapping.size() && entity_mapping[index])
                                         sp::ecs::MultiplayerReplication::list[component_index]->remove(entity_mapping[index]);
                                 }
@@ -343,12 +354,12 @@ void GameClient::update(float /*delta*/)
                         }
                         break;
                     default:
-                        LOG(Error, "Unknown ECS command in packet?...");
+                        LOG(Error, "[sp-gameclient] Unknown ECS command in packet?");
                     }
                 }
                 break;
             default:
-                LOG(ERROR) << "Unknown command from server: " << command;
+                LOG(Error, "[sp-gameclient] Unknown command from server: ", command);
             }
         case Disconnected:
             break;
@@ -379,8 +390,7 @@ void GameClient::sendPacket(sp::io::DataBuffer& packet)
 
 void GameClient::sendPassword(string password)
 {
-    if (status != WaitingForPassword)
-        return;
+    if (status != WaitingForPassword) return;
 
     disconnect_reason = DisconnectReason::BadCredentials;
     sp::io::DataBuffer reply;

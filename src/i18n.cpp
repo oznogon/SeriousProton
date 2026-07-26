@@ -32,10 +32,9 @@ struct MoHeader
 const string& tr(const string& input)
 {
     auto catalogue = i18n::Catalogue::get();
-    if (catalogue)
-        return catalogue->tr(input);
+    if (catalogue) return catalogue->tr(input);
 
-    LOG(ERROR) << "tr called before the catalogue is loaded!";
+    LOG(Error, "[sp-i18n] tr function called before the catalogue is loaded.");
     SDL_assert(false);
     return input;
 }
@@ -43,10 +42,9 @@ const string& tr(const string& input)
 const string& tr(const string& context, const string& input)
 {
     auto catalogue = i18n::Catalogue::get();
-    if (catalogue)
-        return catalogue->tr(context, input);
+    if (catalogue) return catalogue->tr(context, input);
 
-    LOG(ERROR) << "tr called before the catalogue is loaded!";
+    LOG(Error, "[sp-i18n] tr function called before the catalogue is loaded.");
     SDL_assert(false);
     return input;
 }
@@ -54,10 +52,9 @@ const string& tr(const string& context, const string& input)
 const string& trn(int n, const string& singular, const string& plural)
 {
     auto catalogue = i18n::Catalogue::get();
-    if (catalogue)
-        return catalogue->trn(n, singular, plural);
+    if (catalogue) return catalogue->trn(n, singular, plural);
 
-    LOG(ERROR) << "trn called before the catalogue is loaded!";
+    LOG(Error, "[sp-i18n] trn function called before the catalogue is loaded.");
     SDL_assert(false);
     return singular;
 }
@@ -65,10 +62,9 @@ const string& trn(int n, const string& singular, const string& plural)
 const string& trn(int n, const string& context, const string& singular, const string& plural)
 {
     auto catalogue = i18n::Catalogue::get();
-    if (catalogue)
-        return catalogue->trn(n, context, singular, plural);
+    if (catalogue) return catalogue->trn(n, context, singular, plural);
 
-    LOG(ERROR) << "trn called before the catalogue is loaded!";
+    LOG(Error, "[sp-i18n] trn function called before the catalogue is loaded.");
     SDL_assert(false);
     return singular;
 }
@@ -154,11 +150,9 @@ bool Catalogue::load(const string& resource_name)
         instance.reset(new Catalogue);
 
     SDL_assert(instance);
+    // This probably won't work if we're OOM.
     if (!instance)
-    {
-        // This probably won't work if we're OOM.
-        LOG(ERROR) << "Failed to allocate the Catalogue!";
-    }
+        LOG(Error, "[sp-i18n] Failed to allocate the Catalogue!");
 
     return instance->load_resource(resource_name);
 }
@@ -220,23 +214,23 @@ bool Catalogue::load_resource(const string& resource_name)
         }
         for(size_t n=0; n<header.count; n++)
         {
-            string origonal;
+            string original;
             string translated;
-            origonal.resize(length_offset_origonal[n*2]);
+            original.resize(length_offset_origonal[n*2]);
             translated.resize(length_offset_translated[n*2]);
             stream->seek(length_offset_origonal[n*2+1]);
-            stream->read(&origonal[0], length_offset_origonal[n*2]);
+            stream->read(&original[0], length_offset_origonal[n*2]);
             stream->seek(length_offset_translated[n*2+1]);
             stream->read(&translated[0], length_offset_translated[n*2]);
 
-            if (!origonal.empty())
+            if (!original.empty())
             {
                 // TODO how are plural forms encoded here?
-                int context_index = origonal.find("\x04");
+                int context_index = original.find("\x04");
                 if (context_index > -1)
-                    entries[origonal.substr(0, context_index)][origonal.substr(context_index + 1)] = {translated};
+                    entries[original.substr(0, context_index)][original.substr(context_index + 1)] = {translated};
                 else
-                    entries[""][origonal] = {translated};
+                    entries[""][original] = {translated};
             }
         }
         return true;
@@ -244,11 +238,11 @@ bool Catalogue::load_resource(const string& resource_name)
 
     if (resource_name.endswith(".po"))
     {
-        string origonal;
+        string original;
         std::vector<string> translated_pl;
         string translated;
         string context;
-        string* target = &origonal;
+        string* target = &original;
 
         stream->seek(0);
         while(stream->tell() != stream->getSize())
@@ -259,22 +253,22 @@ bool Catalogue::load_resource(const string& resource_name)
             {
                 if (target == &translated && !line.startswith("\"") && !line.startswith("msgstr["))
                 {
-                    if (context.empty() && origonal.empty())
+                    if (context.empty() && original.empty())
                     {
                         process_headers(translated);
                     }
-                    if (!origonal.empty() && !translated.empty())
+                    if (!original.empty() && !translated.empty())
                     {
                         translated_pl.push_back(translated);
-                        entries[context][origonal] = translated_pl;
+                        entries[context][original] = translated_pl;
                     }
                     context = "";
                     translated_pl = {};
                 }
                 if (line.startswith("msgid \""))
                 {
-                    origonal = "";
-                    target = &origonal;
+                    original = "";
+                    target = &original;
                     line_contents = line.substr(7, -1);
                 }
                 else if (line.startswith("msgctxt \""))
@@ -293,34 +287,36 @@ bool Catalogue::load_resource(const string& resource_name)
                 else if (line.startswith("msgstr["))
                 {
                     auto close_idx = line.find("] \"");
-                    if (close_idx < 0) {
-                        LOG(ERROR) << "msgstr[ with no closing ] on the line?";
+                    if (close_idx < 0)
+                    {
+                        LOG(Error, "[sp-i18n] msgstr[ with no closing ] on the line?");
                         continue;
                     }
                     auto idx_str = line.substr(7, close_idx);
                     line_contents = line.substr(close_idx+3, -1);
 
-                    if (!idx_str.isdigit()) {
-                        LOG(ERROR) << "msgstr[] with non-digit index?";
+                    if (!idx_str.isdigit())
+                    {
+                        LOG(Error, "[sp-i18n] msgstr[] with non-digit index?");
                         continue;
                     }
 
 
-                    auto idx_val = (unsigned int)idx_str.toInt();
-                    if (idx_val > 0)
-                        translated_pl.push_back(translated);
-                    if (idx_val != translated_pl.size()) {
-                        LOG(ERROR) << "Out-of-sequence msgstr[]! " << idx_val << " vs " << translated_pl.size();
+                    auto idx_val = static_cast<unsigned int>(idx_str.toInt());
+                    if (idx_val > 0) translated_pl.push_back(translated);
+                    if (idx_val != translated_pl.size())
+                    {
+                        LOG(Error, "[sp-i18n] Out-of-sequence msgstr[]! ", idx_val, " vs. ", translated_pl.size());
                         continue;
                     }
+
                     translated = "";
                     target = &translated;
                 }
                 else if (line.startswith("\""))
-                {
                     line_contents = line.substr(1, -1);
-                }
-                for(size_t n=0; n<line_contents.size(); n++)
+
+                for (size_t n = 0; n < line_contents.size(); n++)
                 {
                     if (line_contents[n] == '\\')
                     {
@@ -332,20 +328,17 @@ bool Catalogue::load_resource(const string& resource_name)
                         default: *target += line_contents[n]; break;
                         }
                     }
-                    else
-                    {
-                        *target += line_contents[n];
-                    }
+                    else *target += line_contents[n];
                 }
             }
         }
-        if (context.empty() && origonal.empty()) {
+
+        if (context.empty() && original.empty())
             process_headers(translated);
-        }
-        else if (!origonal.empty() && !translated.empty())
+        else if (!original.empty() && !translated.empty())
         {
             translated_pl.push_back(translated);
-            entries[context][origonal] = translated_pl;
+            entries[context][original] = translated_pl;
         }
         return true;
     }
@@ -353,29 +346,37 @@ bool Catalogue::load_resource(const string& resource_name)
     return false;
 }
 
-void Catalogue::process_headers(const string& headers) {
-    for (auto hdr : headers.split('\n')) {
+void Catalogue::process_headers(const string& headers)
+{
+    for (auto hdr : headers.split('\n'))
+    {
         auto parts = hdr.split(':', 1);
         if (parts.size() < 2) continue;
 
-        if (parts[0] == "Plural-Forms") {
-            for (auto elem : parts[1].split(";")) {
+        if (parts[0] == "Plural-Forms")
+        {
+            for (auto elem : parts[1].split(";"))
+            {
                 auto kv = elem.split('=', 1);
                 if (kv.size() < 2) continue;
 
                 auto key = kv[0].strip();
-                if (key == "nplurals") {
+                if (key == "nplurals")
+                {
                     nplurals = kv[1].toInt();
-                    if (nplurals < 1) {
-                        LOG(ERROR) << "Invalid nplurals value: " << kv[1];
+
+                    if (nplurals < 1)
+                    {
+                        LOG(Error, "[sp-i18n] Invalid nplurals value: ", kv[1]);
                         nplurals = 1;
                     }
-                } else if (key == "plural") {
+                }
+                else if (key == "plural")
+                {
                     string error;
                     plural_expression = sp::expr::CExpression::parse(kv[1], I18NIdentifierContext(0), error);
-                    if (!plural_expression) {
-                        LOG(ERROR) << "Failed to parse plural expression: " << error;
-                    }
+                    if (!plural_expression)
+                        LOG(Error, "[sp-i18n] Failed to parse plural expression: ", error);
                 }
             }
         }

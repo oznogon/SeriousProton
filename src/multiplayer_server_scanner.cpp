@@ -17,9 +17,8 @@ ServerScanner::~ServerScanner()
 void ServerScanner::scanMasterServer(string url)
 {
     abort_wait.notify_all();
-    if (master_server_scan_thread.joinable())
-        return;
-    LOG(INFO, "Starting master server scanning");
+    if (master_server_scan_thread.joinable()) return;
+    LOG(Info, "[sp-serverscan] Starting registration server scanning.");
 
     master_server_url = url;
     master_server_scan_thread = std::thread(&ServerScanner::masterServerScanThread, this);
@@ -27,17 +26,17 @@ void ServerScanner::scanMasterServer(string url)
 
 void ServerScanner::scanLocalNetwork()
 {
-    if (socket)
-        return;
+    if (socket) return;
 
-    LOG(INFO, "Starting local server scanning");
+    LOG(Info, "[sp-serverscan] Starting local server scanning.");
 
     socket = std::make_unique<sp::io::network::UdpSocket>();
     int port_nr = server_port + 1;
-    while(!socket->bind(static_cast<uint16_t>(port_nr)))
-        port_nr++;
+
+    while (!socket->bind(static_cast<uint16_t>(port_nr))) port_nr++;
+
     if (!socket->joinMulticast(666))
-        LOG(ERROR, "Failed to join multicast for local network discovery");
+        LOG(Error, "[sp-serverscan] Failed to join multicast for local network discovery.");
 
     socket->setBlocking(false);
     broadcast_timer.repeat(BROADCAST_TIMEOUT);
@@ -46,17 +45,17 @@ void ServerScanner::scanLocalNetwork()
 void ServerScanner::update(float /*gameDelta*/)
 {
     master_server_list_mutex.lock();
-    for(const auto& info : master_server_update_list) {
+    for (const auto& info : master_server_update_list)
         updateServerEntry(info);
-    }
+
     master_server_update_list.clear();
     master_server_list_mutex.unlock();
-    for(unsigned int n=0; n<server_list.size(); n++)
+
+    for (unsigned int n = 0; n < server_list.size(); n++)
     {
         if (server_list[n].timeout.isExpired())
         {
-            if (removedServerCallback)
-                removedServerCallback(server_list[n]);
+            if (removedServerCallback) removedServerCallback(server_list[n]);
             server_list.erase(server_list.begin() + n);
             n--;
         }
@@ -74,12 +73,13 @@ void ServerScanner::update(float /*gameDelta*/)
         sp::io::network::Address recv_address;
         int recv_port;
         sp::io::DataBuffer recv_packet;
-        while(socket->receive(recv_packet, recv_address, recv_port))
+        while (socket->receive(recv_packet, recv_address, recv_port))
         {
             int32_t verification, version_nr;
             string name;
             recv_packet >> verification >> version_nr >> name;
-            if (verification == MULTIPLAYER_VERIFICATION_NUMBER && (version_nr == version_number || version_nr == 0 || version_number == 0))
+            if (verification == MULTIPLAYER_VERIFICATION_NUMBER
+                && (version_nr == version_number || version_nr == 0 || version_number == 0))
             {
                 updateServerEntry({ServerType::LAN, recv_address, static_cast<uint64_t>(recv_port), name, {}});
             }
@@ -89,7 +89,7 @@ void ServerScanner::update(float /*gameDelta*/)
 
 void ServerScanner::updateServerEntry(const ServerInfo& info)
 {
-    for(unsigned int n=0; n<server_list.size(); n++)
+    for (unsigned int n = 0; n < server_list.size(); n++)
     {
         if (server_list[n].type == info.type && server_list[n].address == info.address)
         {
@@ -100,13 +100,12 @@ void ServerScanner::updateServerEntry(const ServerInfo& info)
         }
     }
 
-    LOG(INFO) << "ServerScanner::New server: " << info.address.getHumanReadable()[0] << " " << info.port << " " << info.name;
+    LOG(Info, "[sp-serverscan] New server: ", info.address.getHumanReadable()[0], " ", info.port, " ", info.name);
     ServerInfo si = info;
     si.timeout.start(SERVER_TIMEOUT);
     server_list.push_back(si);
 
-    if (newServerCallback)
-        newServerCallback(si);
+    if (newServerCallback) newServerCallback(si);
 }
 
 void ServerScanner::addCallbacks(std::function<void(const ServerInfo&)> newServerCallbackIn, std::function<void(const ServerInfo&)> removedServerCallbackIn)
@@ -124,14 +123,15 @@ void ServerScanner::masterServerScanThread()
 {
     if (!master_server_url.startswith("http://"))
     {
-        LOG(ERROR) << "Master server URL " << master_server_url << " does not start with \"http://\"";
+        LOG(Error, "[sp-serverscan] Registration server URL ", master_server_url, " doesn't start with \"http://\".");
         return;
     }
+
     string hostname = master_server_url.substr(7);
     int path_start = hostname.find("/");
     if (path_start < 0)
     {
-        LOG(ERROR) << "Master server URL " << master_server_url << " does not have a URI after the hostname";
+        LOG(Error, "[sp-serverscan] Registration server URL ", master_server_url, " doesn't have a URI after the hostname.");
         return;
     }
 
@@ -140,26 +140,24 @@ void ServerScanner::masterServerScanThread()
     string uri = hostname.substr(path_start);
     if (port_start >= 0)
     {
-        LOG(INFO) << "Port detected.";
+        LOG(Info, "[sp-serverscan] Port detected.");
         // If a port is attached to the hostname, parse it out.
         // No validation is performed.
         port = hostname.substr(port_start + 1, path_start).toInt();
         hostname = hostname.substr(0, port_start);
-    }else{
-        hostname = hostname.substr(0, path_start);
     }
+    else hostname = hostname.substr(0, path_start);
 
-    LOG(INFO) << "Reading servers from master server " << master_server_url;
+    LOG(Info, "[sp-serverscan] Reading servers from registration server ", master_server_url);
 
     sp::io::http::Request http(hostname, port);
-    while(!isDestroyed() && master_server_url != "")
+    while (!isDestroyed() && master_server_url != "")
     {
         auto response = http.get(uri);
         if (response.status != 200)
-        {
-            LOG(WARNING) << "Failed to query master server " << master_server_url << " (status " << response.status << ")";
-        }
-        for(string line : response.body.split("\n"))
+            LOG(Warning, "[sp-serverscan] Failed to query registration server ", master_server_url, " (status ", response.status, ").");
+
+        for (string line : response.body.split("\n"))
         {
             std::vector<string> parts = line.split(":", 3);
             if (parts.size() == 4)
@@ -172,13 +170,14 @@ void ServerScanner::masterServerScanThread()
                 if (version == version_number || version == 0 || version_number == 0)
                 {
                     master_server_list_mutex.lock();
-                    master_server_update_list.push_back({ServerType::MasterServer, address, uint64_t(part_port), name, {}});
+                    master_server_update_list.push_back({ServerType::MasterServer, address, static_cast<uint64_t>(part_port), name, {}});
                     master_server_list_mutex.unlock();
                 }
             }
         }
 
-        if (!isDestroyed() && master_server_url != "") {
+        if (!isDestroyed() && master_server_url != "")
+        {
             std::mutex wait_mutex;
             std::unique_lock<std::mutex> lk(wait_mutex);
             abort_wait.wait_for(lk, 10s);
@@ -186,7 +185,8 @@ void ServerScanner::masterServerScanThread()
     }
 }
 
-void ServerScanner::destroy() {
+void ServerScanner::destroy()
+{
     PObject::destroy();
     abort_wait.notify_all();
 }

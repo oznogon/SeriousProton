@@ -89,63 +89,60 @@ Request::Response Request::request(const string& method, const string& path, con
 
     if (socket.getState() == sp::io::network::StreamSocket::State::Closed)
     {
+        bool connected;
+
         if (scheme == Scheme::Auto)
             scheme = ((port == 443) ? Scheme::Https : Scheme::Http);
-        bool connected;
+
         if (scheme == Scheme::Http)
-        {
             connected = socket.connect(io::network::Address(headers["Host"]), port);
-        }
 #ifdef HAVE_OPENSSL
         else
-        {
             connected = socket.connectSSL(io::network::Address(headers["Host"]), port);
-        }
 #else
         else
         {
-            LOG(Warning, "HTTPS requested but SSL support not compiled in");
+            LOG(Warning, "[sp-http] HTTPS requested but SSL support not compiled.");
             return response;
         }
 #endif
-        if (!connected)
-            return response;
+        if (!connected) return response;
         socket.setTimeout(5000);
     }
 
     string request = method + " " + path + " HTTP/1.1\r\n";
-    for(auto& h : headers)
+    for (auto& h : headers)
         request += h.first + ": " + h.second + "\r\n";
+
     if (data.length() > 0)
-    {
-        request += "Content-Length: " + string(int(data.length())) + "\r\n";
-    }
+        request += "Content-Length: " + string(static_cast<int>(data.length())) + "\r\n";
+
     request += "\r\n";
 
-    LOG(Debug, "[HTTP] Sending request:\n", request);
+    LOG(Debug, "[sp-http] Sending request:\n", request);
 
     socket.send(request.data(), request.length());
     if (data.length() > 0)
         socket.send(data.data(), data.length());
 
-    LOG(Debug, "[HTTP] Request sent, waiting for response...");
+    LOG(Debug, "[sp-http] Request sent, waiting for response...");
 
     char receive_buffer[4096];
     auto received_size = socket.receive(receive_buffer, sizeof(receive_buffer));
     string received_data(receive_buffer, static_cast<int>(received_size));
-    while(received_data.find("\r\n\r\n") < 0)
+
+    while (received_data.find("\r\n\r\n") < 0)
     {
         received_size = socket.receive(receive_buffer, sizeof(receive_buffer));
         received_data += string(receive_buffer, static_cast<int>(received_size));
-        if (received_size == 0)
-            return response;
+        if (received_size == 0) return response;
     }
 
     std::vector<string> response_line = received_data.substr(0, received_data.find("\r\n")).split(" ");
-    LOG(Debug, "[HTTP] Response: ", received_data.substr(0, received_data.find("\r\n")));
+    LOG(Debug, "[sp-http] Response: ", received_data.substr(0, received_data.find("\r\n")));
     received_data = received_data.substr(received_data.find("\r\n") + 2);
 
-    for(auto& header_line : received_data.substr(0, received_data.find("\r\n\r\n")).split("\r\n"))
+    for (auto& header_line : received_data.substr(0, received_data.find("\r\n\r\n")).split("\r\n"))
     {
         int idx = header_line.find(":");
         if (idx > -1)
@@ -160,12 +157,11 @@ Request::Response Request::request(const string& method, const string& path, con
     {
         int content_length = response.headers["content-length"].toInt();
         response.body = std::move(received_data);
-        while(int(response.body.length()) < content_length)
+        while (static_cast<int>(response.body.length()) < content_length)
         {
             received_size = socket.receive(receive_buffer, sizeof(receive_buffer));
             response.body += string(receive_buffer, static_cast<int>(received_size));
-            if (received_size == 0)
-                return response;
+            if (received_size == 0) return response;
         }
     }
     else if (response.headers.find("transfer-encoding") != response.headers.end() && response.headers["transfer-encoding"] == "chunked")
@@ -173,34 +169,35 @@ Request::Response Request::request(const string& method, const string& path, con
         int chunk_size;
         do
         {
-            while(received_data.find("\r\n") < 0)
+            while (received_data.find("\r\n") < 0)
             {
                 received_size = socket.receive(receive_buffer, sizeof(receive_buffer));
                 received_data += string(receive_buffer, static_cast<int>(received_size));
-                if (received_size == 0)
-                    return response;
+                if (received_size == 0) return response;
             }
+
             chunk_size = received_data.substr(0, received_data.find("\r\n")).toInt(16);
             received_data = received_data.substr(received_data.find("\r\n") + 2);
-            while(int(received_data.length()) < chunk_size + 2)
+
+            while (static_cast<int>(received_data.length()) < chunk_size + 2)
             {
                 received_size = socket.receive(receive_buffer, sizeof(receive_buffer));
                 received_data += string(receive_buffer, static_cast<int>(received_size));
-                if (received_size == 0)
-                    return response;
+                if (received_size == 0) return response;
             }
+
             response.body += received_data.substr(0, chunk_size);
             received_data = received_data.substr(chunk_size + 2);
         } while(chunk_size > 0);
-    } else if (response.headers.find("connection") != response.headers.end() && response.headers["connection"] == "close")
+    }
+    else if (response.headers.find("connection") != response.headers.end() && response.headers["connection"] == "close")
     {
         response.body = std::move(received_data);
-        while(socket.getState() == network::StreamSocket::State::Connected)
+        while (socket.getState() == network::StreamSocket::State::Connected)
         {
             received_size = socket.receive(receive_buffer, sizeof(receive_buffer));
             response.body += string(receive_buffer, static_cast<int>(received_size));
-            if (received_size == 0)
-                break;
+            if (received_size == 0) break;
         }
     }
 

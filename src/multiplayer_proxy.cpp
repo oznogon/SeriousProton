@@ -2,16 +2,16 @@
 #include "multiplayer_internal.h"
 #include "engine.h"
 
-
 GameServerProxy::GameServerProxy(sp::io::network::Address hostname, int hostPort, string password, int listenPort, string proxy_name)
 : password(password), proxy_name(proxy_name)
 {
-    LOG(INFO) << "Starting proxy server";
+    LOG(Info, "[sp-proxy] Starting proxy server.");
     main_socket = std::make_unique<sp::io::network::TcpSocket>();
+
     if (!main_socket->connect(hostname, static_cast<uint16_t>(hostPort)))
-        LOG(INFO) << "Failed to connect to server";
-    else
-        LOG(INFO) << "Connected to server";
+        LOG(Info, "[sp-proxy] Failed to connect to server");
+    else LOG(Info, "[sp-proxy] Connected to server.");
+
     main_socket->setBlocking(false);
     listen_socket.listen(static_cast<uint16_t>(listenPort));
     listen_socket.setBlocking(false);
@@ -23,13 +23,11 @@ GameServerProxy::GameServerProxy(sp::io::network::Address hostname, int hostPort
     if (proxy_name != "")
     {
         if (!broadcast_listen_socket.bind(static_cast<uint16_t>(listenPort)))
-        {
-            LOG(ERROR) << "Failed to listen on UDP port: " << listenPort;
-        }
+            LOG(Error, "[sp-proxy] Failed to listen on UDP port: ", listenPort);
+
         if (!broadcast_listen_socket.joinMulticast(666))
-        {
-            LOG(ERROR) << "Failed to join multicast group for local network discovery.";
-        }
+            LOG(Error, "[sp-proxy] Failed to join multicast group for local network discovery.");
+
         broadcast_listen_socket.setBlocking(false);
     }
 
@@ -40,7 +38,7 @@ GameServerProxy::GameServerProxy(sp::io::network::Address hostname, int hostPort
 GameServerProxy::GameServerProxy(string password, int listenPort, string proxy_name)
 : password(password), proxy_name(proxy_name)
 {
-    LOG(INFO) << "Starting listening proxy server";
+    LOG(Info, "[sp-proxy] Starting listening proxy server.");
     listen_socket.listen(static_cast<uint16_t>(listenPort));
     listen_socket.setBlocking(false);
 
@@ -51,9 +49,8 @@ GameServerProxy::GameServerProxy(string password, int listenPort, string proxy_n
     if (proxy_name != "")
     {
         if (!broadcast_listen_socket.bind(static_cast<uint16_t>(listenPort)))
-        {
-            LOG(ERROR) << "Failed to listen on UDP port: " << listenPort;
-        }
+            LOG(Error, "[sp-proxy] Failed to listen on UDP port: ", listenPort);
+
         broadcast_listen_socket.setBlocking(false);
     }
 
@@ -77,13 +74,15 @@ void GameServerProxy::update(float delta)
     if (main_socket)
     {
         sp::io::DataBuffer packet;
-        while(main_socket->receive(packet))
+
+        while (main_socket->receive(packet))
         {
             no_data_timeout.start(NO_DATA_DISCONNECT_TIME);
             heartbeat_timer.start(HEARTBEAT_TIME);
             command_t command;
             packet >> command;
-            switch(command)
+
+            switch (command)
             {
             case CMD_REQUEST_AUTH:
                 {
@@ -121,7 +120,7 @@ void GameServerProxy::update(float delta)
                 break;
             case CMD_PROXY_TO_CLIENTS:
                 {
-                    while(packet.available())
+                    while (packet.available())
                     {
                         int32_t id;
                         packet >> id;
@@ -133,7 +132,7 @@ void GameServerProxy::update(float delta)
                 {
                     int32_t tempId, proxied_clientId;
                     packet >> tempId >> proxied_clientId;
-                    for(auto& info : client_list)
+                    for (auto& info : client_list)
                     {
                         if (!info.validClient && info.client_id == tempId)
                         {
@@ -150,7 +149,7 @@ void GameServerProxy::update(float delta)
                 }
                 break;
             default:
-                LOG(ERROR) << "Unknown command from server: " << command;
+                LOG(Error, "[sp-proxy] Unknown command from server: ", command);
                 break;
             }
         }
@@ -165,7 +164,7 @@ void GameServerProxy::update(float delta)
 
         if (main_socket->getState() == sp::io::network::StreamSocket::State::Closed || no_data_timeout.isExpired())
         {
-            LOG(INFO) << "Disconnected proxy";
+            LOG(Info, "[sp-proxy] Disconnected proxy.");
             main_socket->close();
             engine->shutdown();
         }
@@ -237,7 +236,7 @@ void GameServerProxy::update(float delta)
                 case CMD_ALIVE_RESP:
                     break;
                 default:
-                    LOG(ERROR) << "Unknown command from client: " << command;
+                    LOG(Error, "[sp-proxy] Unknown command from client: ", command);
                     break;
                 }
                 break;
@@ -268,7 +267,7 @@ void GameServerProxy::update(float delta)
                     }
                     break;
                 default:
-                    LOG(ERROR) << "Unknown command from client: " << command;
+                    LOG(Error, "[sp-proxy] Unknown command from client: ", command);
                     break;
                 }
                 break;
@@ -291,6 +290,7 @@ void GameServerProxy::update(float delta)
                 serverUpdate << CMD_DEL_PROXY_CLIENT << info.client_id;
                 main_socket->send(serverUpdate);
             }
+
             client_list.erase(client_list.begin() + n);
             n--;
         }

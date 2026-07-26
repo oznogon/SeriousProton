@@ -68,7 +68,7 @@ void NetworkAudioRecorder::update(float /*delta*/)
         }
     }
 
-    for(size_t idx=0; idx<keys.size(); idx++)
+    for (size_t idx=0; idx<keys.size(); idx++)
     {
         if (keys[idx].key->getDown() && active_key_index == -1)
         {
@@ -79,10 +79,9 @@ void NetworkAudioRecorder::update(float /*delta*/)
                 if (record_device_id)
                     SDL_ResumeAudioDevice(record_device_id);
                 startSending();
-            } else if (idx == size_t(active_key_index))
-            {
-                samples_till_stop = -1;
             }
+            else if (idx == size_t(active_key_index))
+                samples_till_stop = -1;
         }
     }
     while(sendAudioPacket())
@@ -91,14 +90,12 @@ void NetworkAudioRecorder::update(float /*delta*/)
     if (active_key_index != -1)
     {
         if (keys[active_key_index].key->getUp())
-        {
-            samples_till_stop = 44100 / 2;
-        }
+            samples_till_stop = 22050; // 44100 / 2
     }
+
     if (samples_till_stop == 0)
     {
-        if (record_device_id)
-            SDL_PauseAudioDevice(record_device_id);
+        if (record_device_id) SDL_PauseAudioDevice(record_device_id);
         finishSending();
         active_key_index = -1;
         samples_till_stop = -1;
@@ -109,10 +106,9 @@ void NetworkAudioRecorder::startSending()
 {
     int error = 0;
     encoder = opus_encoder_create(48000, 1, OPUS_APPLICATION_VOIP, &error);
+
     if (!encoder)
-    {
-        LOG(ERROR) << "Failed to create opus encoder:" << error;
-    }
+        LOG(Error, "[sp-nar] Failed to create opus encoder:", error);
 
     if (game_client)
     {
@@ -121,9 +117,7 @@ void NetworkAudioRecorder::startSending()
         game_client->sendPacket(audio_packet);
     }
     else if (game_server.isAlive())
-    {
         game_server->startAudio(0, keys[active_key_index].target_identifier);
-    }
 }
 
 bool NetworkAudioRecorder::sendAudioPacket()

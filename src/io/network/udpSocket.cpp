@@ -315,7 +315,7 @@ bool UdpSocket::sendMulticast(const void* data, size_t size, int group_nr, int p
 
             memset(&server_addr, 0, sizeof(server_addr));
             server_addr.sin_addr.s_addr = getMulticastIPv4(mode, group_nr);
-            
+
             server_addr.sin_family = AF_INET;
             server_addr.sin_port = htons(port);
 

@@ -27,7 +27,7 @@ void SocketBase::setBlocking(bool blocking)
     this->blocking = blocking;
     if (handle == INVALID_SOCKET)
     {
-        LOG(Warning, "Failed to setBlocking due to being called on an incomplete socket");
+        LOG(Warning, "[sp-socketbase] Failed to setBlocking due to being called on an incomplete socket");
         return;
     }
 
@@ -36,10 +36,8 @@ void SocketBase::setBlocking(bool blocking)
    ::ioctlsocket(handle, FIONBIO, &mode);
 #else
     int flags = ::fcntl(handle, F_GETFL, 0);
-    if (blocking)
-        flags &=~O_NONBLOCK;
-    else
-        flags |= O_NONBLOCK;
+    if (blocking) flags &=~O_NONBLOCK;
+    else flags |= O_NONBLOCK;
     ::fcntl(handle, F_SETFL, flags);
 #endif
 }
@@ -48,7 +46,7 @@ void SocketBase::setTimeout(int milliseconds)
 {
     if (handle == INVALID_SOCKET)
     {
-        LOG(Warning, "Failed to setTimeout due to being called on an incomplete socket");
+        LOG(Warning, "[sp-socketbase] Failed to setTimeout due to being called on an incomplete socket.");
         return;
     }
 
@@ -67,7 +65,7 @@ void SocketBase::shutdown()
 {
     if (handle == INVALID_SOCKET)
     {
-        LOG(Warning, "Failed to shutdown due to being called on an incomplete socket");
+        LOG(Warning, "[sp-socketbase] Failed to shutdown due to being called on an incomplete socket.");
         return;
     }
 

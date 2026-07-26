@@ -64,25 +64,23 @@ GameServer::GameServer(string server_name, int version_number, int listen_port)
 
     if (!listen_socket.listen(static_cast<uint16_t>(listen_port)))
     {
-        LOG(Error, "Failed to listen on TCP port: ", listen_port);
+        LOG(Error, "[sp-gameserver] Failed to listen on TCP port: ", listen_port);
         destroy();
+        return;
     }
+
     listen_socket.setBlocking(false);
     new_socket = std::make_unique<sp::io::network::TcpSocket>();
     if (!broadcast_listen_socket.bind(static_cast<uint16_t>(listen_port)))
-    {
-        LOG(Error, "Failed to listen on UDP port: ", listen_port);
-    }
+        LOG(Error, "[sp-gameserver] Failed to listen on UDP port: ", listen_port);
+
     if (!broadcast_listen_socket.joinMulticast(666))
-    {
-        LOG(Error, "Failed to join multicast group for local server discovery");
-    }
+        LOG(Error, "[sp-gameserver] Failed to join multicast group for local server discovery.");
+
     broadcast_listen_socket.setBlocking(false);
 #ifdef STEAMSDK
     if (!listen_steam.listen())
-    {
-        LOG(Error, "Failed to listen for steam P2P connections");
-    }
+        LOG(Error, "[sp-gameserver] Failed to listen for Steam P2P connections.");
 #endif
     if (collect_network_stats)
         multiplayer_stats_dump_timer.repeat(1.0f);
@@ -96,10 +94,10 @@ GameServer::~GameServer()
 void GameServer::connectToProxy(sp::io::network::Address address, int port)
 {
     auto socket = std::make_unique<sp::io::network::TcpSocket>();
-    LOG(Info, "Connecting to proxy: ", address.getHumanReadable()[0]);
+    LOG(Info, "[sp-gameserver] Connecting to proxy: ", address.getHumanReadable()[0]);
     if (!socket->connect(address, port))
     {
-        LOG(Error, "Failed to connect to proxy");
+        LOG(Error, "[sp-gameserver] Failed to connect to proxy.");
         return;
     }
 
@@ -120,7 +118,7 @@ void GameServer::connectToProxy(sp::io::network::Address address, int port)
         packet << CMD_REQUEST_AUTH << int32_t(version_number) << bool(server_password != "");
         info.socket->send(packet);
     }
-    LOG(Info, "New proxy connection: ", info.client_id, " waiting for authentication");
+    LOG(Info, "[sp-gameserver] New proxy connection: ", info.client_id, " waiting for authentication.");
     client_list.push_back(std::move(info));
 }
 
@@ -325,14 +323,19 @@ void GameServer::update(float /*gameDelta*/)
                                 {
                                     client_list[n].receive_state = CRS_Main;
                                     handleNewClient(client_list[n]);
-                                }else{
-                                    //Wrong password, send a new auth request so the client knows the password was not accepted.
+                                }
+                                // Wrong password, send a new auth request so
+                                // the client knows the password was not accepted.
+                                else
+                                {
                                     sp::io::DataBuffer auth_request_packet;
                                     auth_request_packet << CMD_REQUEST_AUTH << int32_t(version_number) << bool(server_password != "");
                                     client_list[n].socket->queue(auth_request_packet);
                                 }
-                            }else{
-                                LOG(Error, n, ":Client version mismatch: ", version_number, " != ", client_version);
+                            }
+                            else
+                            {
+                                LOG(Error, "[sp-gameserver] ", n, ":Client version mismatch: ", version_number, " != ", client_version);
                                 client_list[n].socket->close();
                                 client_list[n].socket = NULL;
                             }
@@ -345,7 +348,7 @@ void GameServer::update(float /*gameDelta*/)
                         }
                         break;
                     default:
-                        LOG(Error, "Unknown command from client while authenticating: ", command);
+                        LOG(Error, "[sp-gameserver] Unknown command from client while authenticating: ", command);
                         client_list[n].socket->close();
                         client_list[n].socket = NULL;
                         break;
@@ -461,7 +464,7 @@ void GameServer::update(float /*gameDelta*/)
                         }
                         break;
                     default:
-                        LOG(Error, "Unknown command from client: ", command);
+                        LOG(Error, "[sp-gameserver] Unknown command from client: ", command);
                     }
                 }
                 break;
@@ -665,7 +668,7 @@ void GameServer::newClientConnection(std::unique_ptr<sp::io::network::StreamSock
         packet << CMD_REQUEST_AUTH << int32_t(version_number) << bool(server_password != "");
         info.socket->queue(packet);
     }
-    LOG(Info, "New connection ", info.client_id, " is waiting for authentication");
+    LOG(Info, "[sp-gameserver] New connection ", info.client_id, " is waiting for authentication.");
     client_list.push_back(std::move(info));
 }
 
@@ -776,7 +779,7 @@ void GameServer::runMasterServerUpdateThread()
     // Barest minimum validation of the registry server's URL.
     if (!master_server_url.startswith("http://"))
     {
-        LOG(Error, "Registry server URL ", master_server_url, " doesn't start with \"http://\"");
+        LOG(Error, "[sp-gameserver] Registry server URL ", master_server_url, " doesn't start with \"http://\".");
         return;
     }
     string hostname = master_server_url.substr(7);
@@ -784,7 +787,7 @@ void GameServer::runMasterServerUpdateThread()
     int path_start = hostname.find("/");
     if (path_start < 0)
     {
-        LOG(Error, "Registry server URL ", master_server_url, " doesn't have a URI after the hostname.");
+        LOG(Error, "[sp-gameserver] Registry server URL ", master_server_url, " doesn't have a URI after the hostname.");
         return;
     }
 
@@ -800,10 +803,11 @@ void GameServer::runMasterServerUpdateThread()
     }
     else hostname = hostname.substr(0, path_start);
 
-    LOG(Info, "Registering this game server to the registry at ", master_server_url);
+    LOG(Info, "[sp-gameserver] Registering this game server to the registry server at ", master_server_url);
 
     master_server_state = MasterServerState::Registering;
     sp::io::http::Request http(hostname, port);
+    http.setHeader("Content-Type", "application/x-www-form-urlencoded");
     master_server_http_socket = &http.getSocket();
 
     while (!isDestroyed() && master_server_url != "")
@@ -813,12 +817,12 @@ void GameServer::runMasterServerUpdateThread()
         // Log any errors returned by the registry server.
         if (response.status != 200)
         {
-            LOG(Warning, "Failed to register at registry server ", master_server_url, " (status ", response.status, ")");
+            LOG(Warning, "[sp-gameserver] Failed to register at registry server ", master_server_url, " (status ", response.status, ").");
             master_server_state = MasterServerState::FailedToReachMasterServer;
         }
         else if (response.body != "OK")
         {
-            LOG(Warning, "Registry server ", master_server_url, " reported an error upon registering this game server: ", response.body);
+            LOG(Warning, "[sp-gameserver] Registry server ", master_server_url, " reported an error upon registering this game server: ", response.body);
             master_server_state = MasterServerState::FailedPortForwarding;
         }
         else master_server_state = MasterServerState::Success;
@@ -950,13 +954,14 @@ void GameServer::sendProxyRegistryDeregister()
     parseRegistryUrl(proxy_registry_url, hostname, port, path_prefix);
 
     sp::io::http::Request http(hostname, port);
+    http.setHeader("Content-Type", "application/x-www-form-urlencoded");
     string data = "password=" + proxy_registry_password
                 + "&port=" + string(proxy_registry_assigned_port);
 
     const string full_path = path_prefix + "/deregister.php";
     auto response = http.post(full_path, data);
     if (response.status != 200)
-        LOG(Warning, "Deregistration at proxy registry ", full_path, " failed. (status ", response.status, ", body ", response.body, ")");
+        LOG(Warning, "[sp-gameserver] Deregistration at proxy registry ", full_path, " failed. (status ", response.status, ", body ", response.body, ").");
 
     proxy_registry_assigned_port = 0;
 }
@@ -972,6 +977,7 @@ void GameServer::sendProxyRegistryHeartbeat()
     parseRegistryUrl(proxy_registry_url, hostname, port, path_prefix);
 
     sp::io::http::Request http(hostname, port);
+    http.setHeader("Content-Type", "application/x-www-form-urlencoded");
     string data = "password=" + proxy_registry_password
                 + "&port=" + string(proxy_registry_assigned_port)
                 + "&name=" + server_name
@@ -980,7 +986,7 @@ void GameServer::sendProxyRegistryHeartbeat()
     const string full_path = path_prefix + "/heartbeat.php";
     auto response = http.post(full_path, data);
     if (response.status != 200)
-        LOG(Warning, "Proxy registry heartbeat at ", full_path, " failed. (status ", response.status, ", body ", response.body, ")");
+        LOG(Warning, "[sp-gameserver] Proxy registry heartbeat at ", full_path, " failed (status ", response.status, ", body ", response.body, ").");
 }
 
 void GameServer::registerOnProxyRegistry(string registry_url, string password)
@@ -993,9 +999,10 @@ void GameServer::registerOnProxyRegistry(string registry_url, string password)
     string path_prefix;
     parseRegistryUrl(registry_url, hostname, port, path_prefix);
 
-    LOG(Info, "Registering with proxy registry at ", registry_url);
+    LOG(Info, "[sp-gameserver] Registering with proxy registry at ", registry_url);
 
     sp::io::http::Request http(hostname, port);
+    http.setHeader("Content-Type", "application/x-www-form-urlencoded");
     string data = "password=" + proxy_registry_password
                 + "&name=" + server_name
                 + "&version=" + string(version_number);
@@ -1004,7 +1011,7 @@ void GameServer::registerOnProxyRegistry(string registry_url, string password)
     auto response = http.post(full_path, data);
     if (response.status != 200)
     {
-        LOG(Error, "Registration to proxy registry at ", full_path, " failed. (status ", response.status, ", body ", response.body, ")");
+        LOG(Error, "[sp-gameserver] Registration to proxy registry at ", full_path, " failed (status ", response.status, ", body ", response.body, ").");
         return;
     }
 
@@ -1017,7 +1024,7 @@ void GameServer::registerOnProxyRegistry(string registry_url, string password)
         proxy_registry_assigned_port = proxy_port;
         proxy_registry_heartbeat_timer.repeat(60.0f);
 
-        LOG(Info, "Assigned proxy port ", proxy_port, ", connecting with retry...");
+        LOG(Info, "[sp-gameserver] Assigned proxy port ", proxy_port, ", connecting with retry...");
 
         // Retry connecting to the proxy, it might still be starting up.
         for (int attempt = 0; attempt < 10; attempt++)
@@ -1039,7 +1046,7 @@ void GameServer::registerOnProxyRegistry(string registry_url, string password)
         }
     }
     else if (response.body == "NO_PORTS_AVAILABLE")
-        LOG(Error, "Proxy registry reports no ports available");
+        LOG(Error, "[sp-gameserver] Proxy registry reports no ports available.");
     else
-        LOG(Error, "Unexpected registry response: ", response.body);
+        LOG(Error, "[sp-gameserver] Unexpected registry response: ", response.body);
 }

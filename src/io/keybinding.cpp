@@ -101,7 +101,7 @@ void Keybinding::addKey(const string& key, bool inverted)
                 addBinding(axis_button_id | joystick_id << 8 | joystick_axis_mask, inverted);
             else if (parts[2] == "button")
                 addBinding(axis_button_id | joystick_id << 8 | joystick_button_mask, inverted);
-            else LOG(Warning, "Unknown joystick binding:", key);
+            else LOG(Warning, "[sp-bind] Unknown joystick binding: ", key);
         }
         return;
     }
@@ -120,7 +120,7 @@ void Keybinding::addKey(const string& key, bool inverted)
                 int axis = SDL_GetGamepadAxisFromString(parts[3].c_str());
                 if (axis < 0)
                 {
-                    LOG(Warning, "Unknown axis in game controller binding:", key);
+                    LOG(Warning, "[sp-bind] Unknown axis in game controller binding: ", key);
                     return;
                 }
                 addBinding(axis | int(controller_id) << 8 | game_controller_axis_mask, inverted);
@@ -130,12 +130,12 @@ void Keybinding::addKey(const string& key, bool inverted)
                 int button = SDL_GetGamepadButtonFromString(parts[3].c_str());
                 if (button < 0)
                 {
-                    LOG(Warning, "Unknown button in game controller binding:", key);
+                    LOG(Warning, "[sp-bind] Unknown button in game controller binding: ", key);
                     return;
                 }
                 addBinding(button | int(controller_id) << 8 | game_controller_button_mask, inverted);
             }
-            else LOG(Warning, "Unknown game controller binding:", key);
+            else LOG(Warning, "[sp-bind] Unknown game controller binding: ", key);
         }
         return;
     }
@@ -150,7 +150,7 @@ void Keybinding::addKey(const string& key, bool inverted)
     {
         if (key == "mouse:x") addBinding(mouse_movement_mask | 0, inverted);
         else if (key == "mouse:y") addBinding(mouse_movement_mask | 1, inverted);
-        else LOG(Warning, "Unknown mouse movement binding:", key);
+        else LOG(Warning, "[sp-bind] Unknown mouse movement binding: ", key);
         return;
     }
 
@@ -158,7 +158,7 @@ void Keybinding::addKey(const string& key, bool inverted)
     {
         if (key == "wheel:x") addBinding(mouse_wheel_mask | 0, inverted);
         else if (key == "wheel:y") addBinding(mouse_wheel_mask | 1, inverted);
-        else LOG(Warning, "Unknown mouse wheel binding:", key);
+        else LOG(Warning, "[sp-bind] Unknown mouse wheel binding: ", key);
         return;
     }
 
@@ -171,7 +171,7 @@ void Keybinding::addKey(const string& key, bool inverted)
 
     SDL_Keycode code = SDL_GetKeyFromName(key.c_str());
     if (code != SDLK_UNKNOWN) addBinding(code | keyboard_mask, inverted);
-    else LOG(Warning, "Unknown key binding:", key);
+    else LOG(Warning, "[sp-bind] Unknown key binding: ", key);
 }
 
 void Keybinding::removeKey(int index)
@@ -462,7 +462,7 @@ void Keybinding::loadKeybindings(const string& filename)
     auto parsed_json = sp::json::parse(data.str(), err);
     if (!parsed_json.has_value())
     {
-        LOG(Warning, "Failed to load keybindings from ", filename, ": ", err);
+        LOG(Warning, "[sp-bind] Failed to load keybindings from ", filename, ": ", err);
         return;
     }
 
@@ -544,7 +544,7 @@ void Keybinding::loadKeybindings(const string& filename)
         if (entry.contains("continuous_sensitivity") && entry["continuous_sensitivity"].is_number())
             keybinding->sensitivity = entry["continuous_sensitivity"].get<float>();
     }
-    LOG(Info, "Keybindings loaded from ", filename);
+    LOG(Info, "[sp-bind] Keybindings loaded from ", filename);
 }
 
 void Keybinding::saveKeybindings(const string& filename)
@@ -594,7 +594,7 @@ void Keybinding::saveKeybindings(const string& filename)
 
     std::ofstream file(filename);
     file << obj.dump();
-    LOG(Info, "Keybindings saved to ", filename);
+    LOG(Info, "[sp-bind] Keybindings saved to ", filename);
 }
 
 Keybinding* Keybinding::getByName(const string& name)
@@ -905,8 +905,8 @@ void Keybinding::handleEvent(const SDL_Event& event)
         {
             SDL_Joystick* joystick = SDL_OpenJoystick(event.jdevice.which);
             if (joystick)
-                LOG(Info, "Found joystick:", SDL_GetJoystickName(joystick));
-            else LOG(Warning, "Failed to open joystick...");
+                LOG(Info, "[sp-bind] Found joystick: ", SDL_GetJoystickName(joystick));
+            else LOG(Warning, "[sp-bind] Failed to open joystick.");
         }
         break;
 
@@ -930,17 +930,15 @@ void Keybinding::handleEvent(const SDL_Event& event)
     case SDL_EVENT_GAMEPAD_ADDED:
         {
             SDL_Gamepad* gc = SDL_OpenGamepad(event.gdevice.which);
-            if (gc) LOG(Info, "Found game controller:", SDL_GetGamepadName(gc));
-            else LOG(Warning, "Failed to open game controller...");
+            if (gc) LOG(Info, "[sp-bind] Found game controller: ", SDL_GetGamepadName(gc));
+            else LOG(Warning, "[sp-bind] Failed to open game controller.");
         }
         break;
     case SDL_EVENT_GAMEPAD_REMOVED:
         for (int button = 0; button < SDL_GAMEPAD_BUTTON_COUNT; button++)
             updateKeys(button | static_cast<int>(event.gdevice.which) << 8 | game_controller_button_mask, 0.0f);
         for (int axis = 0; axis < SDL_GAMEPAD_AXIS_COUNT; axis++)
-        {
             updateKeys(axis | static_cast<int>(event.gdevice.which) << 8 | game_controller_axis_mask, 0.0f);
-        }
 
         SDL_CloseGamepad(SDL_GetGamepadFromID(event.gdevice.which));
         break;

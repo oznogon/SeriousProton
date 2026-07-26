@@ -148,7 +148,7 @@ Address Address::getLocalAddress()
         freeifaddrs(addrs);
     }
 #else
-    LOG(Warning, "No method to get local IP address.");
+    LOG(Warning, "[sp-address] No method to get local IP address.");
 #endif
     addr_info.sort([](const AddrInfo& a, const AddrInfo& b)
     {

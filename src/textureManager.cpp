@@ -58,10 +58,10 @@ sp::Texture* TextureManager::loadTexture(const string& name)
         {
             texture = ktxtexture.toTexture(std::min(getBaseMipLevel(), ktxtexture.getMipCount() - 1));
             if (!texture)
-                LOG(Warning, "[ktx2]: ", name, " failed to load into texture.");
+                LOG(Warning, "[sp-ktx2]: ", name, " failed to load into texture.");
         }
         else
-            LOG(Warning, "[ktx2]: ", name, " failed to read stream.");
+            LOG(Warning, "[sp-ktx2]: ", name, " failed to read stream.");
     }
 
     if (!texture)
@@ -76,7 +76,7 @@ sp::Texture* TextureManager::loadTexture(const string& name)
 
         if (image.getSize().x == 0 || image.getSize().y == 0)
         {
-            LOG(Warning, "[teimagexture] Failed to load texture: ", name);
+            LOG(Warning, "[sp-imagetexture] Failed to load texture: ", name);
             image = sp::Image({ 8, 8 }, { 255, 0, 255, 128 });
         }
 
@@ -87,6 +87,6 @@ sp::Texture* TextureManager::loadTexture(const string& name)
     texture->setSmooth(defaultSmooth);
 
     textureMap[name] = texture.get();
-    LOG(Info, "[texture] Loaded: ", name);
+    LOG(Info, "[sp-texture] Loaded: ", name);
     return texture.release();
 }

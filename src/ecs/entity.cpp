@@ -35,7 +35,7 @@ Entity Entity::fromIndex(uint32_t index)
 {
     if (index >= entity_version.size())
     {
-        LOG(Warning, "Entity::fromIndex() called with out-of-range index: ", index);
+        LOG(Warning, "[sp-entity] fromIndex() called with out-of-range index: ", index);
         return {};
     }
 
@@ -116,7 +116,7 @@ size_t Entity::getActiveCount()
 
 void Entity::dumpDebugInfo()
 {
-    LOG(Debug, "Entity count ", entity_version.size() - free_list.size(), " Free entities: ", free_list.size());
+    LOG(Debug, "[sp-entity] Entity count: ", entity_version.size() - free_list.size(), ". Free entities: ", free_list.size());
 }
 
 }

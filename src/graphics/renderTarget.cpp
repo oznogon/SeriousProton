@@ -140,18 +140,18 @@ static ImageInfo getTextureInfo(std::string_view texture)
 
                 if (gltexture)
                 {
-                    LOG(Info, "[ktx2] Loaded ", texture.data());
+                    LOG(Info, "[sp-ktx2] Loaded ", texture.data());
                     image_info[texture] = { gltexture.get(), size, {0.0f, 0.0f, 1.0f, 1.0f} };
                     return { gltexture.release(), size, {0.0f, 0.0f, 1.0f, 1.0f} };
                 }
-                else LOG(Warning, "[ktx2] ", texture.data(), " failed to load into texture.");
+                else LOG(Warning, "[sp-ktx2] ", texture.data(), " failed to load into texture.");
             }
             else if (auto to_image = ktxtexture.toImage(); to_image.has_value())
                 image = std::move(to_image.value());
             else
-                LOG(Warning, "[ktx2] ", texture.data(), " failed to load into image.");
+                LOG(Warning, "[sp-ktx2] ", texture.data(), " failed to load into image.");
         }
-        else LOG(Warning, "[ktx2] ", texture.data(), " failed to read stream.");
+        else LOG(Warning, "[sp-ktx2] ", texture.data(), " failed to read stream.");
 
         // failed to load from the KTX2 file - fallback on image.
         stream = nullptr;
@@ -167,7 +167,7 @@ static ImageInfo getTextureInfo(std::string_view texture)
     auto size = image.getSize();
     if (size.x > atlas_threshold.x || size.y > atlas_threshold.y)
     {
-        LOG(Info, "[atlas] Loaded ", string(texture));
+        LOG(Info, "[sp-atlas] Loaded ", string(texture));
         auto gltexture = new sp::BasicTexture(image);
         image_info[texture] = {gltexture, size, {0.0f, 0.0f, 1.0f, 1.0f}};
         return {gltexture, size, {0.0f, 0.0f, 1.0f, 1.0f}};
@@ -175,7 +175,7 @@ static ImageInfo getTextureInfo(std::string_view texture)
 
     Rect uv_rect = atlas_texture->add(std::move(image), 1);
     image_info[texture] = {nullptr, size, uv_rect};
-    LOG(Debug, "[atlas] Added ", string(texture), " to atlas@", uv_rect.position, " ", uv_rect.size, "  ", atlas_texture->usageRate() * 100.0f, "%");
+    LOG(Debug, "[sp-atlas] Added ", string(texture), " to atlas@", uv_rect.position, " ", uv_rect.size, "  ", atlas_texture->usageRate() * 100.0f, "%");
     return {nullptr, size, uv_rect};
 }
 
@@ -270,13 +270,13 @@ void RenderTarget::setAtlasSizeMode(AtlasSizeMode mode)
 {
     if (atlas_texture)
     {
-        LOG(Warning, "[atlas] Atlas already created. Atlas size mode will apply on next restart.");
+        LOG(Warning, "[sp-atlas] Atlas already created. Atlas size mode will apply on next restart.");
         return;
     }
 
     if (mode == AtlasSizeMode::Force4K && sp::gl::max_texture_size < 4096)
     {
-        LOG(Warning, "[atlas] 4K atlas not supported (GL_MAX_TEXTURE_SIZE=", sp::gl::max_texture_size, "), falling back to Automatic.");
+        LOG(Warning, "[sp-atlas] 4K atlas not supported (GL_MAX_TEXTURE_SIZE=", sp::gl::max_texture_size, "), falling back to Automatic.");
         atlas_size_mode = AtlasSizeMode::Automatic;
         return;
     }
@@ -1112,7 +1112,7 @@ void RenderTarget::drawText(sp::Rect rect, const sp::Font::PreparedFontString& p
             {
                 uv_rect = atlas_texture->add(prepared.getFont()->drawGlyph(gd.char_code, getFontPixelSize()), 1);
                 ags[gd.char_code] = uv_rect;
-                LOG(Debug, "[atlas] Added font glyph '", char(gd.char_code), "' to atlas@", uv_rect.position, " ", uv_rect.size, "  ", atlas_texture->usageRate() * 100.0f, "%");
+                LOG(Debug, "[sp-atlas] Added font glyph '", char(gd.char_code), "' to atlas@", uv_rect.position, " ", uv_rect.size, "  ", atlas_texture->usageRate() * 100.0f, "%");
             }
             else uv_rect = it->second;
 
@@ -1225,7 +1225,7 @@ void RenderTarget::drawRotatedText(glm::vec2 center, float rotation, std::string
             {
                 uv_rect = atlas_texture->add(prepared.getFont()->drawGlyph(gd.char_code, getFontPixelSize()), 1);
                 ags[gd.char_code] = uv_rect;
-                LOG(Info, "[atlas] Added font glyph '", char(gd.char_code), "' to atlas@", uv_rect.position, " ", uv_rect.size, "  ", atlas_texture->usageRate() * 100.0f, "%");
+                LOG(Info, "[sp-atlas] Added font glyph '", char(gd.char_code), "' to atlas@", uv_rect.position, " ", uv_rect.size, "  ", atlas_texture->usageRate() * 100.0f, "%");
             }
             else uv_rect = it->second;
 
