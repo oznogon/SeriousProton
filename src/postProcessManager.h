@@ -1,12 +1,11 @@
-#ifndef POST_PROCESS_MANAGER_H
-#define POST_PROCESS_MANAGER_H
+#pragma once
 
 #include "graphics/shader.h"
 #include "graphics/renderTexture.h"
 #include "stringImproved.h"
 #include "Updatable.h"
 #include "Renderable.h"
-
+#include <glm/vec2.hpp>
 
 class PostProcessor : public RenderChain
 {
@@ -16,6 +15,7 @@ private:
 
     RenderChain* chain;
     std::unordered_map<string, float> uniforms;
+    std::unordered_map<string, glm::vec2> vec2_uniforms;
 
     unsigned int vertices_vbo = 0;
     unsigned int indices_vbo = 0;
@@ -37,6 +37,5 @@ public:
     virtual void onTextInput(sp::TextInputEvent e) override;
 
     void setUniform(string name, float value);
+    void setUniform(string name, glm::vec2 value);
 };
-
-#endif//POST_PROCESS_MANAGER_H

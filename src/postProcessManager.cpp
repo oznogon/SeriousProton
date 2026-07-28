@@ -41,6 +41,11 @@ void PostProcessor::render(sp::RenderTarget& target)
     render_texture.bind();
     for(auto it : uniforms)
         glUniform1f(shader->getUniformLocation(it.first.c_str()), it.second);
+    for(auto it : vec2_uniforms)
+        glUniform2f(shader->getUniformLocation(it.first.c_str()), it.second.x, it.second.y);
+
+    glm::ivec2 size = render_texture.getSize();
+    glUniform2f(shader->getUniformLocation("u_screenSize"), size.x, size.y);
 
     using VertexType = std::pair<glm::vec2, glm::vec2>;
 
@@ -82,6 +87,11 @@ void PostProcessor::render(sp::RenderTarget& target)
 void PostProcessor::setUniform(string name, float value)
 {
     uniforms[name] = value;
+}
+
+void PostProcessor::setUniform(string name, glm::vec2 value)
+{
+    vec2_uniforms[name] = value;
 }
 
 bool PostProcessor::onPointerMove(glm::vec2 position, sp::io::Pointer::ID id)
