@@ -186,7 +186,7 @@ void Engine::runMainLoop()
                 if (event.type == SDL_EVENT_QUIT) running = false;
 #ifdef DEBUG
             if (debug_output_timer.isExpired())
-                LOG(Debug, "[sp-engine] Object count: ", DEBUG_PobjCount, " " << updatableList.size());
+                LOG(Debug, "[sp-engine] PObject count: ", DEBUG_PobjCount, " updatableList.size(): ", updatableList.size());
 #endif
 
             auto realtime_delta = frame_timer.restart();
@@ -255,7 +255,7 @@ void Engine::runMainLoop()
 
 #ifdef DEBUG
             if (debug_output_timer.isExpired())
-                LOG(Debug, "[sp-engine] Object count: ", DEBUG_PobjCount, " ", updatableList.size());
+                LOG(Debug, "[sp-engine] PObject count: ", DEBUG_PobjCount, " updatableList.size(): ", updatableList.size());
 #endif
 
             float delta = frame_timer.restart();
@@ -313,8 +313,7 @@ void Engine::runMainLoop()
                 if (game_server.isAlive())
                     engine_timing["server_update"] = game_server->getUpdateTime();
             }
-            else
-                for (auto window : Window::all_windows) window->swapBuffers();
+            else for (auto window : Window::all_windows) window->swapBuffers();
 
             last_engine_timing = engine_timing;
 
@@ -340,27 +339,29 @@ void Engine::handleEvent(SDL_Event& event)
         && (!event.key.windowID || !SDL_TextInputActive(SDL_GetWindowFromID(event.key.windowID))))
     {
         int n = 0;
-        printf("------------------------\n");
+        printf("[sp-engine] ------------------------\n");
         std::unordered_map<string,int> totals;
 
         for (PObject* obj = DEBUG_PobjListStart; obj; obj = obj->DEBUG_PobjListNext)
         {
-            printf("%c%4d: %4d: %s\n", obj->isDestroyed() ? '>' : ' ', n++, obj->getRefCount(), demangle(typeid(*obj).name()).c_str());
+            printf("[sp-engine] %c%4d: %4d: %s\n", obj->isDestroyed() ? '>' : ' ', n++, obj->getRefCount(), demangle(typeid(*obj).name()).c_str());
+
             if (!obj->isDestroyed())
                 totals[demangle(typeid(*obj).name())] = totals[demangle(typeid(*obj).name())] + 1;
         }
 
-        printf("--non-destroyed totals--\n");
+        printf("[sp-engine] -- Non-destroyed PObject totals\n");
         int grand_total = 0;
 
         for (auto entry : totals)
         {
-            printf("%4d %s\n", entry.second, entry.first.c_str());
+            printf("[sp-engine] %4d %s\n", entry.second, entry.first.c_str());
             grand_total += entry.second;
         }
 
-        printf("%4d %s\n", grand_total, "All PObjects");
-        printf("------------------------\n");
+        printf("[sp-engine] ---- -------------------\n");
+        printf("[sp-engine] %4d %s\n", grand_total, "All PObjects");
+        printf("[sp-engine] ------------------------\n");
 
         sp::ecs::Entity::dumpDebugInfo();
         sp::ecs::ComponentStorageBase::dumpDebugInfo();

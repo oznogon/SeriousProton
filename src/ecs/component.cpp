@@ -1,7 +1,7 @@
 #include "ecs/component.h"
 
-namespace sp::ecs {
-
+namespace sp::ecs
+{
 static ComponentStorageBase* all_component_storage = nullptr;
 
 ComponentStorageBase::ComponentStorageBase()
@@ -12,14 +12,15 @@ ComponentStorageBase::ComponentStorageBase()
 
 void ComponentStorageBase::destroyAll(uint32_t index)
 {
-    for(auto storage = all_component_storage; storage; storage = storage->next)
+    for (auto storage = all_component_storage; storage; storage = storage->next)
         storage->destroy(index);
 }
 
 void ComponentStorageBase::dumpDebugInfo()
 {
-    for(auto storage = all_component_storage; storage; storage = storage->next)
+    LOG(Debug, "[sp-component] ------------------------");
+    for (auto storage = all_component_storage; storage; storage = storage->next)
         storage->dumpDebugInfoImpl();
+    LOG(Debug, "[sp-component] ------------------------");
 }
-
 }

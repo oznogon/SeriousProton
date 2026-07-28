@@ -1,10 +1,9 @@
-#ifndef SP2_RESULT_H
-#define SP2_RESULT_H
+#pragma once
 
 #include "logging.h"
 
-namespace sp {
-
+namespace sp
+{
 template<typename T> class Result
 {
 public:
@@ -27,7 +26,7 @@ public:
     {
         if (!success)
         {
-            LOG(Error, err_value);
+            LOG(Error, "[sp-result] ", err_value);
             success = true;
         }
         return ok_value;
@@ -91,7 +90,4 @@ private:
     bool success;
     string err_value;
 };
-
 }
-
-#endif//SP2_RESULT_H

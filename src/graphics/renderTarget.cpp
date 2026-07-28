@@ -167,7 +167,7 @@ static ImageInfo getTextureInfo(std::string_view texture)
     auto size = image.getSize();
     if (size.x > atlas_threshold.x || size.y > atlas_threshold.y)
     {
-        LOG(Info, "[sp-atlas] Loaded ", string(texture));
+        LOG(Info, "[sp-atlas] Loaded: ", string(texture));
         auto gltexture = new sp::BasicTexture(image);
         image_info[texture] = {gltexture, size, {0.0f, 0.0f, 1.0f, 1.0f}};
         return {gltexture, size, {0.0f, 0.0f, 1.0f, 1.0f}};

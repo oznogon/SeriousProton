@@ -98,10 +98,9 @@ public:
     T* operator->() const
     {
 #ifdef DEBUG
-        if(!ptr || ptr->_destroyed_flag)
-        {
-            LOG(ERROR) << "Oh noes! Better find me and put a breakpoint here!";
-        }
+        if (!ptr || ptr->_destroyed_flag)
+            LOG(Error, "[P] Oh noes! Better find me and put a breakpoint here! !ptr or _destroyed_flag");
+
         SDL_assert(ptr);
         SDL_assert(!ptr->_destroyed_flag);
 #endif

@@ -34,7 +34,7 @@ private:
     virtual void dumpDebugInfoImpl() override
     {
         if (storage.sparseset.size())
-            LOG(Debug, "Component:", typeid(T).name(), " Count: ", storage.sparseset.size());
+            LOG(Debug, "[sp-component] ", typeid(T).name(), " count: ", storage.sparseset.size());
     }
 
     SparseSet<T> sparseset;
