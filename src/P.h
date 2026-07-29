@@ -1,5 +1,4 @@
-#ifndef PEE_POINTER_H
-#define PEE_POINTER_H
+#pragma once
 
 #include <vector>
 #include <SDL3/SDL.h>
@@ -152,8 +151,7 @@ public:
 protected:
     void check_release()
     {
-        if (ptr != NULL && ptr->_destroyed_flag)
-            release();
+        if (ptr != NULL && ptr->_destroyed_flag) release();
     }
 
     void release()
@@ -161,8 +159,7 @@ protected:
         if (ptr)
         {
             ptr->refCount--;
-            if (ptr->refCount == 0)
-                delete ptr;
+            if (ptr->refCount == 0) delete ptr;
             ptr = NULL;
         }
     }
@@ -200,7 +197,7 @@ class PVector: public std::vector<P<T> > {
 public:
     bool has(const P<T>& obj)
     {
-        for(unsigned int n=0; n<std::vector<P<T> >::size(); n++)
+        for (unsigned int n = 0; n < std::vector<P<T> >::size(); n++)
             if ((*this)[n] == obj)
                 return true;
         return false;
@@ -208,7 +205,7 @@ public:
 
     void remove(const P<T>& obj)
     {
-        for(unsigned int n=0; n<std::vector<P<T> >::size(); n++)
+        for (unsigned int n = 0; n < std::vector<P<T> >::size(); n++)
         {
             if ((*this)[n] == obj)
             {
@@ -220,7 +217,7 @@ public:
 
     void update()
     {
-        for(unsigned int n=0; n<std::vector<P<T> >::size(); n++)
+        for (unsigned int n = 0; n < std::vector<P<T> >::size(); n++)
         {
             if (!(*this)[n])
             {
@@ -246,7 +243,7 @@ public:
 
     void next()
     {
-        while(true)
+        while (true)
         {
             if (index >= list.size())
             {
@@ -292,7 +289,7 @@ template<class T1, class T2> bool operator != (const P<T1>& p1, const P<T2>& p2)
 
 namespace std
 {
-    //Make a specialization of std::hash
+    // Make a specialization of std::hash.
     template <class T> struct hash<P<T>>
     {
         size_t operator()(const P<T>& k) const noexcept
@@ -301,5 +298,3 @@ namespace std
         }
     };
 }
-
-#endif//PEE_POINTER_H
