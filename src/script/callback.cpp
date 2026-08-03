@@ -15,6 +15,7 @@ Callback::Callback(const Callback& other)
 
 Callback::~Callback()
 {
+    if (!Environment::L) return;
     lua_pushnil(Environment::L);
     lua_rawsetp(Environment::L, LUA_REGISTRYINDEX, this);
 }

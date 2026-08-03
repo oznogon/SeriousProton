@@ -8,6 +8,7 @@ class ShaderManager
 {
 public:
     static sp::Shader* getShader(string name);
+    static void cleanup();
 
 private:
     static std::map<string, sp::Shader*> shaders;

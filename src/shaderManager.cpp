@@ -4,6 +4,12 @@
 
 std::map<string, sp::Shader*> ShaderManager::shaders;
 
+void ShaderManager::cleanup()
+{
+    for (auto& pair : shaders) delete pair.second;
+    shaders.clear();
+}
+
 sp::Shader* ShaderManager::getShader(string name)
 {
     auto it = shaders.find(name);

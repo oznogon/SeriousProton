@@ -3,7 +3,6 @@
 #include <resources.h>
 #include "logging.h"
 
-
 #define STB_VORBIS_NO_STDIO
 #define STB_VORBIS_NO_PUSHDATA_API
 #if defined(__GNUC__) && !defined(__clang__)
@@ -18,9 +17,16 @@
 #pragma GCC diagnostic pop
 #endif//__GNUC__
 
+namespace sp
+{
+namespace audio
+{
 
-namespace sp {
-namespace audio {
+Music::~Music()
+{
+    stop();
+    if (vorbis) stb_vorbis_close(reinterpret_cast<stb_vorbis*>(vorbis));
+}
 
 bool Music::open(const string& resource_name, bool loop)
 {
@@ -125,5 +131,5 @@ void Music::onMixSamples(int16_t* stream, int sample_count)
     }
 }
 
-}//namespace audio
-}//namespace sp
+} // namespace audio
+} // namespace sp

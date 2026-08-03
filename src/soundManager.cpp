@@ -17,6 +17,14 @@ SoundManager::SoundManager()
 
 SoundManager::~SoundManager()
 {
+    stopMusic();
+
+    for (auto& channel : active_sound_list)
+        if (channel.playback.isPlaying()) channel.playback.stop();
+
+    for (auto& pair : sound_map) delete pair.second;
+
+    sound_map.clear();
 }
 
 void SoundManager::playMusic(string name)
@@ -171,6 +179,13 @@ int SoundManager::playSoundData(sp::audio::Sound* data, float pitch, float volum
 
 sp::audio::Sound* SoundManager::loadSound(const string& name)
 {
+    if (name == "")
+    {
+        LOG(Warning, "[sp-sound] Attempted to load sound without a name.");
+        auto data = new sp::audio::Sound(name);
+        return data;
+    }
+
     auto data = sound_map[name];
     if (data) return data;
 
@@ -197,16 +212,12 @@ void SoundManager::updateChannelVolume(SoundChannel& channel)
         float gain = channel.min_distance / (channel.min_distance + channel.attenuation * (distance - channel.min_distance));
         channel.playback.setVolume(channel.volume * master_sound_volume * gain);
     }
-    else
-    {
-        channel.playback.setVolume(channel.volume * master_sound_volume);
-    }
+    else channel.playback.setVolume(channel.volume * master_sound_volume);
 }
 
 void SoundManager::startMusic(const string& name, bool loop)
 {
-    if (name.empty())
-        return;
+    if (name.empty()) return;
 
     if (music_channel.music.isPlaying())
     {
@@ -214,7 +225,9 @@ void SoundManager::startMusic(const string& name, bool loop)
         music_channel.next_loop = loop;
         music_channel.mode = FadeOut;
         music_channel.fade_delay = fade_music_time;
-    }else{
+    }
+    else
+    {
         music_channel.mode = FadeIn;
         music_channel.fade_delay = fade_music_time;
 
@@ -243,18 +256,18 @@ void SoundManager::updateTick()
         }
     }
 
-    for(auto& channel : active_sound_list)
+    for (auto& channel : active_sound_list)
     {
-        if (channel.positional && channel.playback.isPlaying() && positional_sound_enabled)
-        {
-            updateChannelVolume(channel);
-        }
+        if (channel.positional
+            && channel.playback.isPlaying()
+            && positional_sound_enabled
+        ) updateChannelVolume(channel);
     }
 }
 
 void SoundManager::updateChannel(MusicChannel& channel, float delta)
 {
-    switch(channel.mode)
+    switch (channel.mode)
     {
     case None:
         break;
@@ -263,7 +276,9 @@ void SoundManager::updateChannel(MusicChannel& channel, float delta)
         if (channel.fade_delay > 0.f)
         {
             channel.music.setVolume(music_volume * (1.f - (channel.fade_delay / fade_music_time)));
-        }else{
+        }
+        else
+        {
             channel.music.setVolume(music_volume);
             channel.mode = None;
         }
@@ -273,7 +288,9 @@ void SoundManager::updateChannel(MusicChannel& channel, float delta)
         if (channel.fade_delay > 0.f)
         {
             channel.music.setVolume(music_volume * (channel.fade_delay / fade_music_time));
-        }else{
+        }
+        else
+        {
             channel.music.stop();
             channel.mode = None;
             if (!channel.next_stream.empty())

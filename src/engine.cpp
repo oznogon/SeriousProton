@@ -151,6 +151,8 @@ Engine::Engine()
 Engine::~Engine()
 {
     Window::all_windows.clear();
+    for (auto* system : systems) delete system;
+    systems.clear();
     updatableList.clear();
     delete soundManager;
     soundManager = nullptr;

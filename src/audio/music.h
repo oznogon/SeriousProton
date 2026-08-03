@@ -11,6 +11,9 @@ namespace audio {
 class Music : public Source
 {
 public:
+    Music() = default;
+    ~Music() override;
+
     bool open(const string& name, bool loop);
 
     void setVolume(float volume); //range: 0-100
