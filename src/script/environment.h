@@ -18,6 +18,8 @@ public:
     Environment(Environment* parent=nullptr);
     ~Environment();
 
+    static void shutdown();
+
     void setGlobalFuncWithEnvUpvalue(const string& name, lua_CFunction f) {
         //Get the environment table from the registry.
         lua_rawgetp(L, LUA_REGISTRYINDEX, this);

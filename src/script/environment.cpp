@@ -298,8 +298,20 @@ lua_State* Environment::getLuaState()
 
 Environment::~Environment()
 {
-    lua_pushnil(L);
-    lua_rawsetp(L, LUA_REGISTRYINDEX, this);
+    if (L)
+    {
+        lua_pushnil(L);
+        lua_rawsetp(L, LUA_REGISTRYINDEX, this);
+    }
+}
+
+void Environment::shutdown()
+{
+    if (L)
+    {
+        lua_close(L);
+        L = nullptr;
+    }
 }
 
 bool Environment::isFunction(const string& function_name)
