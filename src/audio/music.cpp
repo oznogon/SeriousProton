@@ -70,38 +70,54 @@ string Music::getTagsDisplayName(const string& resource_name)
     if (!stream)
         return resource_name.substr(resource_name.rfind("/") + 1, resource_name.rfind("."));
 
+    // Read a small prefix and grow it until stb_vorbis can parse the headers,
+    // in case a file embeds large comments or cover art.
+    const size_t file_size = stream->getSize();
     std::vector<uint8_t> file_data;
-    file_data.resize(stream->getSize());
-    stream->read(file_data.data(), file_data.size());
+    size_t prefix_size = std::min<size_t>(file_size, 65536 /* 64 * 1024 */);
 
-    // Read Vorbis tag data.
-    int error = 0;
-    auto* v = stb_vorbis_open_memory(file_data.data(), static_cast<int>(file_data.size()), &error, nullptr);
-    if (!v)
-        return resource_name.substr(resource_name.rfind("/") + 1, resource_name.rfind("."));
-
-    auto comment = stb_vorbis_get_comment(v);
-
-    string artist;
-    string title;
-    for (int i = 0; i < comment.comment_list_length; i++)
+    while (true)
     {
-        string line(comment.comment_list[i]);
-        int eq = line.find("=");
-        if (eq > 0)
+        file_data.resize(prefix_size);
+        stream->seek(0);
+        if (stream->read(file_data.data(), file_data.size()) != file_data.size())
+            break;
+
+        // Read Vorbis tag data.
+        int error = 0;
+        auto* v = stb_vorbis_open_memory(file_data.data(), static_cast<int>(file_data.size()), &error, nullptr);
+        if (!v)
         {
-            string key = line.substr(0, eq).upper();
-            string value = line.substr(eq + 1);
-            if (key == "ARTIST") artist = value;
-            else if (key == "TITLE") title = value;
+            if (prefix_size >= file_size) break;
+
+            prefix_size = std::min(file_size, prefix_size * 2);
+            continue;
         }
+
+        auto comment = stb_vorbis_get_comment(v);
+
+        string artist;
+        string title;
+        for (int i = 0; i < comment.comment_list_length; i++)
+        {
+            string line(comment.comment_list[i]);
+            int eq = line.find("=");
+            if (eq > 0)
+            {
+                string key = line.substr(0, eq).upper();
+                string value = line.substr(eq + 1);
+                if (key == "ARTIST") artist = value;
+                else if (key == "TITLE") title = value;
+            }
+        }
+
+        stb_vorbis_close(v);
+
+        // Return "artist - title" if possible, or just "title".
+        if (!artist.empty() && !title.empty()) return artist + " - " + title;
+        if (!title.empty()) return title;
+        break;
     }
-
-    stb_vorbis_close(v);
-
-    // Return "artist - title" if possible, or just "title".
-    if (!artist.empty() && !title.empty()) return artist + " - " + title;
-    if (!title.empty()) return title;
 
     // Fallback to filename substring if no title.
     return resource_name.substr(resource_name.rfind("/") + 1, resource_name.rfind("."));
