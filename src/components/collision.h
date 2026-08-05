@@ -1,9 +1,9 @@
 #pragma once
 
+#include "box2d/id.h"
 #include <glm/vec2.hpp>
 
 
-class b2Body;
 namespace sp {
 namespace multiplayer { class TransformReplication; class PhysicsReplication; }
 class CollisionSystem;
@@ -72,7 +72,7 @@ private:
     Shape shape = Shape::Circle;
     glm::vec2 size{1.0, 1.0};
 
-    b2Body* body = nullptr;
+    b2BodyId body = b2_nullBodyId;
     glm::vec2 linear_velocity{};
     float angular_velocity = 0.0f;
     bool linear_velocity_user_set = false;

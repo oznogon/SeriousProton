@@ -7,9 +7,12 @@
 #include <glm/trigonometric.hpp>
 #include <glm/geometric.hpp>
 
+#include <unordered_set>
+
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wsuggest-override"
+#pragma GCC diagnostic ignored "-Wdouble-promotion"
 #endif//__GNUC__
 #include "box2d/box2d.h"
 #if defined(__GNUC__) && !defined(__clang__)
@@ -17,22 +20,25 @@
 #endif//__GNUC__
 
 #define BOX2D_SCALE 20.0f
+
 static inline glm::vec2 b2v(b2Vec2 v)
 {
     return glm::vec2(v.x * BOX2D_SCALE, v.y * BOX2D_SCALE);
 }
+
 static inline b2Vec2 v2b(glm::vec2 v)
 {
-    return b2Vec2(v.x / BOX2D_SCALE, v.y / BOX2D_SCALE);
+    return b2Vec2{v.x / BOX2D_SCALE, v.y / BOX2D_SCALE};
 }
 
-static b2World* world;
+static b2WorldId worldId = b2_nullWorldId;
 
-namespace sp {
-
+namespace sp
+{
 std::vector<CollisionHandler*> CollisionSystem::handlers;
 
-namespace {
+namespace
+{
 struct Collision
 {
     sp::ecs::Entity A;
@@ -43,10 +49,15 @@ struct Collision
 
 void CollisionSystem::update(float delta)
 {
-    if (!world) world = new b2World(b2Vec2(0, 0));
+    if (!B2_IS_NON_NULL(worldId))
+    {
+        b2WorldDef worldDef = b2DefaultWorldDef();
+        worldDef.gravity = b2Vec2{0, 0};
+        worldId = b2CreateWorld(&worldDef);
+    }
+    // If we're paused, don't bother.
     if (delta <= 0.0f) return;
 
-    // Go over each entity with physics, and create/update bodies if needed.
     for (auto [entity, transform, physics] : sp::ecs::Query<Transform, Physics>())
     {
         if (physics.physics_dirty)
@@ -54,10 +65,10 @@ void CollisionSystem::update(float delta)
             physics.physics_dirty = false;
             sp::ecs::Entity* ptr;
 
-            if (physics.body)
+            if (B2_IS_NON_NULL(physics.body))
             {
-                ptr = (sp::ecs::Entity*)physics.body->GetUserData().pointer;
-                world->DestroyBody(physics.body);
+                ptr = (sp::ecs::Entity*)b2Body_GetUserData(physics.body);
+                b2DestroyBody(physics.body);
             }
             else
             {
@@ -65,163 +76,233 @@ void CollisionSystem::update(float delta)
                 *ptr = entity;
             }
 
-            b2BodyDef bodyDef;
+            b2BodyDef bodyDef = b2DefaultBodyDef();
             bodyDef.type = physics.type == Physics::Type::Static ? b2_kinematicBody : b2_dynamicBody;
-            bodyDef.userData.pointer = (uintptr_t)ptr;
-            bodyDef.allowSleep = false;
+            bodyDef.userData = ptr;
+            bodyDef.enableSleep = false;
             bodyDef.position = v2b(transform.position);
-            bodyDef.angle = glm::radians(transform.rotation);
-            physics.body = world->CreateBody(&bodyDef);
+            bodyDef.rotation = b2MakeRot(glm::radians(transform.rotation));
+            physics.body = b2CreateBody(worldId, &bodyDef);
 
-            b2FixtureDef shapeDef;
+            b2ShapeDef shapeDef = b2DefaultShapeDef();
             shapeDef.density = 1.f;
-            shapeDef.friction = 0.f;
+            shapeDef.material.friction = 0.f;
             shapeDef.isSensor = physics.type == Physics::Type::Sensor;
+            shapeDef.enableSensorEvents = true;
+            shapeDef.enableContactEvents = true;
 
             if (physics.shape == Physics::Shape::Circle)
             {
-                b2CircleShape shape;
-                shape.m_radius = physics.size.x / BOX2D_SCALE;
-                shapeDef.shape = &shape;
-                physics.body->CreateFixture(&shapeDef);
+                b2Circle circle;
+                circle.center = b2Vec2{0, 0};
+                circle.radius = physics.size.x / BOX2D_SCALE;
+                b2CreateCircleShape(physics.body, &shapeDef, &circle);
             }
             else
             {
-                b2PolygonShape shape;
-                shape.SetAsBox(physics.size.x / 2.0f / BOX2D_SCALE, physics.size.y / 2.0f / BOX2D_SCALE, {0, 0}, 0);
-                shapeDef.shape = &shape;
-                physics.body->CreateFixture(&shapeDef);
+                b2Polygon box = b2MakeBox(physics.size.x / 2.0f / BOX2D_SCALE, physics.size.y / 2.0f / BOX2D_SCALE);
+                b2CreatePolygonShape(physics.body, &shapeDef, &box);
             }
         }
 
-        if (transform.position_user_set && physics.body)
+        if (!B2_IS_NON_NULL(physics.body)) continue;
+
+        if (transform.position_user_set)
         {
-            physics.body->SetTransform(v2b(transform.position), physics.body->GetAngle());
+            b2Body_SetTransform(physics.body, v2b(transform.position), b2Body_GetRotation(physics.body));
             transform.position_user_set = false;
         }
 
-        if (transform.rotation_user_set && physics.body)
+        if (transform.rotation_user_set)
         {
-            physics.body->SetTransform(physics.body->GetPosition(), glm::radians(transform.rotation));
+            b2Body_SetTransform(physics.body, b2Body_GetPosition(physics.body), b2MakeRot(glm::radians(transform.rotation)));
             transform.rotation_user_set = false;
         }
 
-        if (physics.linear_velocity_user_set && physics.body)
+        if (physics.linear_velocity_user_set)
         {
-            physics.body->SetLinearVelocity(v2b(physics.linear_velocity));
+            b2Body_SetLinearVelocity(physics.body, v2b(physics.linear_velocity));
             physics.linear_velocity_user_set = false;
         }
 
-        if (physics.angular_velocity_user_set && physics.body)
+        if (physics.angular_velocity_user_set)
         {
-            physics.body->SetAngularVelocity(glm::radians(physics.angular_velocity));
+            b2Body_SetAngularVelocity(physics.body, glm::radians(physics.angular_velocity));
             physics.angular_velocity_user_set = false;
         }
     }
 
-    world->Step(delta, 4, 8);
+    b2World_Step(worldId, delta, 4);
 
-    // Go over each body in the physics world and update the entity, or delete
-    // the body if the entity is gone.
     auto now = engine->getElapsedTime();
-    std::vector<b2Body*> remove_list;
-    for (b2Body* body = world->GetBodyList(); body; body = body->GetNext())
+    std::vector<b2BodyId> remove_list;
+    for (auto [entity, transform, physics] : sp::ecs::Query<Transform, Physics>())
     {
-        sp::ecs::Entity* entity_ptr = (sp::ecs::Entity*)body->GetUserData().pointer;
-        Transform* transform;
-        Physics* physics = nullptr;
+        if (!B2_IS_NON_NULL(physics.body))
+        {
+            physics.physics_dirty = true;
+            continue;
+        }
+
+        sp::ecs::Entity* entity_ptr = (sp::ecs::Entity*)b2Body_GetUserData(physics.body);
+        Transform* transform_ptr;
+        Physics* physics_ptr = nullptr;
 
         if (!*entity_ptr
-            || !(physics = entity_ptr->getComponent<Physics>())
-            || !(transform = entity_ptr->getComponent<Transform>())
-        )
-        {
+            || !(physics_ptr = entity_ptr->getComponent<Physics>())
+            || !(transform_ptr = entity_ptr->getComponent<Transform>())
+        ) {
             delete entity_ptr;
-            remove_list.push_back(body);
-
-            // If we have a physics component (thus only missing Transform),
-            // set it so that we'll recreate the body if the entity gets a
-            // Transform again later.
-            if (physics)
-            {
-                physics->physics_dirty = true;
-                physics->body = nullptr;
-            }
+            remove_list.push_back(physics.body);
+            physics.body = b2_nullBodyId;
+            physics.physics_dirty = true;
         }
         else
         {
-            transform->position = b2v(body->GetPosition());
-            transform->rotation = glm::degrees(body->GetAngle());
-            physics->linear_velocity = b2v(body->GetLinearVelocity());
-            physics->angular_velocity = glm::degrees(body->GetAngularVelocity());
+            transform_ptr->position = b2v(b2Body_GetPosition(physics.body));
+            transform_ptr->rotation = glm::degrees(b2Rot_GetAngle(b2Body_GetRotation(physics.body)));
+            physics_ptr->linear_velocity = b2v(b2Body_GetLinearVelocity(physics.body));
+            physics_ptr->angular_velocity = glm::degrees(b2Body_GetAngularVelocity(physics.body));
 
-            auto position_delta = glm::length(transform->position - transform->last_send_position);
-            auto rotation_delta = std::abs(transform->rotation - transform->last_send_rotation);
+            auto position_delta = glm::length(transform_ptr->position - transform_ptr->last_send_position);
+            auto rotation_delta = std::abs(transform_ptr->rotation - transform_ptr->last_send_rotation);
             if (position_delta < 0.5f && rotation_delta < 0.5f) continue;
 
             auto time_between_updates = 1.0f - position_delta / 200.0f - rotation_delta / 100.0f;
             if (time_between_updates < 0.05f) time_between_updates = 0.05f;
 
-            if (transform->last_send_time + time_between_updates < now)
-                transform->multiplayer_dirty = true;
+            if (transform_ptr->last_send_time + time_between_updates < now)
+                transform_ptr->multiplayer_dirty = true;
         }
     }
-    for(auto body : remove_list) {
-        world->DestroyBody(body);
+
+    for (auto body : remove_list) b2DestroyBody(body);
+
+    std::vector<Collision> collision_pair_list;
+    std::unordered_set<uint64_t> processed_pairs;
+    for (auto [entity, transform, physics] : sp::ecs::Query<Transform, Physics>())
+    {
+        if (!B2_IS_NON_NULL(physics.body)) continue;
+
+        if (physics.type == Physics::Type::Sensor)
+        {
+            // Box2D v3 limits simultaneous overlapping contacts to 16.
+            b2ShapeId shapes[8];
+            int shape_count = b2Body_GetShapes(physics.body, shapes, 8);
+            b2ShapeId overlaps[16];
+
+            for (int s = 0; s < shape_count && s < 8; s++)
+            {
+                int overlap_cap = b2Shape_GetSensorCapacity(shapes[s]);
+                int overlap_count = b2Shape_GetSensorOverlaps(shapes[s], overlaps, overlap_cap < 16 ? overlap_cap : 16);
+
+                for (int o = 0; o < overlap_count && o < 16; o++)
+                {
+                    if (!b2Shape_IsValid(overlaps[o])) continue;
+
+                    b2BodyId otherBody = b2Shape_GetBody(overlaps[o]);
+                    sp::ecs::Entity* other_ptr = (sp::ecs::Entity*)b2Body_GetUserData(otherBody);
+                    if (!other_ptr || !*other_ptr) continue;
+
+                    uint32_t a = entity.getIndex();
+                    uint32_t b = other_ptr->getIndex();
+                    if (a == b) continue;
+
+                    if (a > b) std::swap(a, b);
+
+                    uint64_t pair_key = (uint64_t(a) << 32) | uint64_t(b);
+
+                    if (processed_pairs.find(pair_key) != processed_pairs.end())
+                        continue;
+
+                    processed_pairs.insert(pair_key);
+                    collision_pair_list.push_back({entity, *other_ptr, 0.0f});
+                }
+            }
+        }
+        else
+        {
+            // Box2D v3 limits simultaneous overlapping contacts to 16.
+            b2ContactData contacts[16];
+            int count = b2Body_GetContactData(physics.body, contacts, 16);
+            if (count > 16) count = 16;
+
+            for (int i = 0; i < count; i++)
+            {
+                b2BodyId bodyA = b2Shape_GetBody(contacts[i].shapeIdA);
+                b2BodyId bodyB = b2Shape_GetBody(contacts[i].shapeIdB);
+
+                bool this_is_a = B2_ID_EQUALS(physics.body, bodyA);
+                b2BodyId otherBody = this_is_a ? bodyB : bodyA;
+
+                sp::ecs::Entity* other_ptr = (sp::ecs::Entity*)b2Body_GetUserData(otherBody);
+                if (!other_ptr || !*other_ptr) continue;
+
+                uint32_t a = entity.getIndex();
+                uint32_t b = other_ptr->getIndex();
+                if (a == b) continue;
+
+                if (a > b) std::swap(a, b);
+
+                uint64_t pair_key = (uint64_t(a) << 32) | uint64_t(b);
+
+                if (processed_pairs.find(pair_key) != processed_pairs.end())
+                    continue;
+
+                processed_pairs.insert(pair_key);
+
+                // Apply force to colliders.
+                float force = 0.0f;
+                for (int n = 0; n < contacts[i].manifold.pointCount; n++)
+                    force += contacts[i].manifold.points[n].normalImpulse * BOX2D_SCALE;
+
+                collision_pair_list.push_back({entity, *other_ptr, force});
+            }
+        }
     }
 
-    // Find all the collisions and process them.
-    std::vector<Collision> collisions;
-    for(b2Contact* contact = world->GetContactList(); contact; contact = contact->GetNext())
+    for (auto& pair : collision_pair_list)
     {
-        if (contact->IsTouching() && contact->IsEnabled())
+        if (!pair.A || !pair.B) continue;
+
+        for (auto handler : handlers)
         {
-            float force = 0.0f;
-            for (int n = 0; n < contact->GetManifold()->pointCount; n++)
-                force += contact->GetManifold()->points[n].normalImpulse * BOX2D_SCALE;
+            if (!pair.A || !pair.B) break;
+            handler->collision(pair.A, pair.B, pair.collision_force);
 
-            auto a = (sp::ecs::Entity*)contact->GetFixtureA()->GetBody()->GetUserData().pointer;
-            auto b = (sp::ecs::Entity*)contact->GetFixtureB()->GetBody()->GetUserData().pointer;
-
-            for (auto handler : handlers)
-            {
-                if (!*a || !*b) break;
-                handler->collision(*a, *b, force);
-                if (!*a || !*b) break;
-                handler->collision(*b, *a, force);
-            }
+            if (!pair.A || !pair.B) break;
+            handler->collision(pair.B, pair.A, pair.collision_force);
         }
     }
 }
 
-class QueryCallback : public b2QueryCallback
+static bool queryCallback(b2ShapeId shapeId, void* context)
 {
-public:
-    std::vector<sp::ecs::Entity> list;
+    auto list = (std::vector<sp::ecs::Entity>*)context;
+    b2BodyId bodyId = b2Shape_GetBody(shapeId);
+    auto ptr = (sp::ecs::Entity*)b2Body_GetUserData(bodyId);
+    if (ptr && *ptr) list->push_back(*ptr);
 
-    /// Called for each fixture found in the query AABB.
-    /// @return false to terminate the query.
-    virtual bool ReportFixture(b2Fixture* fixture) override
-    {
-        auto ptr = (sp::ecs::Entity*)fixture->GetBody()->GetUserData().pointer;
-        if (*ptr) list.push_back(*ptr);
-        return true;
-    }
-};
+    return true;
+}
 
 std::vector<sp::ecs::Entity> CollisionSystem::queryArea(glm::vec2 lowerBound, glm::vec2 upperBound)
 {
-    QueryCallback callback;
+    std::vector<sp::ecs::Entity> list;
     b2AABB aabb;
     aabb.lowerBound = v2b(lowerBound);
     aabb.upperBound = v2b(upperBound);
+
     if (aabb.lowerBound.x > aabb.upperBound.x)
         std::swap(aabb.upperBound.x, aabb.lowerBound.x);
+
     if (aabb.lowerBound.y > aabb.upperBound.y)
         std::swap(aabb.upperBound.y, aabb.lowerBound.y);
-    if (world)
-        world->QueryAABB(&callback, aabb);
-    return callback.list;
+
+    if (B2_IS_NON_NULL(worldId))
+        b2World_OverlapAABB(worldId, aabb, b2DefaultQueryFilter(), queryCallback, &list);
+
+    return list;
 }
 
 std::vector<sp::ecs::Entity> TransformQuery::queryArea(glm::vec2 lowerBound, glm::vec2 upperBound)
@@ -232,15 +313,17 @@ std::vector<sp::ecs::Entity> TransformQuery::queryArea(glm::vec2 lowerBound, glm
     {
         auto radius = physics ? physics->getSize().x : 0;
 
-        if (transform.getPosition().x + radius < lowerBound.x || transform.getPosition().x - radius > upperBound.x)
-            continue;
-        if (transform.getPosition().y + radius < lowerBound.y || transform.getPosition().y - radius > upperBound.y)
-            continue;
+        if (transform.getPosition().x + radius < lowerBound.x
+            || transform.getPosition().x - radius > upperBound.x
+        ) continue;
+
+        if (transform.getPosition().y + radius < lowerBound.y
+            || transform.getPosition().y - radius > upperBound.y
+        ) continue;
 
         result.push_back(entity);
     }
 
     return result;
 }
-
 }
