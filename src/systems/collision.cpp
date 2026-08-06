@@ -19,10 +19,12 @@
 #endif//__GNUC__
 
 #define BOX2D_SCALE 20.0f
+
 static inline glm::vec2 b2v(b2Vec2 v)
 {
     return glm::vec2(v.x * BOX2D_SCALE, v.y * BOX2D_SCALE);
 }
+
 static inline b2Vec2 v2b(glm::vec2 v)
 {
     return b2Vec2{v.x / BOX2D_SCALE, v.y / BOX2D_SCALE};
@@ -84,8 +86,14 @@ void CollisionSystem::update(float delta)
             body_tracking.insert(b2StoreBodyId(physics.body));
 
             b2ShapeDef shapeDef = b2DefaultShapeDef();
-            shapeDef.density = 1.f;
+            shapeDef.density = 1.0f;
+            shapeDef.material.friction = 0.0f;
             shapeDef.isSensor = physics.type == Physics::Type::Sensor;
+            // enableSensorEvents flag required for sensor overlap detection
+            // (mostly missiles and asteroids in EE).
+            shapeDef.enableSensorEvents = true;
+            shapeDef.enableContactEvents = physics.type != Physics::Type::Sensor;
+            shapeDef.enableHitEvents = physics.type != Physics::Type::Sensor;
 
             if (physics.shape == Physics::Shape::Circle)
             {
