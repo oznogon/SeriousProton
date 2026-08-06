@@ -53,6 +53,7 @@ void CollisionSystem::update(float delta)
     {
         b2WorldDef worldDef = b2DefaultWorldDef();
         worldDef.gravity = b2Vec2{0, 0};
+        worldDef.hitEventThreshold = 1.0f;
         worldId = b2CreateWorld(&worldDef);
     }
     if (delta <= 0.0f) return;
@@ -138,6 +139,41 @@ void CollisionSystem::update(float delta)
 
     b2World_Step(worldId, delta, 4);
 
+    std::vector<Collision> collision_pair_list;
+    std::unordered_set<uint64_t> processed_pairs;
+
+    // Add contact hit events to the collisions list.
+    {
+        b2ContactEvents events = b2World_GetContactEvents(worldId);
+        for (int i = 0; i < events.hitCount; i++)
+        {
+            b2ContactHitEvent& hit = events.hitEvents[i];
+
+            b2BodyId bodyA = b2Shape_GetBody(hit.shapeIdA);
+            b2BodyId bodyB = b2Shape_GetBody(hit.shapeIdB);
+
+            sp::ecs::Entity* a_ptr = (sp::ecs::Entity*)b2Body_GetUserData(bodyA);
+            sp::ecs::Entity* b_ptr = (sp::ecs::Entity*)b2Body_GetUserData(bodyB);
+
+            if (!a_ptr || !*a_ptr || !b_ptr || !*b_ptr) continue;
+
+            uint32_t a = a_ptr->getIndex();
+            uint32_t b = b_ptr->getIndex();
+            if (a == b) continue;
+
+            if (a > b) std::swap(a, b);
+
+            uint64_t pair_key = (uint64_t(a) << 32) | uint64_t(b);
+
+            if (processed_pairs.find(pair_key) != processed_pairs.end())
+                continue;
+
+            processed_pairs.insert(pair_key);
+            LOG(Debug, "[collisionsystem] Adding hit event collision, hit.approachSpeed = ", hit.approachSpeed, ", * BOX2D_SCALE (force) = ", hit.approachSpeed * BOX2D_SCALE);
+            collision_pair_list.push_back({*a_ptr, *b_ptr, hit.approachSpeed * BOX2D_SCALE});
+        }
+    }
+
     auto now = engine->getElapsedTime();
     std::unordered_set<uint64_t> active_bodies;
     for (auto [entity, transform, physics] : sp::ecs::Query<Transform, Physics>())
@@ -179,12 +215,11 @@ void CollisionSystem::update(float delta)
         else ++it;
     }
 
-    std::vector<Collision> collision_pair_list;
-    std::unordered_set<uint64_t> processed_pairs;
     for (auto [entity, transform, physics] : sp::ecs::Query<Transform, Physics>())
     {
         if (!B2_IS_NON_NULL(physics.body)) continue;
 
+        // Add sensor physics overlaps/collisions to the collisions list.
         if (physics.type == Physics::Type::Sensor)
         {
             b2ShapeId shapes[8];
@@ -205,6 +240,7 @@ void CollisionSystem::update(float delta)
                     uint32_t a = entity.getIndex();
                     uint32_t b = other_ptr->getIndex();
                     if (a == b) continue;
+
                     if (a > b) std::swap(a, b);
 
                     uint64_t pair_key = (uint64_t(a) << 32) | uint64_t(b);
@@ -216,6 +252,7 @@ void CollisionSystem::update(float delta)
                 }
             }
         }
+        // Add contact data collisions to the collisions list.
         else
         {
             b2ContactData contacts[16];
@@ -245,15 +282,17 @@ void CollisionSystem::update(float delta)
 
                 processed_pairs.insert(pair_key);
 
+                // Contact data only reports that two shapes are touching; hit events
+                // provide the collision impact force. This path exists for sustained
+                // contact needs (e.g. docking) where force is not used.
                 float force = 0.0f;
-                for (int n = 0; n < contacts[i].manifold.pointCount; n++)
-                    force += contacts[i].manifold.points[n].normalImpulse * BOX2D_SCALE;
 
                 collision_pair_list.push_back({entity, *other_ptr, force});
             }
         }
     }
 
+    // 
     for (auto& pair : collision_pair_list)
     {
         if (!pair.A || !pair.B) continue;
