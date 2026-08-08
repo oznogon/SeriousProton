@@ -1,5 +1,9 @@
 #include "multiplayer_server_scanner.h"
 #include "io/http/request.h"
+#ifdef STEAMSDK
+#include <steam/steam_api.h>
+#include <unordered_set>
+#endif
 using namespace std::chrono_literals;
 
 ServerScanner::ServerScanner(int version_number, int server_port)
@@ -10,8 +14,7 @@ ServerScanner::ServerScanner(int version_number, int server_port)
 ServerScanner::~ServerScanner()
 {
     destroy();
-    if (master_server_scan_thread.joinable())
-        master_server_scan_thread.join();
+    if (master_server_scan_thread.joinable()) master_server_scan_thread.join();
 }
 
 void ServerScanner::scanMasterServer(string url)
@@ -36,20 +39,75 @@ void ServerScanner::scanLocalNetwork()
     while (!socket->bind(static_cast<uint16_t>(port_nr))) port_nr++;
 
     if (!socket->joinMulticast(666))
-        LOG(Error, "[sp-serverscan] Failed to join multicast for local network discovery.");
+        LOG(Error, "[sp-serverscan] Failed to join multicast port 666 for local network discovery.");
 
     socket->setBlocking(false);
     broadcast_timer.repeat(BROADCAST_TIMEOUT);
 }
 
-void ServerScanner::update(float /*gameDelta*/)
+#ifdef STEAMSDK
+void ServerScanner::scanSteamFriends()
+{
+    if (steam_scan_enabled) return;
+
+    LOG(Info, "[sp-serverscan] Starting Steam friends server scanning.");
+    steam_scan_enabled = true;
+    steam_scan_timer.repeat(STEAM_SCAN_INTERVAL);
+}
+
+void ServerScanner::updateSteamFriendEntries()
+{
+    // Any Steam friend running EmptyEpsilon is offered as a  Steam P2P server.
+    // This isn't ideal since friends running EmptyEpsilon as a client still
+    // appear. The client's connect timeout handles failures.
+    // TODO: Just don't show clients on the list.
+    std::unordered_set<uint64_t> in_game_friends;
+
+    int friend_count = SteamFriends()->GetFriendCount(k_EFriendFlagAll);
+    for (int i = 0; i < friend_count; i++)
+    {
+        CSteamID friend_id = SteamFriends()->GetFriendByIndex(i, k_EFriendFlagAll);
+        FriendGameInfo_t game_info;
+        if (!SteamFriends()->GetFriendGamePlayed(friend_id, &game_info))
+            continue;
+        if (!game_info.m_gameID.IsValid()) continue;
+        if (game_info.m_gameID.AppID() != STEAM_APP_ID) continue;
+
+        uint64_t steam_id = friend_id.ConvertToUint64();
+        in_game_friends.insert(steam_id);
+        updateServerEntry({ServerType::SteamFriend, {}, 0, steam_id, SteamFriends()->GetFriendPersonaName(friend_id), {}});
+    }
+
+    // Remove SteamFriend entries for friends who are no longer in-game.
+    for (unsigned int n = 0; n < server_list.size(); n++)
+    {
+        if (server_list[n].type != ServerType::SteamFriend) continue;
+        if (in_game_friends.find(server_list[n].steam_id) != in_game_friends.end())
+            continue;
+
+        if (removedServerCallback) removedServerCallback(server_list[n]);
+        server_list.erase(server_list.begin() + n);
+        n--;
+    }
+}
+#endif
+
+void ServerScanner::update(float /* game_delta */)
 {
     master_server_list_mutex.lock();
-    for (const auto& info : master_server_update_list)
-        updateServerEntry(info);
+    for (const auto& info : master_server_update_list) updateServerEntry(info);
 
     master_server_update_list.clear();
     master_server_list_mutex.unlock();
+
+#ifdef STEAMSDK
+    // Repeat steam scans on interval.
+    if (steam_scan_enabled && steam_scan_timer.isExpired())
+    {
+        steam_scan_timer.repeat(STEAM_SCAN_INTERVAL);
+        updateSteamFriendEntries();
+    }
+#endif
 
     for (unsigned int n = 0; n < server_list.size(); n++)
     {
@@ -78,11 +136,10 @@ void ServerScanner::update(float /*gameDelta*/)
             int32_t verification, version_nr;
             string name;
             recv_packet >> verification >> version_nr >> name;
+
             if (verification == MULTIPLAYER_VERIFICATION_NUMBER
-                && (version_nr == version_number || version_nr == 0 || version_number == 0))
-            {
-                updateServerEntry({ServerType::LAN, recv_address, static_cast<uint64_t>(recv_port), name, {}});
-            }
+                && (version_nr == version_number || version_nr == 0 || version_number == 0)
+            ) updateServerEntry({ServerType::LAN, recv_address, static_cast<uint64_t>(recv_port), 0, name, {}});
         }
     }
 }
@@ -91,18 +148,24 @@ void ServerScanner::updateServerEntry(const ServerInfo& info)
 {
     for (unsigned int n = 0; n < server_list.size(); n++)
     {
-        if (server_list[n].type == info.type && server_list[n].address == info.address)
-        {
-            server_list[n].port = info.port;
-            server_list[n].name = info.name;
-            server_list[n].timeout.start(SERVER_TIMEOUT);
-            return;
-        }
+        if (server_list[n].type != info.type) continue;
+
+        // SteamFriend entries are ID'd by the friend's SteamID. All other
+        // server types are ID'd by their address.
+        if (info.type == ServerType::SteamFriend)
+            { if (server_list[n].steam_id != info.steam_id) continue; }
+        else if (!(server_list[n].address == info.address)) continue;
+
+        server_list[n].port = info.port;
+        server_list[n].name = info.name;
+        server_list[n].timeout.start(info.type == ServerType::SteamFriend ? STEAM_SERVER_TIMEOUT : SERVER_TIMEOUT);
+        return;
     }
 
+    // Add a new server to the list.
     LOG(Info, "[sp-serverscan] New server: ", info.address.getHumanReadable()[0], " ", info.port, " ", info.name);
     ServerInfo si = info;
-    si.timeout.start(SERVER_TIMEOUT);
+    si.timeout.start(si.type == ServerType::SteamFriend ? STEAM_SERVER_TIMEOUT : SERVER_TIMEOUT);
     server_list.push_back(si);
 
     if (newServerCallback) newServerCallback(si);
@@ -138,13 +201,14 @@ void ServerScanner::masterServerScanThread()
     int port = 80;
     int port_start = hostname.find(":");
     string uri = hostname.substr(path_start);
+
     if (port_start >= 0)
     {
-        LOG(Info, "[sp-serverscan] Port detected.");
         // If a port is attached to the hostname, parse it out.
         // No validation is performed.
         port = hostname.substr(port_start + 1, path_start).toInt();
         hostname = hostname.substr(0, port_start);
+        LOG(Info, "[sp-serverscan] Port definition detected: ", hostname, ":", port);
     }
     else hostname = hostname.substr(0, path_start);
 
@@ -167,10 +231,13 @@ void ServerScanner::masterServerScanThread()
                 int version = parts[2].toInt();
                 string name = parts[3];
 
-                if (version == version_number || version == 0 || version_number == 0)
-                {
+                // Server/clients compiled with version 0 ignore version checks.
+                if (version == version_number
+                    || version == 0
+                    || version_number == 0
+                ) {
                     master_server_list_mutex.lock();
-                    master_server_update_list.push_back({ServerType::MasterServer, address, static_cast<uint64_t>(part_port), name, {}});
+                    master_server_update_list.push_back({ServerType::MasterServer, address, static_cast<uint64_t>(part_port), 0, name, {}});
                     master_server_list_mutex.unlock();
                 }
             }

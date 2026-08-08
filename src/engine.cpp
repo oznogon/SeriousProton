@@ -58,6 +58,38 @@ PObject* DEBUG_PobjListStart;
 
 Engine* engine;
 
+#ifdef STEAMSDK
+void initSteamAPI()
+{
+    // The Steam API must be initialized before any Steam interface is used.
+    static bool initialized = false;
+    if (initialized) return;
+    initialized = true;
+
+    // EmptyEpsilon's Steam ID is 1907040:
+    // https://store.steampowered.com/app/1907040/EmptyEpsilon/
+    // daid's EmptyEpsilon Steam app has no macOS build, so Steam can't relaunch
+    // it from the client as is possible on other operating systems.
+    // Threfore, launch standalone macOS builds with a steam_appid.txt
+    // containing `1907040` next to the executable as a workaround.
+    // See https://partner.steamgames.com/doc/api/steam_api.
+#ifdef __APPLE__
+    LOG(Info, "[sp-engine] macOS builds must have a steam_appid.txt file containing 1907040 located next to the EmptyEpsilon binary to launch via Steam.");
+#else
+    if (SteamAPI_RestartAppIfNecessary(1907040)) exit(1);
+#endif
+
+    if (!SteamAPI_Init())
+    {
+        LOG(Error, "[sp-engine] Failed to initialize Steam API. The Steam client must be running, and you must have EmptyEpsilon in your Steam library.");
+        exit(1);
+    }
+
+    SteamNetworkingUtils()->InitRelayNetworkAccess();
+    LOG(Debug, "[sp-engine] SteamID: ", SteamAPI_ISteamUser_GetSteamID(SteamAPI_SteamUser()));
+}
+#endif
+
 Engine::Engine()
 {
     engine = this;
@@ -100,18 +132,7 @@ Engine::Engine()
 #endif
 
 #ifdef STEAMSDK
-    // 1907040 is EmptyEpsilon's Steam ID:
-    // https://store.steampowered.com/app/1907040/EmptyEpsilon/
-    if (SteamAPI_RestartAppIfNecessary(1907040)) exit(1);
-
-    if (!SteamAPI_Init())
-    {
-        LOG(Error, "[sp-engine] Failed to initialize Steam API.");
-        exit(1);
-    }
-
-    SteamNetworkingUtils()->InitRelayNetworkAccess();
-    LOG(Debug, "[sp-engine] SteamID: ", SteamAPI_ISteamUser_GetSteamID(SteamAPI_SteamUser()));
+    initSteamAPI();
 #endif
 
 #ifdef WIN32
@@ -234,6 +255,7 @@ void Engine::runMainLoop()
             last_engine_timing = engine_timing;
             soundManager->updateTick();
 #ifdef STEAMSDK
+            // Dispatch Steam callbacks and call results to registered listeners
             SteamAPI_RunCallbacks();
 #endif
             std::this_thread::sleep_for(std::chrono::duration<float>(0.016667f - realtime_delta));

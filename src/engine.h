@@ -9,6 +9,11 @@
 #include "dynamicLibrary.h"
 #endif
 
+#ifdef STEAMSDK
+// Initializes the Steam API. Exits the process if Steam relaunches the app.
+void initSteamAPI();
+#endif
+
 
 class Engine;
 union SDL_Event;
@@ -24,7 +29,10 @@ private:
     bool collect_engine_timing = false;
 
     std::unordered_map<string, P<PObject> > objectMap;
+    // Elapsed scenario time, which progresses at a rate defined by game_speed.
+    // This doesn't report wall-clock time. See sp::SystemStopwatch.
     float elapsed_time = 0.0f;
+    // Time scale. 1.0 is normal, 0.0 is paused.
     float game_speed = 1.0f;
 
     EngineTiming last_engine_timing;
