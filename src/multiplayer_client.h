@@ -1,5 +1,4 @@
-#ifndef MULTIPLAYER_CLIENT_H
-#define MULTIPLAYER_CLIENT_H
+#pragma once
 
 #include "io/network/streamSocket.h"
 #include "Updatable.h"
@@ -11,7 +10,6 @@
 #include <stdint.h>
 #include <thread>
 
-
 class GameClient;
 class MultiplayerObject;
 
@@ -19,10 +17,13 @@ extern P<GameClient> game_client;
 
 class GameClient : public Updatable
 {
-    // if the server doesn't send us any data for this long, send a packet to see if it's still there
-    constexpr static float heartbeat_time = 0.5;
-    // if the server doesn't send us any data for this long, disconnect
-    constexpr static float no_data_disconnect_time = 20;
+    // If the server doesn't send us any data for this many seconds, send a
+    // packet to see if it's still there.
+    constexpr static float HEARTBEAT_TIME = 0.5f;
+    // If the server doesn't send us any data for this long, disconnect.
+    constexpr static float NO_DATA_DISCONNECT_TIME = 20.0f;
+    // If the socket doesn't reach the connected state, time out and disconnect.
+    constexpr static float CONNECT_TIMEOUT = 15.0f;
 public:
     std::vector<sp::ecs::Entity> entity_mapping;
 
@@ -55,6 +56,7 @@ private:
     Status status;
     sp::SystemTimer no_data_timeout;
     sp::SystemTimer heartbeat_timer;
+    sp::SystemStopwatch connect_time;
     NetworkAudioStreamManager audio_stream_manager;
 
     DisconnectReason disconnect_reason{ DisconnectReason::Unknown };
@@ -76,5 +78,3 @@ public:
 
     void sendPassword(string password);
 };
-
-#endif//MULTIPLAYER_CLIENT_H

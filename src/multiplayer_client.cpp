@@ -22,8 +22,8 @@ GameClient::GameClient(int version_number, sp::io::network::Address server, int 
     game_client = this;
     status = Connecting;
 
-    no_data_timeout.start(no_data_disconnect_time);
-    heartbeat_timer.start(heartbeat_time);
+    no_data_timeout.start(NO_DATA_DISCONNECT_TIME);
+    heartbeat_timer.start(HEARTBEAT_TIME);
     auto sock = std::make_unique<sp::io::network::TcpSocket>();
     sock->setBlocking(false);
     sock->connect(server, port_nr);
@@ -40,8 +40,8 @@ GameClient::GameClient(int version_number, uint64_t steam_id)
     game_client = this;
     status = Connecting;
 
-    no_data_timeout.start(no_data_disconnect_time);
-    heartbeat_timer.start(heartbeat_time);
+    no_data_timeout.start(NO_DATA_DISCONNECT_TIME);
+    heartbeat_timer.start(HEARTBEAT_TIME);
     auto sock = std::make_unique<sp::io::network::SteamP2PSocket>();
     sock->connect(steam_id);
     socket = std::move(sock);
@@ -54,18 +54,17 @@ GameClient::~GameClient()
 
 P<MultiplayerObject> GameClient::getObjectById(int32_t id)
 {
-    if (objectMap.find(id) != objectMap.end())
-        return objectMap[id];
+    if (objectMap.find(id) != objectMap.end()) return objectMap[id];
     return NULL;
 }
 
 void GameClient::update(float /*delta*/)
 {
-    if (status == Disconnected)
-        return;
+    if (status == Disconnected) return;
+
     if (status == Connecting)
     {
-        switch(socket->getState())
+        switch (socket->getState())
         {
         case sp::io::network::StreamSocket::State::Closed:
             status = Disconnected;
@@ -73,6 +72,15 @@ void GameClient::update(float /*delta*/)
             LOG(Info, "[sp-gameclient] Failed to connect.");
             break;
         case sp::io::network::StreamSocket::State::Connecting:
+            // Connections time out, so the player gets feedback instead of an
+            // endless "Connecting..." screen.
+            if (connect_time.get() > CONNECT_TIMEOUT)
+            {
+                status = Disconnected;
+                disconnect_reason = DisconnectReason::FailedToConnect;
+                LOG(Info, "[sp-gameclient] Timed out while connecting.");
+                socket->close();
+            }
             break;
         case sp::io::network::StreamSocket::State::Connected:
             LOG(Info, "[sp-gameclient] Connected, waiting for authentication.");
@@ -97,8 +105,8 @@ void GameClient::update(float /*delta*/)
     sp::io::DataBuffer packet;
     while (socket->receive(packet))
     {
-        no_data_timeout.start(no_data_disconnect_time);
-        heartbeat_timer.start(heartbeat_time);
+        no_data_timeout.start(NO_DATA_DISCONNECT_TIME);
+        heartbeat_timer.start(HEARTBEAT_TIME);
 
         command_t command;
         packet >> command;
@@ -368,7 +376,7 @@ void GameClient::update(float /*delta*/)
 
     if (status == Connected && heartbeat_timer.isExpired())
     {
-        heartbeat_timer.start(heartbeat_time);
+        heartbeat_timer.start(HEARTBEAT_TIME);
         sp::io::DataBuffer ping;
         ping << CMD_ALIVE;
         socket->send(ping);
