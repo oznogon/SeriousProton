@@ -102,6 +102,8 @@ public:
         void skipFree() {
             while(dense_index < set.dense.size() && set.dense[dense_index] & free_mark)
                 dense_index++;
+            if (dense_index >= set.dense.size())
+                dense_index = no_free_dense;
         }
 
         SparseSet& set;
@@ -109,7 +111,7 @@ public:
     };
     
     Iterator begin() { return Iterator(*this, 0); }
-    Iterator end() { return Iterator(*this, dense.size()); }
+    Iterator end() { return Iterator(*this, no_free_dense); }
 
     size_t size() { return data.size(); }
 private:
