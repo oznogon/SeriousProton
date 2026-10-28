@@ -6,6 +6,78 @@
 #endif
 using namespace std::chrono_literals;
 
+namespace
+{
+    bool isUnsignedInteger(const string& value)
+    {
+        if (value.empty())
+            return false;
+
+        for (char c : value)
+        {
+            if (c < '0' || c > '9')
+                return false;
+        }
+        return true;
+    }
+
+    // A registration server response is a list of "address:port:version:name"
+    // lines. Return false if any line does not match that format, because that
+    // means the server did not return a server list (an HTML error page, for
+    // example), and none of the response can be used.
+    bool parseMasterServerResponse(const string& body, int version_number, const string& url, std::vector<ServerScanner::ServerInfo>& servers)
+    {
+        for (string line : body.split("\n"))
+        {
+            line = line.strip();
+            if (line.empty())
+                continue;
+
+            int address_end = line.find(":");
+            int port_end = address_end < 0 ? -1 : line.find(":", address_end + 1);
+            int version_end = port_end < 0 ? -1 : line.find(":", port_end + 1);
+            if (address_end < 1 || port_end < 0 || version_end < 0)
+            {
+                LOG(Error, "[sp-serverscan] Ignoring invalid response from registration server ", url, ": \"", line, "\"");
+                return false;
+            }
+
+            string address_field = line.substr(0, address_end).strip();
+            string port_field = line.substr(address_end + 1, port_end).strip();
+            string version_field = line.substr(port_end + 1, version_end).strip();
+            string name = line.substr(version_end + 1).strip();
+
+            if (!isUnsignedInteger(port_field) || !isUnsignedInteger(version_field))
+            {
+                LOG(Error, "[sp-serverscan] Ignoring invalid response from registration server ", url, ": \"", line, "\"");
+                return false;
+            }
+
+            int port = port_field.toInt();
+            if (port < 1 || port > 65535)
+            {
+                LOG(Error, "[sp-serverscan] Ignoring invalid response from registration server ", url, ": \"", line, "\"");
+                return false;
+            }
+
+            // Servers/clients compiled with version 0 ignore version checks.
+            int version = version_field.toInt();
+            if (version != version_number && version != 0 && version_number != 0)
+                continue;
+
+            sp::io::network::Address address(address_field);
+            if (address.getHumanReadable().empty())
+            {
+                LOG(Warning, "[sp-serverscan] Skipping entry with an invalid address from registration server ", url, ": \"", line, "\"");
+                continue;
+            }
+
+            servers.push_back({ServerScanner::ServerType::MasterServer, address, static_cast<uint64_t>(port), 0, name, {}});
+        }
+        return true;
+    }
+}
+
 ServerScanner::ServerScanner(int version_number, int server_port)
 : server_port(server_port), version_number(version_number)
 {
@@ -146,6 +218,15 @@ void ServerScanner::update(float /* game_delta */)
 
 void ServerScanner::updateServerEntry(const ServerInfo& info)
 {
+    std::vector<string> human_readable_address = info.address.getHumanReadable();
+
+    // Steam friends are identified by their SteamID and have no address.
+    if (info.type != ServerType::SteamFriend && human_readable_address.empty())
+    {
+        LOG(Warning, "[sp-serverscan] Ignoring server without a valid address: ", info.name);
+        return;
+    }
+
     for (unsigned int n = 0; n < server_list.size(); n++)
     {
         if (server_list[n].type != info.type) continue;
@@ -163,7 +244,10 @@ void ServerScanner::updateServerEntry(const ServerInfo& info)
     }
 
     // Add a new server to the list.
-    LOG(Info, "[sp-serverscan] New server: ", info.address.getHumanReadable()[0], " ", info.port, " ", info.name);
+    if (info.type == ServerType::SteamFriend)
+        LOG(Info, "[sp-serverscan] New server: Steam friend ", info.name);
+    else
+        LOG(Info, "[sp-serverscan] New server: ", human_readable_address[0], " ", info.port, " ", info.name);
     ServerInfo si = info;
     si.timeout.start(si.type == ServerType::SteamFriend ? STEAM_SERVER_TIMEOUT : SERVER_TIMEOUT);
     server_list.push_back(si);
@@ -219,27 +303,18 @@ void ServerScanner::masterServerScanThread()
     {
         auto response = http.get(uri);
         if (response.status != 200)
-            LOG(Warning, "[sp-serverscan] Failed to query registration server ", master_server_url, " (status ", response.status, ").");
-
-        for (string line : response.body.split("\n"))
         {
-            std::vector<string> parts = line.split(":", 3);
-            if (parts.size() == 4)
+            LOG(Warning, "[sp-serverscan] Failed to query registration server ", master_server_url, " (status ", response.status, ").");
+        }
+        else
+        {
+            std::vector<ServerInfo> servers;
+            if (parseMasterServerResponse(response.body, version_number, master_server_url, servers))
             {
-                sp::io::network::Address address(parts[0]);
-                int part_port = parts[1].toInt();
-                int version = parts[2].toInt();
-                string name = parts[3];
-
-                // Server/clients compiled with version 0 ignore version checks.
-                if (version == version_number
-                    || version == 0
-                    || version_number == 0
-                ) {
-                    master_server_list_mutex.lock();
-                    master_server_update_list.push_back({ServerType::MasterServer, address, static_cast<uint64_t>(part_port), 0, name, {}});
-                    master_server_list_mutex.unlock();
-                }
+                master_server_list_mutex.lock();
+                for (auto& server : servers)
+                    master_server_update_list.push_back(server);
+                master_server_list_mutex.unlock();
             }
         }
 
