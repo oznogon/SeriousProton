@@ -102,11 +102,14 @@ Entity Entity::fromString(const string& s)
 
 void Entity::destroyAllEntities()
 {
+    auto callback_backup = pre_destroy_callback;
+    pre_destroy_callback = nullptr;
     for (size_t index = 0; index < entity_version.size(); index++)
     {
         if (!(entity_version[index] & destroyed_flag))
             forced(static_cast<uint32_t>(index), entity_version[index]).destroy();
     }
+    pre_destroy_callback = callback_backup;
 }
 
 size_t Entity::getActiveCount()
