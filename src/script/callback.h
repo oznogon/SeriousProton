@@ -21,26 +21,29 @@ public:
     explicit operator bool();
 
     template<typename RET, typename... ARGS> Result<RET> call(ARGS... args) {
+        //Install an error handler first, so errors get a traceback and non-string error objects still get a message.
+        lua_pushcfunction(Environment::L, luaErrorHandler);
         //Get this callback from the registry
         lua_rawgetp(Environment::L, LUA_REGISTRYINDEX, this);
         if (!lua_isfunction(Environment::L, -1)) {
-            lua_pop(Environment::L, 1);
+            lua_pop(Environment::L, 2);
             return Result<RET>::makeError("Callback not set.");
         }
         //If it exists, push the arguments with it, can run it.
         int arg_count = (Convert<ARGS>::toLua(Environment::L, args) + ... + 0);
         int ret_count = std::is_void_v<RET> ? 0 : 1;
-        int result = lua_pcall(Environment::L, arg_count, ret_count, 0);
+        int result = lua_pcall(Environment::L, arg_count, ret_count, -arg_count - 2);
         if (result) {
-            auto ret = Result<RET>::makeError(lua_tostring(Environment::L, -1));
-            lua_pop(Environment::L, 1);
+            auto ret = Result<RET>::makeError(luaErrorToString(Environment::L, -1));
+            lua_pop(Environment::L, 2);//pop the error message and the error handler.
             return ret;
         }
         if constexpr (!std::is_void_v<RET>) {
             auto return_value = Convert<RET>::fromLua(Environment::L, -1);
-            lua_pop(Environment::L, 1);
+            lua_pop(Environment::L, 2);//pop the return value and the error handler.
             return return_value;
         } else {
+            lua_pop(Environment::L, 1);//pop the error handler.
             return {};
         }
     }
@@ -70,12 +73,12 @@ public:
         if (result == LUA_YIELD)
             return std::make_shared<Coroutine>(lua);
         if (result) {
-            auto ret = Result<CoroutinePtr>::makeError(lua_tostring(lua, -1));
-            lua_pop(lua, 1);
+            auto ret = Result<CoroutinePtr>::makeError(luaErrorWithTraceback(lua, -1));
+            lua_pop(Environment::L, 1);//pop the coroutine off the main stack.
             return ret;
         }
         //Coroutine didn't yield. So no state to store for it.
-        lua_pop(lua, 1);//pop the coroutine off the main stack.
+        lua_pop(Environment::L, 1);//pop the coroutine off the main stack.
         return {nullptr};
     }
 

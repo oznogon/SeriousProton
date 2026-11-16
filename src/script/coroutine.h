@@ -4,6 +4,7 @@
 #include <nonCopyable.h>
 #include <result.h>
 #include <script/conversion.h>
+#include <script/environment.h>
 #include <lua/lua.hpp>
 
 namespace sp::script {
@@ -32,8 +33,10 @@ public:
         }
         if (result != LUA_OK)
         {
-            auto res = Result<bool>::makeError(lua_tostring(lua, -1));
+            auto res = Result<bool>::makeError(luaErrorWithTraceback(lua, -1));
             lua_pop(lua, 1);
+            release();
+            return res;
         }
         release();
         return false;

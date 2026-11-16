@@ -12,6 +12,16 @@ namespace sp::script {
 
 int luaErrorHandler(lua_State* L);
 
+/** Convert the Lua value at the given index into a message for error reporting.
+    Values that are not strings or numbers are described by their type, instead of
+    producing a null pointer. */
+string luaErrorToString(lua_State* L, int index);
+
+/** Convert the Lua value at the given index into a message for error reporting, with
+    the traceback of the given stack appended. This also works for a thread that
+    already finished with an error, as returned by lua_resume. */
+string luaErrorWithTraceback(lua_State* L, int index);
+
 class Environment : NonCopyable
 {
 public:
@@ -69,7 +79,7 @@ public:
         auto result = lua_pcall(L, arg_count, 1, -arg_count - 3);
         if (result)
         {
-            auto result = Result<T>::makeError(lua_tostring(L, -1));
+            auto result = Result<T>::makeError(luaErrorToString(L, -1));
             lua_pop(L, 3);
             return result;
         }
@@ -106,7 +116,7 @@ private:
         }
         result = lua_pcall(L, 0, result_count, -2);
         if (result) {
-            auto result = Result<T>::makeError(lua_tostring(L, -1));
+            auto result = Result<T>::makeError(luaErrorToString(L, -1));
             lua_settop(L, stack_size);
             return result;
         }

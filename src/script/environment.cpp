@@ -324,10 +324,29 @@ bool Environment::isFunction(const string& function_name)
     return result;
 }
 
+string luaErrorToString(lua_State* L, int index)
+{
+    index = lua_absindex(L, index);
+    //lua_isstring also accepts numbers, which lua_tostring converts to a string. Any other value would give a null pointer.
+    if (lua_isstring(L, index))
+        return lua_tostring(L, index);
+    return "(error object is a " + string(luaL_typename(L, index)) + " value)";
+}
+
+string luaErrorWithTraceback(lua_State* L, int index)
+{
+    string result = luaErrorToString(L, index);
+    //A finished coroutine keeps its call frames, so this works for errors from lua_resume as well.
+    luaL_traceback(L, L, result.c_str(), 0);
+    result = lua_tostring(L, -1);
+    lua_pop(L, 1);
+    return result;
+}
+
 int luaErrorHandler(lua_State* L)
 {
-    const char * msg = lua_tostring(L, -1);
-    luaL_traceback(L, L, msg, 2);
+    string msg = luaErrorToString(L, -1);
+    luaL_traceback(L, L, msg.c_str(), 2);
     lua_remove(L, -2);
     return 1;
 }
